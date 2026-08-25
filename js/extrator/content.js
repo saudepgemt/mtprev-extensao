@@ -1,0 +1,3243 @@
+/**
+ * CDSP - Extrator SPA/SIGADOC — content.js v3.14
+ *
+ * Fluxos:
+ * - SPA: extrai campos visíveis, copia a tabela e salva os dados para o SIGADOC.
+ * - SIGADOC: seleciona/preenche somente campos de minuta para conferência humana.
+ * - SIGADOC: opcionalmente grava, assina, baixa e tramita ofícios mapeados.
+ * - SPA: finaliza a resposta de ofício com o PDF assinado quando houver fluxo pendente.
+ */
+
+(function () {
+  'use strict';
+
+  const STORAGE_KEY = 'spaExtratorUltimoOficio';
+  const PENDING_SIGADOC_KEY = 'spaExtratorPreenchimentoSigadocPendente';
+  const PENDING_ASSINATURA_KEY = 'spaExtratorAssinaturaSigadocPendente';
+  const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
+  const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
+  const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
+  const TEMPO_EXPIRACAO_MS = 1000 * 60 * 60 * 8;
+  const TEMPO_FLUXO_ASSINATURA_MS = 1000 * 60 * 15;
+  const TEMPO_FLUXO_FINALIZACAO_MS = 1000 * 60 * 60 * 8;
+
+  const URL_PROCESSO = /spa\.pge\.mt\.gov\.br\/procedures\/\d+\/?(?:[?#].*)?$/;
+  const URL_FOLDER = /spa\.pge\.mt\.gov\.br\/procedures\/\d+\/folder\/?(?:[?#].*)?$/;
+  const HOST_SIGADOC = /(^|\.)sigadoc\.mt\.gov\.br$/;
+
+  const ASSUNTOS_SAUDE_PJE = Object.freeze({
+    '12480': 'DIREITO DA SAÚDE',
+    '15218': 'Autorização para Interrupção de Gravidez (Aborto)',
+    '12521': 'Doação e transplante de órgãos, tecidos ou partes',
+    '15514': 'Doença Rara',
+    '12520': 'Genética / Células Tronco',
+    '12507': 'Mental',
+    '12508': 'Internação compulsória',
+    '12509': 'Internação involuntária',
+    '12510': 'Internação voluntária',
+    '12481': 'Pública',
+    '12485': 'Fornecimento de insumos',
+    '12498': 'Cadeira de rodas / cadeira de banho / cama hospitalar',
+    '12497': 'Curativos/Bandagem',
+    '12499': 'Fraldas',
+    '12484': 'Fornecimento de medicamentos',
+    '12496': 'Oncológico',
+    '12492': 'Registrado na ANVISA',
+    '12495': 'Não padronizado',
+    '12494': 'Padronizado',
+    '12493': 'Sem registro na ANVISA',
+    '12483': 'Internação/Transferência Hospitalar',
+    '12505': 'Leito de enfermaria / leito oncológico',
+    '12506': 'Unidade de terapia intensiva (UTI)',
+    '12511': 'Sistema Único de Saúde (SUS)',
+    '12518': 'Controle Social e Conselhos de Saúde',
+    '12512': 'Convênio médico com o SUS',
+    '12513': 'Financiamento do SUS',
+    '12514': 'Reajuste da tabela do SUS',
+    '12515': 'Repasse de verbas do SUS',
+    '12516': 'Ressarcimento do SUS',
+    '12517': 'Terceirização do SUS',
+    '14759': 'Tratamento Domiciliar (Home Care)',
+    '12491': 'Tratamento médico-hospitalar',
+    '12501': 'Cirurgia',
+    '12502': 'Eletiva',
+    '12503': 'Urgência',
+    '12500': 'Consulta',
+    '12504': 'Diálise/Hemodiálise',
+    '12519': 'Vigilância Sanitária e Epidemiológica',
+    '12482': 'Suplementar',
+    '12486': 'Planos de saúde',
+    '12490': 'Fornecimento de insumos',
+    '12487': 'Fornecimento de medicamentos',
+    '12488': 'Reajuste contratual',
+    '12489': 'Tratamento médico-hospitalar',
+    '14760': 'Tratamento Domiciliar (Home Care)',
+    '12030': 'Internação compulsória',
+    '12157': 'Internação Provisória',
+    '11388': 'Internação sem atividades externas',
+    '11389': 'Liberdade Assistida',
+  });
+
+  const USUARIOS_MODELO_SIGADOC = Object.freeze([
+    {
+      sufixo: 'F',
+      nomes: ['FRANSQUISLAINE DE JESUS ANICEZIO'],
+    },
+    {
+      sufixo: 'IG',
+      nomes: ['IGOR DIEGO BRAGA RODRIGUES DE CAMPOS'],
+    },
+  ]);
+
+  const CREDENCIAIS_ASSINATURA_SIGADOC = Object.freeze([
+    {
+      matricula: 'PGE309619',
+      senha: 'Marcela2026*',
+      nomes: ['FRANSQUISLAINE DE JESUS ANICEZIO'],
+    },
+    {
+      matricula: 'PGE346756',
+      senha: '@Igor30',
+      nomes: ['IGOR DIEGO BRAGA RODRIGUES DE CAMPOS'],
+    },
+  ]);
+
+  const DESTINATARIO_PADRAO_SIGADOC = Object.freeze({
+    sigla: 'SES-UNIJUR',
+    descricao: 'UNIDADE JURIDICA',
+  });
+
+  const DESTINATARIO_DGPG_SIGADOC = Object.freeze({
+    sigla: 'DGPG',
+    descricao: 'DIRETORIA GERAL DA PROCURADORIA GERAL',
+  });
+
+  const MODELO_DOCUMENTO_OFICIO_SIGADOC = 'Ofício';
+  const MODELO_DOCUMENTO_COMUNICACAO_INTERNA_SIGADOC = 'Comunicação Interna';
+
+  const CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC = Object.freeze({
+    id: '4895',
+    codigo: '091',
+    descricao: 'AÇÕES JUDICIAIS - Outros Assuntos Referentes à Administração Geral',
+  });
+
+  const MODELOS_SIGADOC_POR_TIPO = Object.freeze([
+    {
+      tipo: 'PERÍCIA JUSTIÇA GRATUITA',
+      aliases: [
+        'pericia justica gratuita',
+        'perícia justiça gratuita',
+        'pericia gratuidade',
+        'perícia gratuidade',
+        'gratuidade de justica',
+        'gratuidade de justiça',
+      ],
+      bases: ['SAÚDE - PERÍCIA JUSTIÇA GRATUITA', 'SAUDE - PERICIA JUSTICA GRATUITA'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_COMUNICACAO_INTERNA_SIGADOC,
+      destinatario: DESTINATARIO_DGPG_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      fluxoPosAssinatura: 'parar',
+    },
+    {
+      tipo: 'PERÍCIA ESTADO',
+      aliases: [
+        'pericia estado',
+        'perícia estado',
+        'pericia solicitada pelo estado',
+        'perícia solicitada pelo estado',
+      ],
+      bases: ['SAÚDE - PERÍCIA SOLICITADA PELO ESTADO', 'SAUDE - PERICIA SOLICITADA PELO ESTADO'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_COMUNICACAO_INTERNA_SIGADOC,
+      destinatario: DESTINATARIO_DGPG_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      fluxoPosAssinatura: 'parar',
+    },
+    {
+      tipo: 'AUDIÊNCIA',
+      aliases: ['audiencia', 'audiência'],
+      bases: ['SAÚDE - AUDIÊNCIA', 'SAUDE - AUDIENCIA'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_OFICIO_SIGADOC,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      apenasPreenchimento: true,
+    },
+    {
+      tipo: 'SINF DANO MORAL',
+      aliases: [
+        'sinf dano moral',
+        'dano moral',
+        'solicitacao de informacoes dano moral',
+        'solicitação de informações dano moral',
+      ],
+      bases: ['SAÚDE - SINF DANO MORAL', 'SAUDE - SINF DANO MORAL'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_OFICIO_SIGADOC,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      apenasPreenchimento: true,
+    },
+    {
+      tipo: 'AVALIAÇÃO PSICOPEDAGÓGICA',
+      aliases: [
+        'avaliacao psicopedagogica',
+        'avaliação psicopedagógica',
+        'avaliacao-psicopedagogica',
+        'avaliação-psicopedagógica',
+        'psicopedagogica',
+        'psicopedagógica',
+      ],
+      bases: ['SAÚDE - AVALIAÇÃO PSICOPEDAGÓGICA', 'SAUDE - AVALIAÇÃO PSICOPEDAGÓGICA'],
+      usarSufixo: false,
+      destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+    },
+    {
+      tipo: 'DESCUMP',
+      aliases: ['descump', 'des-cump'],
+      bases: ['SAÚDE - DESCUMP', 'SAUDE - DESCUMP'],
+      usarSufixo: false,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+    },
+    {
+      tipo: 'HOME CARE',
+      aliases: ['home care', 'home-care', 'homecare'],
+      bases: ['SAÚDE - HOME CARE', 'SAUDE - HOME CARE'],
+      usarSufixo: false,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+    },
+    {
+      tipo: 'MED ESCOLAR',
+      aliases: ['med escolar', 'med. escolar', 'med-escolar', 'medicamento escolar'],
+      bases: ['SAÚDE - MED ESCOLAR', 'SAUDE - MED ESCOLAR'],
+      usarSufixo: false,
+      destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+    },
+    {
+      tipo: 'SECUND',
+      aliases: ['secund', 'secundaria', 'secundária'],
+      bases: ['SAÚDE - SECUND', 'SAUDE - SECUND'],
+      usarSufixo: false,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+    },
+    {
+      tipo: 'SETASC IDOSO',
+      aliases: ['setasc idoso', 'setas idoso', 'setasc-idoso', 'setas-idoso'],
+      bases: ['SAÚDE - SETASC IDOSO', 'SAUDE - SETASC IDOSO'],
+      usarSufixo: false,
+      destinatario: {
+        sigla: 'SETASC-CPPDDH',
+        descricao: 'COORDENADORIA DE PROTECAO A PESSOA E DEFESA DOS DIREITOS HUMANOS',
+      },
+    },
+    {
+      tipo: 'CUMP MULTA',
+      aliases: ['cump multa', 'cump multas', 'cump-multa', 'cump-multas'],
+      bases: ['SAÚDE CUMP MULTA', 'SAUDE CUMP MULTA'],
+      usarSufixo: false,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+    },
+    {
+      tipo: 'CUMP SANÇÕES',
+      aliases: [
+        'cump sancoes',
+        'cump sanções',
+        'cump sançoes',
+        'cump sançôes',
+        'cump-sancoes',
+        'cump-sanções',
+        'cump-sançoes',
+        'cump-sançôes',
+      ],
+      bases: ['SAÚDE CUMP SANÇÕES', 'SAUDE CUMP SANÇÕES'],
+      usarSufixo: false,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+    },
+    {
+      tipo: 'REQ',
+      aliases: ['req', 'requisicao', 'requisição'],
+      bases: ['SAUDE REQ', 'SAÚDE REQ', 'SAUDE - REQ', 'SAÚDE - REQ'],
+    },
+    {
+      tipo: 'CUMP',
+      aliases: ['cump', 'cumprimento', 'cumprir'],
+      bases: ['SAUDE CUMP', 'SAÚDE CUMP', 'SAUDE - CUMP', 'SAÚDE - CUMP'],
+    },
+    {
+      tipo: 'SINF',
+      aliases: ['sinf'],
+      bases: ['SAUDE SINF', 'SAÚDE SINF', 'SAUDE - SINF', 'SAÚDE - SINF'],
+    },
+    {
+      tipo: 'EXME',
+      aliases: ['exme'],
+      bases: ['SAUDE - EXME', 'SAÚDE - EXME', 'SAUDE EXME', 'SAÚDE EXME'],
+    },
+    {
+      tipo: 'ORÇAMENTO',
+      aliases: ['orcamento', 'orçamento'],
+      bases: ['SAUDE - ORÇAMENTO', 'SAÚDE - ORÇAMENTO', 'SAUDE ORÇAMENTO', 'SAÚDE ORÇAMENTO'],
+    },
+    {
+      tipo: 'PREST CONTAS',
+      aliases: [
+        'prest',
+        'prest contas',
+        'prestacao de contas',
+        'prestação de contas',
+        'prest contas',
+        'prest. contas',
+      ],
+      bases: [
+        'SAUDE PRESTAÇÃO DE CONTAS',
+        'SAÚDE PRESTAÇÃO DE CONTAS',
+        'SAUDE - PRESTAÇÃO DE CONTAS',
+        'SAÚDE - PRESTAÇÃO DE CONTAS',
+      ],
+    },
+  ]);
+
+  const DESCRICAO_ASSUNTO_POR_TIPO = Object.freeze({
+    'AVALIAÇÃO PSICOPEDAGÓGICA': 'Pedido de avaliação psicopedagógica para fins de cumprimento pela Secretaria de Estado de Educação - Ação n°. {Número do Processo}',
+    DESCUMP: 'Descumprimento de decisão judicial e consequências - Judicialização da saúde pública - {Número do Processo}',
+    'HOME CARE': 'Determinação judicial para realização de visita domiciliar para avaliação de necessidade de serviço de home care - Judicialização da saúde pública - {Número do Processo}',
+    'MED ESCOLAR': 'Pedido de administração de medicamento em ambiente escolar para fins de cumprimento pela Secretária de Estado de Educação - Ação n°. {Número do Processo}',
+    SECUND: 'Responsabilidade secundária do Estado - Judicialização da saúde pública - {Número do Processo}',
+    'SETASC IDOSO': 'Pedido de fornecimento de instituição de longa permanência para idoso para fins de cumprimento pela Secretaria de Estado de Assistência Social - Ação n°. {Número do Processo}',
+    'CUMP MULTA': 'MULTA - Comunicação de decisão judicial para fins de cumprimento pela Secretaria de Estado de Saúde - Judicialização da saúde pública - {Número do Processo}',
+    'CUMP SANÇÕES': 'SANÇÕES IMPORTANTES - Comunicação de decisão judicial para fins de cumprimento pela Secretaria de Estado de Saúde - Judicialização da saúde pública - {Número do Processo}',
+    REQ: 'Requisição de informações pelo Poder Judiciário - Judicialização de saúde pública',
+    CUMP: 'Comunicação de decisão judicial para fins de cumprimento pela Secretaria de Estado de Saúde - Judicialização da saúde pública',
+    'PREST CONTAS': 'Manifestação sobre prestação de contas ou nota fiscal - Judicialização da saúde pública',
+    EXME: 'Alteração, revogação, anulação ou extinção de decisão judicial anterior que determinava fornecimento de produção ou serviço pela SES - Judicialização da saúde pública',
+    SINF: 'Eventuais informações para defesa do Estado - Judicialização de saúde pública',
+    'PERÍCIA JUSTIÇA GRATUITA': 'Pagamento de perícia de interesse de beneficiário da gratuidade de justiça - Judicialização de saúde pública - {Número do Processo}',
+    'PERÍCIA ESTADO': 'Pagamento de perícia solicitada pelo Estado em processo judicial - Judicialização de saúde pública - {Número do Processo}',
+    AUDIÊNCIA: 'Designação de audiência judicial - Judicialização de saúde pública - {Número do Processo}',
+    'SINF DANO MORAL': 'Solicitação de informações para defesa do Estado em ação de dano moral - Judicialização de saúde pública - {Número do Processo}',
+  });
+
+  const OFICIOS_COM_FLUXO_SPA = Object.freeze({
+    CUMP: 'Ofício de Cumprimento Geral - {Número do Processo} - CDSP',
+    'CUMP MULTA': 'Ofício de Cumprimento com incidência de multa - {Número do Processo} - CDSP',
+    'CUMP SANÇÕES': 'Ofício de Cumprimento com sanções pessoais - {Número do Processo} - CDSP',
+    SINF: 'Ofício de solicitações de informações para defesa - {Número do Processo} - CDSP',
+    REQ: 'Ofício de requisição de informações pelo Poder Judiciário - {Número do Processo} - CDSP',
+    'PREST CONTAS': 'Ofício de prestação de contas ou nota fiscal - {Número do Processo} - CDSP',
+    EXME: 'Ofício de modificação de decisão judicial pretérita - {Número do Processo} - CDSP',
+    DESCUMP: 'Ofício de descumprimento de decisão judicial e consequências - {Número do Processo} - CDSP',
+    SECUND: 'Ofício de responsabilidade secundária ao Estado - {Número do Processo} - CDSP',
+    'HOME CARE': 'Ofício de visita domiciliar para avaliação de home care - {Número do Processo} - CDSP',
+  });
+
+  // ─── Utilidades de texto ────────────────────────────────────────────────────
+
+  function limparValorExtraido(valor) {
+    const div = document.createElement('div');
+    div.innerHTML = valor || '';
+    return (div.textContent || valor || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalizarTexto(texto) {
+    return (texto || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function normalizarRotulo(texto) {
+    return normalizarTexto(texto).replace(/\s*:\s*$/, '');
+  }
+
+  function compactarTexto(texto) {
+    return normalizarTexto(texto).replace(/[^a-z0-9]/g, '');
+  }
+
+  function aguardar(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function aguardarElemento(seletor, timeoutMs = 8000) {
+    const inicio = Date.now();
+
+    return new Promise((resolve) => {
+      const tentar = () => {
+        const elemento = document.querySelector(seletor);
+        if (elemento) {
+          resolve(elemento);
+          return;
+        }
+
+        if (Date.now() - inicio > timeoutMs) {
+          resolve(null);
+          return;
+        }
+
+        setTimeout(tentar, 200);
+      };
+
+      tentar();
+    });
+  }
+
+  function rotuloCorresponde(textoRotulo, rotulos) {
+    const textoNormalizado = normalizarRotulo(textoRotulo);
+    const candidatos = Array.isArray(rotulos) ? rotulos : [rotulos];
+    return candidatos.some((rotulo) => textoNormalizado === normalizarRotulo(rotulo));
+  }
+
+  function escaparHtml(texto) {
+    return (texto || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function identificarTipoOficioEspecial(chave) {
+    const texto = normalizarTexto(chave);
+    const compacto = compactarTexto(texto);
+
+    if (!texto && !compacto) return '';
+    if (
+      compacto.includes('periciajusticagratuita') ||
+      (compacto.includes('pericia') && compacto.includes('gratuidade'))
+    ) {
+      return 'PERÍCIA JUSTIÇA GRATUITA';
+    }
+    if (
+      compacto.includes('periciaestado') ||
+      compacto.includes('periciasolicitadapeloestado') ||
+      (compacto.includes('pericia') && /\bestado\b/.test(texto))
+    ) {
+      return 'PERÍCIA ESTADO';
+    }
+    if (compacto.includes('audiencia') || /\baudiencia\b/.test(texto)) {
+      return 'AUDIÊNCIA';
+    }
+    if (
+      compacto.includes('sinfdanomoral') ||
+      (compacto.includes('danomoral') && /\bsinf\b/.test(texto))
+    ) {
+      return 'SINF DANO MORAL';
+    }
+    if (
+      compacto.includes('cumpsancao') ||
+      compacto.includes('cumpsancoes') ||
+      compacto.includes('sancoesimportantes') ||
+      (/\bsancoes?\b/.test(texto) && /\b(cump|cumprimento|comunicacao de decisao)\b/.test(texto))
+    ) {
+      return 'CUMP SANÇÕES';
+    }
+    if (
+      compacto.includes('cumpmulta') ||
+      compacto.includes('cumpmultas') ||
+      (/\bmulta(s)?\b/.test(texto) && /\b(cump|cumprimento|comunicacao de decisao)\b/.test(texto))
+    ) {
+      return 'CUMP MULTA';
+    }
+    if ((compacto.includes('avaliacao') && compacto.includes('psicopedagog')) ||
+        compacto.includes('psicopedagogica')) {
+      return 'AVALIAÇÃO PSICOPEDAGÓGICA';
+    }
+    if (
+      compacto.includes('setascidoso') ||
+      compacto.includes('setasidoso') ||
+      (compacto.includes('longapermanencia') && compacto.includes('idoso')) ||
+      compacto.includes('instituicaodelongapermanenciaparaidoso')
+    ) {
+      return 'SETASC IDOSO';
+    }
+    if (
+      compacto.includes('medescolar') ||
+      compacto.includes('medicamentoescolar') ||
+      (compacto.includes('medicamento') && compacto.includes('ambienteescolar')) ||
+      (compacto.includes('administracaodemedicamento') && compacto.includes('escolar'))
+    ) {
+      return 'MED ESCOLAR';
+    }
+    if (compacto.includes('homecare')) return 'HOME CARE';
+    if (/\bdescump\b/.test(texto) || compacto.includes('descumprimento') || compacto === 'descump') return 'DESCUMP';
+    if (
+      /\bsecund\b/.test(texto) ||
+      compacto.includes('responsabilidadesecundaria') ||
+      compacto.includes('responsabilidadesecundari') ||
+      compacto === 'secund'
+    ) {
+      return 'SECUND';
+    }
+
+    return '';
+  }
+
+  function normalizarTipoOficio(valor) {
+    const texto = limparValorExtraido(valor);
+    const chave = normalizarTexto(texto);
+
+    if (!chave) return '';
+    const tipoEspecial = identificarTipoOficioEspecial(chave);
+    if (tipoEspecial) return tipoEspecial;
+    if (/\breq\b|requisic/.test(chave)) return 'REQ';
+    if (/\bcump\b|cumpr/.test(chave)) return 'CUMP';
+    if (/\bprest\b|prestacao de contas|prestação de contas|prest.*contas/.test(chave)) return 'PREST CONTAS';
+    if (/\bsinf\b/.test(chave)) return 'SINF';
+    if (/\bexme\b/.test(chave)) return 'EXME';
+    if (/orcamento|orçamento/.test(chave)) return 'ORÇAMENTO';
+    if (/informacao|informação|informacoes|informações|\binfo\b/.test(chave)) return 'REQ';
+
+    return texto;
+  }
+
+  function normalizarTipoOficioTextoLivre(valor) {
+    const chave = normalizarTexto(limparValorExtraido(valor));
+
+    if (!chave) return '';
+    const tipoEspecial = identificarTipoOficioEspecial(chave);
+    if (tipoEspecial) return tipoEspecial;
+    if (/\breq\b/.test(chave)) return 'REQ';
+    if (/\bcump\b/.test(chave)) return 'CUMP';
+    if (/\bprest\b|prestacao de contas|prest.*contas/.test(chave)) return 'PREST CONTAS';
+    if (/\bsinf\b/.test(chave)) return 'SINF';
+    if (/\bexme\b/.test(chave)) return 'EXME';
+    if (/\borcamento\b/.test(chave)) return 'ORÇAMENTO';
+
+    return '';
+  }
+
+  function normalizarAssunto(valor) {
+    const assunto = limparValorExtraido(valor);
+    if (!assunto) return '';
+
+    const codigosEncontrados = assunto.match(/\b\d{4,}\b/g) || [];
+    if (codigosEncontrados.length) {
+      for (const codigo of codigosEncontrados) {
+        if (ASSUNTOS_SAUDE_PJE[codigo]) return ASSUNTOS_SAUDE_PJE[codigo];
+      }
+      return assunto;
+    }
+
+    return assunto;
+  }
+
+  function resolverModeloSigadoc(tipoOficio) {
+    const chave = normalizarTexto(tipoOficio);
+    if (!chave) return null;
+
+    return MODELOS_SIGADOC_POR_TIPO.find((modelo) =>
+      modelo.aliases.some((alias) => chave.includes(normalizarTexto(alias)))
+    ) || null;
+  }
+
+  function aplicarNumeroProcessoAoTexto(texto, processo) {
+    if (!texto) return '';
+
+    const marcadorProcesso = /\{\s*n[úu]mero do processo\s*\}/i;
+    if (marcadorProcesso.test(texto)) {
+      return texto.replace(marcadorProcesso, processo || '').replace(/\s+$/, '');
+    }
+
+    if (processo) return `${texto} - ${processo}`;
+    return texto;
+  }
+
+  function textoDescricaoAssunto(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    const tipo = modelo ? modelo.tipo : normalizarTipoOficio(pacote.tipoOficio || pacote.observacao || '');
+    const base = DESCRICAO_ASSUNTO_POR_TIPO[tipo];
+    const processo = pacote.processo || '';
+
+    if (base) return aplicarNumeroProcessoAoTexto(base, processo);
+    if (processo) return processo;
+
+    return pacote.assunto || 'Judicialização da saúde pública';
+  }
+
+  function obterTipoNormalizadoDoPacote(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    return (modelo && modelo.tipo) || normalizarTipoOficio(pacote.tipoOficio || pacote.observacao || '');
+  }
+
+  function obterModeloNomeOficio(pacote) {
+    const tipo = obterTipoNormalizadoDoPacote(pacote);
+    return OFICIOS_COM_FLUXO_SPA[tipo] || '';
+  }
+
+  function oficioTemFluxoSpa(pacote) {
+    return Boolean(obterModeloNomeOficio(pacote));
+  }
+
+  function obterModeloDocumentoSigadoc(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    return (modelo && modelo.modeloDocumento) || MODELO_DOCUMENTO_OFICIO_SIGADOC;
+  }
+
+  function obterModoPosAssinaturaSigadoc(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    if (modelo && modelo.fluxoPosAssinatura) return modelo.fluxoPosAssinatura;
+    return oficioTemFluxoSpa(pacote) ? 'spa' : 'download';
+  }
+
+  function oficioApenasPreenchimento(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    return Boolean(modelo && modelo.apenasPreenchimento);
+  }
+
+  function montarNomeOficioEnviado(pacote) {
+    const modelo = obterModeloNomeOficio(pacote);
+    const tipo = obterTipoNormalizadoDoPacote(pacote);
+
+    if (modelo) return aplicarNumeroProcessoAoTexto(modelo, pacote.processo || '');
+    if (tipo && pacote.processo) return `Ofício ${tipo} - ${pacote.processo} - CDSP`;
+    if (pacote.processo) return `Ofício - ${pacote.processo} - CDSP`;
+    return 'Ofício CDSP';
+  }
+
+  function sanitizarNomeArquivo(nome) {
+    return limparValorExtraido(nome)
+      .replace(/[\\/:*?"<>|]/g, '-')
+      .replace(/\s+/g, ' ')
+      .replace(/\.+$/g, '')
+      .trim() || 'Oficio CDSP';
+  }
+
+  function montarNomeArquivoPdfOficio(pacote) {
+    return `${sanitizarNomeArquivo(montarNomeOficioEnviado(pacote))}.pdf`;
+  }
+
+  function montarTextoRegistroSpa(numeroSigadoc, nomeOficioEnviado) {
+    return [numeroSigadoc, nomeOficioEnviado].map(limparValorExtraido).filter(Boolean).join(' - ');
+  }
+
+  function gerarIdArquivoInterno() {
+    const aleatorio = Math.random().toString(36).slice(2, 10);
+    return `cdsp-oficio-${Date.now()}-${aleatorio}`;
+  }
+
+  // ─── Storage compartilhado entre SPA e SIGADOC ─────────────────────────────
+
+  function storageSet(objeto) {
+    return new Promise((resolve) => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set(objeto, resolve);
+        return;
+      }
+
+      Object.entries(objeto).forEach(([chave, valor]) => {
+        localStorage.setItem(chave, JSON.stringify(valor));
+      });
+      resolve();
+    });
+  }
+
+  function storageGet(chaves) {
+    return new Promise((resolve) => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(chaves, resolve);
+        return;
+      }
+
+      const resultado = {};
+      chaves.forEach((chave) => {
+        const bruto = localStorage.getItem(chave);
+        resultado[chave] = bruto ? JSON.parse(bruto) : undefined;
+      });
+      resolve(resultado);
+    });
+  }
+
+  function storageRemove(chaves) {
+    return new Promise((resolve) => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.remove(chaves, resolve);
+        return;
+      }
+
+      chaves.forEach((chave) => localStorage.removeItem(chave));
+      resolve();
+    });
+  }
+
+  function enviarMensagemExtensao(mensagem) {
+    return new Promise((resolve, reject) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        reject(new Error('Comunicação interna da extensão não está disponível.'));
+        return;
+      }
+
+      chrome.runtime.sendMessage(mensagem, (resposta) => {
+        const erro = chrome.runtime.lastError;
+        if (erro) {
+          reject(new Error(erro.message));
+          return;
+        }
+
+        if (!resposta || resposta.ok === false) {
+          reject(new Error((resposta && resposta.error) || 'A extensão não retornou resposta válida.'));
+          return;
+        }
+
+        resolve(resposta);
+      });
+    });
+  }
+
+  function blobParaBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const leitor = new FileReader();
+      leitor.onload = () => {
+        const resultado = String(leitor.result || '');
+        resolve(resultado.includes(',') ? resultado.split(',').pop() : resultado);
+      };
+      leitor.onerror = () => reject(leitor.error || new Error('Falha ao converter o PDF.'));
+      leitor.readAsDataURL(blob);
+    });
+  }
+
+  function base64ParaBlob(base64, mime = 'application/pdf') {
+    const binario = atob(base64 || '');
+    const bytes = new Uint8Array(binario.length);
+    for (let i = 0; i < binario.length; i += 1) {
+      bytes[i] = binario.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mime });
+  }
+
+  async function buscarPdfComoBase64(url) {
+    const resposta = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+
+    if (!resposta.ok) {
+      throw new Error(`Não foi possível baixar o PDF assinado (${resposta.status}).`);
+    }
+
+    const blob = await resposta.blob();
+    if (!/pdf/i.test(blob.type) && blob.size < 1024) {
+      console.warn('[CDSP - Extrator] O arquivo baixado não parece ser um PDF:', blob.type, blob.size);
+    }
+
+    return {
+      base64: await blobParaBase64(blob),
+      mime: blob.type || 'application/pdf',
+      tamanho: blob.size || 0,
+    };
+  }
+
+  async function salvarPdfInterno(url, nomeArquivo, metadados) {
+    const pdf = await buscarPdfComoBase64(url);
+    const id = gerarIdArquivoInterno();
+
+    await enviarMensagemExtensao({
+      type: 'cdspOficioSalvarPdf',
+      payload: {
+        id,
+        nomeArquivo,
+        base64: pdf.base64,
+        mime: pdf.mime,
+        tamanho: pdf.tamanho,
+        criadoEm: new Date().toISOString(),
+        metadados: metadados || {},
+      },
+    });
+
+    return id;
+  }
+
+  async function baixarPdfParaDownloads(url, nomeArquivo) {
+    await enviarMensagemExtensao({
+      type: 'cdspOficioBaixarArquivo',
+      url,
+      filename: nomeArquivo,
+    });
+  }
+
+  async function salvarPacote(pacote) {
+    await storageSet({ [STORAGE_KEY]: pacote });
+  }
+
+  async function obterPacoteSalvo() {
+    const resultado = await storageGet([STORAGE_KEY]);
+    const pacote = resultado[STORAGE_KEY];
+    if (!pacote || !pacote.criadoEm) return null;
+
+    const idade = Date.now() - new Date(pacote.criadoEm).getTime();
+    if (idade > TEMPO_EXPIRACAO_MS) {
+      await storageRemove([STORAGE_KEY]);
+      return null;
+    }
+
+    return pacote;
+  }
+
+  // ─── Extração do SPA ────────────────────────────────────────────────────────
+
+  function lerValorCopyValue(span) {
+    const valor = span.getAttribute('data-content') ||
+                  span.getAttribute('data-clip-board') ||
+                  span.textContent ||
+                  '';
+    return limparValorExtraido(valor);
+  }
+
+  function lerCampoEmRaiz(raiz, rotulos) {
+    const paragrafos = raiz.querySelectorAll('p.copyElement');
+    for (const p of paragrafos) {
+      const bold = p.querySelector('b');
+      if (!bold) continue;
+      if (rotuloCorresponde(bold.textContent, rotulos)) {
+        const span = p.querySelector('span.copyValue');
+        if (span) {
+          const valor = lerValorCopyValue(span);
+          if (valor) return valor;
+        }
+      }
+    }
+
+    const linhas = raiz.querySelectorAll('div.row');
+    for (const linha of linhas) {
+      const colunas = linha.children;
+      if (colunas.length < 2) continue;
+      if (rotuloCorresponde(colunas[0].textContent, rotulos)) {
+        const valor = limparValorExtraido(colunas[1].innerHTML || colunas[1].textContent);
+        if (valor) return valor;
+      }
+    }
+
+    return '';
+  }
+
+  function lerCampo(rotulos) {
+    return lerCampoEmRaiz(document, rotulos);
+  }
+
+  function encontrarLinkDocumentosExternosEmRaiz(raiz, baseUrl) {
+    const doc = raiz || document;
+    const links = Array.from(doc.querySelectorAll('a[href*="/judicial_processes/"][href*="/documents"]'));
+
+    for (const link of links) {
+      const rotulo = normalizarTexto([
+        link.getAttribute('title'),
+        link.getAttribute('data-original-title'),
+        link.getAttribute('aria-label'),
+        link.textContent,
+      ].join(' '));
+
+      if (rotulo.includes('documentos externos') || rotulo.includes('autos')) {
+        return new URL(link.getAttribute('href'), baseUrl || window.location.href).href;
+      }
+    }
+
+    return links[0] ? new URL(links[0].getAttribute('href'), baseUrl || window.location.href).href : '';
+  }
+
+  function lerSoapSettingIdEmRaiz(raiz, htmlBruto) {
+    const doc = raiz || document;
+    const elementos = Array.from(doc.querySelectorAll('a[href*="soap_setting_id="], form[action*="soap_setting_id="]'));
+
+    for (const elemento of elementos) {
+      const raw = elemento.getAttribute('href') || elemento.getAttribute('action') || '';
+      const match = raw.match(/[?&]soap_setting_id=(\d+)/);
+      if (match) return match[1];
+    }
+
+    const matchHtml = String(htmlBruto || '').match(/[?&]soap_setting_id=(\d+)/);
+    return matchHtml ? matchHtml[1] : '1';
+  }
+
+  function extrairLinkAutosProcessuaisSpa(raiz, baseUrl, processo, htmlBruto = '') {
+    const linkExistente = encontrarLinkDocumentosExternosEmRaiz(raiz, baseUrl);
+    if (linkExistente) return linkExistente;
+
+    const numero = String(processo || '').replace(/\D+/g, '');
+    if (numero.length < 15) return '';
+
+    const origem = new URL(baseUrl || window.location.href, window.location.href);
+    return `${origem.origin}/judicial_processes/${numero}/documents?soap_setting_id=${encodeURIComponent(
+      lerSoapSettingIdEmRaiz(raiz, htmlBruto)
+    )}`;
+  }
+
+  function extrairCamposDeDocumentoProcesso(doc, baseUrl, htmlBruto = '') {
+    const raiz = doc || document;
+    const urlBase = baseUrl || window.location.href;
+    const lerNoDocumento = (rotulos) => lerCampoEmRaiz(raiz, rotulos);
+    const processo = lerNoDocumento(['numero do processo judicial', 'numero do processo']);
+    const observacao = lerNoDocumento(['observação', 'observacao']);
+    const assuntoBruto = lerNoDocumento(['assunto', 'assunto(s)', 'assunto(s) do tj']);
+    const textoPagina = raiz.body ? (raiz.body.innerText || raiz.body.textContent || '') : '';
+    const tipoOficio = normalizarTipoOficio(observacao) || normalizarTipoOficioTextoLivre(textoPagina);
+    const htmlDocumento = htmlBruto || (raiz.documentElement ? raiz.documentElement.innerHTML : '');
+
+    return {
+      processo,
+      assunto: normalizarAssunto(assuntoBruto),
+      assuntoBruto,
+      assuntoOrigem: assuntoBruto ? 'pagina-processo' : 'padrao-saude',
+      autor: lerNoDocumento(['parte(s) ativa(s)', 'parte ativa', 'polo ativo']),
+      reu: lerNoDocumento(['parte(s) passiva(s)', 'parte passiva', 'polo passivo']) || 'ESTADO DE MATO GROSSO',
+      vara: lerNoDocumento(['orgao julgador', 'juizo', 'juízo']),
+      observacao,
+      tipoOficio,
+      tipoTarefa: lerNoDocumento(['tipo de tarefa']),
+      numeroOficio: lerNoDocumento(['numero do oficio', 'número do ofício']),
+      numeroSigadoc: lerNoDocumento(['numero sigadoc', 'número sigadoc']),
+      destinatario: lerNoDocumento(['destinatario', 'destinatário']),
+      urlOrigem: urlBase,
+      linkProcessoSpa: urlBase,
+      linkAutosSpa: extrairLinkAutosProcessuaisSpa(raiz, urlBase, processo, htmlDocumento),
+      linkExpedienteSpa: extrairLinkExpedienteDeDocumentoSpa(
+        raiz,
+        urlBase,
+        htmlDocumento
+      ),
+    };
+  }
+
+  function extrairCamposDaPaginaProcesso() {
+    return extrairCamposDeDocumentoProcesso(
+      document,
+      window.location.href,
+      document.documentElement ? document.documentElement.innerHTML : ''
+    );
+  }
+
+  function encontrarUrlProcessoPrincipalEmRaiz(raiz, baseUrl, campos) {
+    const urlBase = baseUrl || window.location.href;
+    const linkNoCard = raiz.querySelector('#main-procedure a[href^="/procedures/"]');
+    if (linkNoCard) return new URL(linkNoCard.getAttribute('href'), urlBase).href;
+
+    const pathname = (() => {
+      try {
+        return new URL(urlBase, window.location.href).pathname;
+      } catch (_erro) {
+        return window.location.pathname;
+      }
+    })();
+    const idAtual = (pathname.match(/\/procedures\/(\d+)/) || [])[1];
+    const processoJudicial = normalizarTexto(campos && campos.processo);
+    const links = Array.from(raiz.querySelectorAll('a[href^="/procedures/"], a[href^="https://spa.pge.mt.gov.br/procedures/"]'));
+
+    const linkPorNumero = links.find((link) => {
+      const href = link.getAttribute('href') || '';
+      if (idAtual && href.includes(`/procedures/${idAtual}`)) return false;
+      return processoJudicial && normalizarTexto(link.textContent).includes(processoJudicial);
+    });
+
+    if (linkPorNumero) return new URL(linkPorNumero.getAttribute('href'), urlBase).href;
+
+    const linkPorTarget = links.find((link) => {
+      const href = link.getAttribute('href') || '';
+      const target = link.getAttribute('target') || '';
+      return target.startsWith('procedure-') &&
+        (!idAtual || !href.includes(`/procedures/${idAtual}`));
+    });
+
+    return linkPorTarget ? new URL(linkPorTarget.getAttribute('href'), urlBase).href : '';
+  }
+
+  function encontrarUrlProcessoPrincipal(campos) {
+    return encontrarUrlProcessoPrincipalEmRaiz(document, window.location.href, campos);
+  }
+
+  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, htmlBruto = '') {
+    const anchors = Array.from(doc.querySelectorAll('a[href]'));
+    const linkExpediente = anchors.find((link) => {
+      const href = link.getAttribute('href') || '';
+      return /\/coresigner\/info\/[^"'<>]+\.pdf(?:[?#].*)?$/i.test(href) ||
+        /\/coresigner\/info\/[^"'<>]+\.pdf/i.test(href);
+    });
+
+    if (linkExpediente) {
+      return new URL(linkExpediente.getAttribute('href'), baseUrl).href;
+    }
+
+    const regexAbsoluto = /https?:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
+    const matchAbsoluto = htmlBruto.match(regexAbsoluto);
+    if (matchAbsoluto) return matchAbsoluto[0].replace(/&amp;/g, '&');
+
+    const regexRelativo = /\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
+    const matchRelativo = htmlBruto.match(regexRelativo);
+    if (matchRelativo) return new URL(matchRelativo[0].replace(/&amp;/g, '&'), baseUrl).href;
+
+    return '';
+  }
+
+  function extrairAssuntoDeDocumentoSpa(doc) {
+    const assuntoBruto = lerCampoEmRaiz(doc, [
+      'assunto',
+      'assunto(s)',
+      'assunto(s) do tj',
+      'assunto judicial',
+      'assunto subjudicial',
+      'assunto subudicial',
+    ]);
+
+    return {
+      assuntoBruto,
+      assunto: assuntoBruto ? normalizarAssunto(assuntoBruto) : '',
+    };
+  }
+
+  async function enriquecerDadosPeloProcessoPrincipalEmRaiz(raiz, baseUrl, campos) {
+    const url = encontrarUrlProcessoPrincipalEmRaiz(raiz || document, baseUrl || window.location.href, campos);
+    const linkAutosAtual =
+      campos.linkAutosSpa ||
+      extrairLinkAutosProcessuaisSpa(
+        raiz || document,
+        baseUrl || window.location.href,
+        campos.processo,
+        raiz && raiz.documentElement ? raiz.documentElement.innerHTML : ''
+      );
+
+    if (!url) {
+      return {
+        ...campos,
+        urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+        linkProcessoSpa: campos.linkProcessoSpa || baseUrl || window.location.href,
+        linkAutosSpa: linkAutosAtual,
+        assuntoAviso: campos.assuntoBruto ? '' : 'Link do Processo Principal não encontrado.',
+      };
+    }
+
+    try {
+      const resposta = await fetch(url, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+
+      if (!resposta.ok) {
+        return {
+          ...campos,
+          urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+          processoPrincipalUrl: url,
+          linkProcessoSpa: url,
+          linkAutosSpa: linkAutosAtual || extrairLinkAutosProcessuaisSpa(raiz || document, baseUrl || window.location.href, campos.processo),
+          assuntoAviso: campos.assuntoBruto ? '' : `Não foi possível abrir o Processo Principal (${resposta.status}).`,
+        };
+      }
+
+      const html = await resposta.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const assuntoPrincipal = extrairAssuntoDeDocumentoSpa(doc);
+      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, html);
+      const linkAutosSpa = extrairLinkAutosProcessuaisSpa(doc, url, campos.processo, html) || linkAutosAtual;
+
+      if (campos.assuntoBruto) {
+        return {
+          ...campos,
+          urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+          processoPrincipalUrl: url,
+          linkProcessoSpa: url,
+          linkAutosSpa,
+          linkExpedienteSpa,
+          assuntoAviso: '',
+        };
+      }
+
+      if (!assuntoPrincipal.assunto) {
+        return {
+          ...campos,
+          urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+          processoPrincipalUrl: url,
+          linkProcessoSpa: url,
+          linkAutosSpa,
+          linkExpedienteSpa,
+          assuntoAviso: 'Assunto não encontrado no Processo Principal.',
+        };
+      }
+
+      return {
+        ...campos,
+        assunto: assuntoPrincipal.assunto,
+        assuntoBruto: assuntoPrincipal.assuntoBruto,
+        assuntoOrigem: 'processo-principal',
+        urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+        processoPrincipalUrl: url,
+        linkProcessoSpa: url,
+        linkAutosSpa,
+        linkExpedienteSpa,
+        assuntoAviso: '',
+      };
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Falha ao buscar assunto no Processo Principal:', erro);
+      return {
+        ...campos,
+        urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
+        processoPrincipalUrl: url,
+        linkProcessoSpa: url,
+        linkAutosSpa: linkAutosAtual,
+        assuntoAviso: campos.assuntoBruto ? '' : 'Erro ao buscar assunto no Processo Principal.',
+      };
+    }
+  }
+
+  async function enriquecerDadosPeloProcessoPrincipal(campos) {
+    return enriquecerDadosPeloProcessoPrincipalEmRaiz(document, window.location.href, campos);
+  }
+
+  function mapaColunasTabelaSpa() {
+    const mapa = new Map();
+    const headers = document.querySelectorAll('#procedures-box thead tr.dt-header th');
+    headers.forEach((th, indice) => {
+      const nome = th.getAttribute('data-name') || th.textContent || '';
+      const chave = normalizarRotulo(nome);
+      if (chave) mapa.set(chave, indice);
+    });
+    return mapa;
+  }
+
+  function textoCelula(row, indice) {
+    const celula = row.children[indice];
+    if (!celula) return '';
+
+    const clone = celula.cloneNode(true);
+    clone.querySelectorAll('.spa-extrator-row-btn').forEach((el) => el.remove());
+    const texto = clone.getAttribute('data-search') ||
+                  clone.getAttribute('title') ||
+                  clone.textContent ||
+                  '';
+    return limparValorExtraido(texto);
+  }
+
+  function lerCampoDaLinha(row, mapa, rotulos) {
+    const candidatos = Array.isArray(rotulos) ? rotulos : [rotulos];
+    for (const rotulo of candidatos) {
+      const indice = mapa.get(normalizarRotulo(rotulo));
+      if (Number.isInteger(indice)) {
+        const valor = textoCelula(row, indice);
+        if (valor) return valor;
+      }
+    }
+    return '';
+  }
+
+  function normalizarUrlProcessoSpa(valor) {
+    if (!valor) return '';
+
+    const bruto = String(valor).replace(/&amp;/g, '&').trim();
+    if (!bruto || bruto === '#' || /^javascript:/i.test(bruto)) return '';
+
+    try {
+      const url = new URL(bruto, window.location.href);
+      if (url.hostname !== 'spa.pge.mt.gov.br') return '';
+      if (!/^\/procedures\/\d+(?:\/folder)?\/?$/i.test(url.pathname)) return '';
+      return url.href;
+    } catch (_erro) {
+      return '';
+    }
+  }
+
+  function adicionarCandidatosUrlProcesso(lista, valor) {
+    if (!valor) return;
+
+    const texto = String(valor).replace(/&amp;/g, '&');
+    const direto = normalizarUrlProcessoSpa(texto);
+    if (direto) lista.push(direto);
+
+    const encontrados = texto.match(/(?:https?:\/\/spa\.pge\.mt\.gov\.br)?\/procedures\/\d+(?:\/folder)?\/?(?:[?#][^\s"'<>)]*)?/gi) || [];
+    encontrados.forEach((url) => {
+      const normalizado = normalizarUrlProcessoSpa(url);
+      if (normalizado) lista.push(normalizado);
+    });
+  }
+
+  function pontuarUrlProcessoSpa(url) {
+    try {
+      const pathname = new URL(url, window.location.href).pathname;
+      if (/^\/procedures\/\d+\/?$/i.test(pathname)) return 100;
+      if (/^\/procedures\/\d+\/folder\/?$/i.test(pathname)) return 80;
+      return 0;
+    } catch (_erro) {
+      return 0;
+    }
+  }
+
+  function normalizarUrlProcessoParaExtracao(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const match = parsed.pathname.match(/^\/procedures\/(\d+)/i);
+      if (!match) return parsed.href;
+      return `${parsed.origin}/procedures/${match[1]}`;
+    } catch (_erro) {
+      return url || '';
+    }
+  }
+
+  function encontrarUrlProcessoDaLinha(row) {
+    if (!row || !row.querySelectorAll) return '';
+
+    const candidatos = [];
+    const elementos = [row, ...Array.from(row.querySelectorAll('a[href], [data-href], [data-url], [data-link], [onclick]'))];
+
+    elementos.forEach((elemento) => {
+      ['href', 'data-href', 'data-url', 'data-link', 'onclick'].forEach((atributo) => {
+        adicionarCandidatosUrlProcesso(candidatos, elemento.getAttribute && elemento.getAttribute(atributo));
+      });
+
+      if (elemento.dataset) {
+        Object.keys(elemento.dataset).forEach((chave) => {
+          if (/url|href|link/i.test(chave)) {
+            adicionarCandidatosUrlProcesso(candidatos, elemento.dataset[chave]);
+          }
+        });
+      }
+    });
+
+    const ordenados = Array.from(new Set(candidatos))
+      .map((url) => ({ url, score: pontuarUrlProcessoSpa(url) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return ordenados.length ? ordenados[0].url : '';
+  }
+
+  async function buscarDocumentoProcessoPorUrl(url) {
+    const urlExtracao = normalizarUrlProcessoParaExtracao(url);
+    const resposta = await fetch(urlExtracao, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+
+    if (!resposta.ok) {
+      throw new Error(`Não foi possível abrir o processo (${resposta.status}).`);
+    }
+
+    const html = await resposta.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return { url: urlExtracao, html, doc };
+  }
+
+  async function extrairPacoteProcessoEmAba(url) {
+    const resposta = await enviarMensagemExtensao({
+      type: 'CDSP_OFICIOS_EXTRACT_PROCESS_TAB',
+      url: normalizarUrlProcessoParaExtracao(url),
+    });
+
+    return resposta && resposta.pacote ? resposta.pacote : null;
+  }
+
+  function preencherCamposAusentes(campos, fallback) {
+    const resultado = { ...(campos || {}) };
+    Object.entries(fallback || {}).forEach(([chave, valor]) => {
+      if (!resultado[chave] && valor) resultado[chave] = valor;
+    });
+    return resultado;
+  }
+
+  function extrairCamposDaLinhaCaixa(row) {
+    const mapa = mapaColunasTabelaSpa();
+    const observacao = lerCampoDaLinha(row, mapa, ['Observação', 'Observacao']);
+    const textoLinha = row.innerText || row.textContent || '';
+    const tipoOficio = normalizarTipoOficio(observacao) || normalizarTipoOficioTextoLivre(textoLinha);
+
+    return {
+      processo: lerCampoDaLinha(row, mapa, ['Número do processo judicial', 'Numero do processo judicial', 'Número do processo']),
+      assunto: normalizarAssunto(lerCampoDaLinha(row, mapa, ['Assunto(s)', 'Assunto'])),
+      autor: lerCampoDaLinha(row, mapa, ['Parte(s) ativa(s)', 'Parte ativa', 'Polo ativo']),
+      reu: lerCampoDaLinha(row, mapa, ['Parte(s) passiva(s)', 'Parte passiva', 'Polo passivo']) || 'ESTADO DE MATO GROSSO',
+      vara: lerCampoDaLinha(row, mapa, ['Órgão julgador', 'Orgão julgador', 'Juízo', 'Juizo']),
+      observacao,
+      tipoOficio,
+      tipoTarefa: lerCampoDaLinha(row, mapa, ['Tipo de tarefa']),
+      numeroOficio: lerCampoDaLinha(row, mapa, ['Número do ofício', 'Numero do oficio']),
+      numeroSigadoc: lerCampoDaLinha(row, mapa, ['Número SIGADoc', 'Numero SIGADoc']),
+      destinatario: lerCampoDaLinha(row, mapa, ['Destinatário', 'Destinatario']),
+    };
+  }
+
+  function montarLinhas(campos) {
+    return [
+      ['Número do Processo', campos.processo],
+      ['Juízo', campos.vara],
+      ['Assunto', campos.assunto],
+      ['Polo Ativo', campos.autor],
+      ['Polo Passivo', campos.reu],
+    ];
+  }
+
+  function montarTabelaHtml(linhas) {
+    return `
+      <table border="1" cellspacing="0" cellpadding="6"
+             style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11pt;">
+        ${linhas.map(([label, valor]) => `
+          <tr>
+            <td style="background:#1a3a5c;color:#ffffff;font-weight:bold;width:35%;padding:6px 10px;">${escaparHtml(label)}</td>
+            <td style="padding:6px 10px;">${escaparHtml(valor || '')}</td>
+          </tr>`).join('')}
+      </table>`;
+  }
+
+  function montarLinksSpaHtml(pacote) {
+    const links = [
+      ['Link dos Documentos Externos', pacote.linkAutosSpa || pacote.linkProcessoSpa || pacote.processoPrincipalUrl || ''],
+      ['Link do expediente', pacote.linkExpedienteSpa || ''],
+    ];
+
+    if (!links.some(([, url]) => Boolean(url))) return '';
+
+    return `
+      <p style="font-family:Arial,sans-serif;font-size:11pt;margin:10px 0 0 0;">
+        ${links.map(([label, url]) => `
+          <strong>${escaparHtml(label)}:</strong>
+          ${url ? `<a href="${escaparHtml(url)}">${escaparHtml(url)}</a>` : ''}`).join('<br>')}
+      </p>`;
+  }
+
+  function montarTextoPlano(linhas) {
+    return linhas.map(([label, valor]) => `${label}: ${valor || ''}`).join('\n');
+  }
+
+  function criarPacote(campos, origem) {
+    const tipoOficio = campos.tipoOficio || normalizarTipoOficio(campos.observacao);
+    const modelo = resolverModeloSigadoc(tipoOficio);
+    const linhas = montarLinhas(campos);
+
+    return {
+      versao: '3.14',
+      origem,
+      urlOrigem: campos.urlOrigem || window.location.href,
+      criadoEm: new Date().toISOString(),
+      processo: campos.processo || '',
+      assunto: campos.assunto || '',
+      assuntoOrigem: campos.assuntoOrigem || '',
+      assuntoAviso: campos.assuntoAviso || '',
+      processoPrincipalUrl: campos.processoPrincipalUrl || '',
+      autor: campos.autor || '',
+      reu: campos.reu || 'ESTADO DE MATO GROSSO',
+      vara: campos.vara || '',
+      observacao: campos.observacao || '',
+      tipoOficio,
+      tipoTarefa: campos.tipoTarefa || '',
+      numeroOficio: campos.numeroOficio || '',
+      numeroSigadoc: campos.numeroSigadoc || '',
+      destinatario: campos.destinatario || '',
+      linkProcessoSpa: campos.linkProcessoSpa || campos.processoPrincipalUrl || '',
+      linkAutosSpa: campos.linkAutosSpa || '',
+      linkExpedienteSpa: campos.linkExpedienteSpa || '',
+      modeloSigadoc: modelo ? modelo.tipo : '',
+      modeloSigadocPreferido: modelo && modelo.bases.length ? modelo.bases[0] : '',
+      htmlTabela: montarTabelaHtml(linhas),
+      textoPlano: montarTextoPlano(linhas),
+    };
+  }
+
+  function camposFaltantes(pacote) {
+    return [
+      ['Número do Processo', pacote.processo],
+      ['Juízo', pacote.vara],
+      ['Assunto', pacote.assunto],
+      ['Polo Ativo', pacote.autor],
+      ['Polo Passivo', pacote.reu],
+    ]
+      .filter(([, valor]) => !valor)
+      .map(([label]) => label);
+  }
+
+  function escolherPacoteMaisCompleto(atual, candidato) {
+    if (!atual) return candidato || null;
+    if (!candidato) return atual;
+    return camposFaltantes(candidato).length < camposFaltantes(atual).length ? candidato : atual;
+  }
+
+  function copiarPacote(pacote) {
+    if (navigator.clipboard && window.ClipboardItem) {
+      return navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([pacote.htmlTabela], { type: 'text/html' }),
+          'text/plain': new Blob([pacote.textoPlano], { type: 'text/plain' }),
+        })
+      ]).catch(() => fallbackCopiar(pacote.textoPlano));
+    }
+
+    return fallbackCopiar(pacote.textoPlano);
+  }
+
+  function fallbackCopiar(texto) {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    return Promise.resolve();
+  }
+
+  function copiarTextoSimples(texto) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(texto).catch(() => fallbackCopiar(texto));
+    }
+
+    return fallbackCopiar(texto);
+  }
+
+  // ─── Botões do SPA ─────────────────────────────────────────────────────────
+
+  function atualizarBotao(btn, estado, icone, texto) {
+    if (!btn) return;
+    btn.classList.remove('copiando', 'sucesso', 'alerta', 'erro');
+    btn.classList.add(estado);
+    btn.disabled = estado === 'copiando';
+    btn.innerHTML = `<span class="spa-icon">${icone}</span> ${texto}`;
+  }
+
+  function restaurarBotao(btn) {
+    if (!btn) return;
+    btn.classList.remove('copiando', 'sucesso', 'alerta', 'erro');
+    btn.disabled = false;
+    btn.title = 'Extrair dados do SPA para o SIGADOC';
+    btn.innerHTML = '<span class="spa-icon">SIG</span> Extrair p/ SIGADOC';
+  }
+
+  async function concluirExtracao(pacote, btn) {
+    await salvarPacote(pacote);
+    await copiarPacote(pacote);
+
+    const faltantes = camposFaltantes(pacote);
+    if (faltantes.length) {
+      atualizarBotao(btn, 'alerta', '!', 'Salvo com campos faltando');
+      btn.title = `Campos não encontrados: ${faltantes.join(', ')}`;
+      return;
+    }
+
+    atualizarBotao(btn, 'sucesso', 'OK', 'Salvo e copiado');
+    const detalheAssunto = pacote.assuntoAviso
+      ? ` ${pacote.assuntoAviso}`
+      : (pacote.assuntoOrigem === 'processo-principal' ? ' Assunto extraído do Processo Principal.' : '');
+    btn.title = (pacote.tipoOficio
+      ? `Tipo detectado: ${pacote.tipoOficio}`
+      : 'Dados salvos para preencher no SIGADOC') + detalheAssunto;
+  }
+
+  async function executarExtracaoProcesso(botaoOrigem) {
+    const btn = botaoOrigem || document.getElementById('spa-extrator-btn');
+    atualizarBotao(btn, 'copiando', '...', 'Extraindo...');
+
+    try {
+      let campos = extrairCamposDaPaginaProcesso();
+      const algumEncontrado = Object.values(campos).some(Boolean);
+      if (!algumEncontrado) {
+        atualizarBotao(btn, 'alerta', '!', 'Nenhum campo encontrado');
+        return;
+      }
+
+      atualizarBotao(btn, 'copiando', '...', campos.assuntoBruto ? 'Buscando links...' : 'Buscando assunto...');
+      campos = await enriquecerDadosPeloProcessoPrincipal(campos);
+
+      await concluirExtracao(criarPacote(campos, 'pagina-processo'), btn);
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao extrair ou copiar campos:', erro);
+      atualizarBotao(btn, 'erro', '!', 'Erro ao extrair');
+    } finally {
+      setTimeout(() => restaurarBotao(btn), 3500);
+    }
+  }
+
+  async function executarExtracaoLinha(row, btn, urlPreferencial) {
+    const textoOriginal = btn ? btn.textContent : '';
+    const htmlOriginal = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.textContent = '...';
+      btn.disabled = true;
+      btn.title = 'Abrindo processo da linha...';
+    }
+
+    try {
+      const urlProcesso = urlPreferencial || encontrarUrlProcessoDaLinha(row);
+      if (!urlProcesso) {
+        if (btn) {
+          btn.textContent = '!';
+          btn.title = 'Não foi possível localizar o link do processo nesta linha.';
+        }
+        return false;
+      }
+
+      let pacote = null;
+      try {
+        if (btn) btn.title = 'Abrindo aba do processo e extraindo dados...';
+        pacote = await extrairPacoteProcessoEmAba(urlProcesso);
+      } catch (_erroRemoto) {
+        pacote = null;
+      }
+
+      if (!pacote || camposFaltantes(pacote).length) {
+        const camposLinha = extrairCamposDaLinhaCaixa(row);
+        const pagina = await buscarDocumentoProcessoPorUrl(urlProcesso);
+        if (btn) btn.title = 'Extraindo dados da página do processo...';
+
+        let campos = extrairCamposDeDocumentoProcesso(pagina.doc, pagina.url, pagina.html);
+        campos = preencherCamposAusentes(campos, camposLinha);
+        campos.linkProcessoSpa = campos.linkProcessoSpa || pagina.url;
+        campos.urlOrigem = campos.urlOrigem || pagina.url;
+
+        if (btn) btn.title = campos.assuntoBruto ? 'Buscando links do processo...' : 'Buscando assunto do processo...';
+        campos = await enriquecerDadosPeloProcessoPrincipalEmRaiz(pagina.doc, pagina.url, campos);
+
+        pacote = escolherPacoteMaisCompleto(pacote, criarPacote(campos, 'pagina-processo-via-caixa'));
+      }
+
+      if (!pacote || !pacote.processo) {
+        if (btn) {
+          btn.textContent = '!';
+          btn.title = 'Não foi possível identificar os dados do processo.';
+        }
+        return;
+      }
+
+      await concluirExtracao(pacote, btn);
+      return true;
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao extrair linha da caixa:', erro);
+      if (btn) {
+        btn.textContent = '!';
+        btn.title = erro && erro.message ? erro.message : 'Erro ao extrair linha';
+      }
+      return false;
+    } finally {
+      setTimeout(() => {
+        if (!btn) return;
+        btn.innerHTML = htmlOriginal || textoOriginal;
+        btn.disabled = false;
+        if (btn.title && !/^Não foi possível|Erro|Campos não encontrados/i.test(btn.title)) {
+          btn.title = 'Extrair esta linha para o SIGADOC';
+        }
+      }, 3500);
+    }
+  }
+
+  function linhasCaixaSpaExtraiveis() {
+    const tabela = document.querySelector('#procedures-box');
+    if (!tabela) return [];
+
+    return Array.from(tabela.querySelectorAll('tbody tr')).filter((row) =>
+      row.children.length >= 2 && !row.querySelector('.dataTables_empty')
+    );
+  }
+
+  function rotuloLinhaCaixaSpa(row, indice) {
+    const mapa = mapaColunasTabelaSpa();
+    const processo = lerCampoDaLinha(row, mapa, [
+      'Número do processo judicial',
+      'Numero do processo judicial',
+      'Número do processo',
+    ]);
+    const observacao = lerCampoDaLinha(row, mapa, ['Observação', 'Observacao']);
+    const tipoOficio = normalizarTipoOficio(observacao) || normalizarTipoOficioTextoLivre(row.innerText || row.textContent || '');
+    const partes = [processo, tipoOficio].filter(Boolean);
+    if (partes.length) return partes.join(' - ');
+
+    const textoLinha = limparValorExtraido(row.innerText || row.textContent || '');
+    return textoLinha ? textoLinha.slice(0, 90) : `Linha ${indice + 1}`;
+  }
+
+  function contextoOficiosSpa() {
+    const href = window.location.href;
+    const linhas = linhasCaixaSpaExtraiveis();
+
+    return {
+      versao: '3.13',
+      paginaProcesso: URL_PROCESSO.test(href),
+      pastaProcesso: URL_FOLDER.test(href),
+      caixa: Boolean(document.querySelector('#procedures-box')),
+      linhas: linhas.map((row, indice) => ({
+        indice,
+        rotulo: rotuloLinhaCaixaSpa(row, indice),
+        url: encontrarUrlProcessoDaLinha(row),
+      })),
+    };
+  }
+
+  function removerBotoesSpaSoltos() {
+    ['spa-extrator-btn', 'spa-preencher-btn'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.remove();
+    });
+
+    document.querySelectorAll('.spa-extrator-row-btn').forEach((btn) => btn.remove());
+  }
+
+  function notificarMenuOficiosSpa() {
+    try {
+      window.dispatchEvent(new CustomEvent('cdsp-extrator-oficios-updated'));
+    } catch (_erro) {
+      // Evento apenas sincroniza o menu geral quando disponivel.
+    }
+  }
+
+  function instalarApiOficiosSpa() {
+    window.CDSP_EXTRATOR_OFICIOS = {
+      versao: '3.13',
+      obterContexto: contextoOficiosSpa,
+      extrairProcesso: (botao) => executarExtracaoProcesso(botao),
+      preencherSpa: (botao) => executarPreencherSpa(botao),
+      extrairLinha: (indice, botao, urlPreferencial) => {
+        const linhas = linhasCaixaSpaExtraiveis();
+        const row = linhas[Number(indice)];
+        if (!row) {
+          atualizarBotao(botao, 'alerta', '!', 'Linha não encontrada');
+          return Promise.resolve(false);
+        }
+
+        return executarExtracaoLinha(row, botao, urlPreferencial);
+      },
+      atualizar: () => {
+        removerBotoesSpaSoltos();
+        notificarMenuOficiosSpa();
+        return contextoOficiosSpa();
+      },
+    };
+
+    notificarMenuOficiosSpa();
+  }
+
+  function injetarBotaoProcesso() {
+    if (document.getElementById('spa-extrator-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'spa-extrator-btn';
+    btn.innerHTML = '<span class="spa-icon">SIG</span> Extrair p/ SIGADOC';
+    btn.title = 'Extrair dados do SPA para o SIGADOC';
+    btn.addEventListener('click', executarExtracaoProcesso);
+    document.body.appendChild(btn);
+  }
+
+  function injetarBotoesCaixa() {
+    const tabela = document.querySelector('#procedures-box');
+    if (!tabela) return;
+
+    const mapa = mapaColunasTabelaSpa();
+    const indiceAcoes = mapa.get('acoes');
+    const linhas = tabela.querySelectorAll('tbody tr');
+
+    linhas.forEach((row) => {
+      if (row.querySelector('.spa-extrator-row-btn')) return;
+      if (row.children.length < 2 || row.querySelector('.dataTables_empty')) return;
+
+      const celula = row.children[Number.isInteger(indiceAcoes) ? indiceAcoes : 2] || row.children[0];
+      if (!celula) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'spa-extrator-row-btn';
+      btn.textContent = 'SIG';
+      btn.title = 'Extrair esta linha para o SIGADOC';
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        executarExtracaoLinha(row, btn);
+      });
+
+      celula.insertBefore(btn, celula.firstChild);
+    });
+  }
+
+  // ─── Preenchimento assistido do SIGADOC ────────────────────────────────────
+
+  function setValorCampo(campo, valor) {
+    if (!campo) return false;
+
+    const proto = campo.tagName === 'TEXTAREA'
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+
+    if (descriptor && descriptor.set) descriptor.set.call(campo, valor);
+    else campo.value = valor;
+
+    campo.dispatchEvent(new Event('input', { bubbles: true }));
+    campo.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  function selecionarValorPorTexto(select, textoDesejado) {
+    if (!select || !textoDesejado) return false;
+
+    const desejado = normalizarTexto(textoDesejado);
+    const option = Array.from(select.options).find((opt) =>
+      normalizarTexto(opt.textContent) === desejado ||
+      normalizarTexto(opt.value) === desejado
+    );
+
+    if (!option) return false;
+    select.value = option.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  function obterCampoAssuntoSigadoc() {
+    const ids = [
+      'docGovMT_oficio_assunto',
+      'docGovMT_comunicacaoInterna_assunto',
+    ];
+
+    for (const id of ids) {
+      const campo = document.getElementById(id);
+      if (campo) return campo;
+    }
+
+    return Array.from(document.querySelectorAll('input[id^="docGovMT_"][id$="_assunto"], textarea[id^="docGovMT_"][id$="_assunto"]'))
+      .find((campo) => campo.offsetParent !== null || campo.type !== 'hidden') || null;
+  }
+
+  function obterTextareaConteudoSigadoc() {
+    const ids = [
+      'docGovMT_oficio_conteudo',
+      'docGovMT_comunicacaoInterna_conteudo',
+    ];
+
+    for (const id of ids) {
+      const campo = document.getElementById(id);
+      if (campo) return campo;
+    }
+
+    return Array.from(document.querySelectorAll('textarea.editor, textarea[id^="docGovMT_"][id$="_conteudo"]'))
+      .find((campo) => campo.offsetParent !== null || campo.classList.contains('editor')) || null;
+  }
+
+  function obterCampoFechamentoSigadoc() {
+    return document.getElementById('docGovMT_oficio_fechamento') ||
+      document.getElementById('docGovMT_comunicacaoInterna_fechamento') ||
+      null;
+  }
+
+  function obterNomeSubscritorSigadoc() {
+    const fontes = [
+      document.getElementById('formulario_exDocumentoDTO.subscritorSel_descricao')?.value,
+      document.getElementById('exDocumentoDTO.subscritorSelSpan')?.textContent,
+      document.querySelector('[name="exDocumentoDTO.subscritorSel.descricao"]')?.value,
+    ];
+
+    return limparValorExtraido(fontes.filter(Boolean).join(' '));
+  }
+
+  function detectarSufixoModeloSigadoc() {
+    const nome = normalizarTexto(obterNomeSubscritorSigadoc());
+    if (!nome) return '';
+
+    const usuario = USUARIOS_MODELO_SIGADOC.find((item) =>
+      item.nomes.some((nomeUsuario) => nome.includes(normalizarTexto(nomeUsuario)))
+    );
+
+    return usuario ? usuario.sufixo : '';
+  }
+
+  function textoOpcaoSelect(option) {
+    if (!option) return '';
+    return [
+      option.textContent,
+      option.label,
+      option.getAttribute && option.getAttribute('title'),
+      option.getAttribute && option.getAttribute('data-text'),
+      option.getAttribute && option.getAttribute('data-content'),
+    ].filter(Boolean).join(' ');
+  }
+
+  function opcaoCombinaTextoPadrao(option, candidato, permitirInclusao = false) {
+    const textoOpcao = textoOpcaoSelect(option);
+    const normalizadoOpcao = normalizarTexto(textoOpcao);
+    const compactoOpcao = compactarTexto(textoOpcao);
+    const alvo = normalizarTexto(candidato);
+    const alvoCompacto = compactarTexto(candidato);
+
+    if (!normalizadoOpcao || !alvo) return false;
+    if (normalizadoOpcao === alvo || compactoOpcao === alvoCompacto) return true;
+
+    return Boolean(permitirInclusao &&
+      (normalizadoOpcao.includes(alvo) || compactoOpcao.includes(alvoCompacto)));
+  }
+
+  function encontrarOpcaoPorCandidatos(options, candidatos, permitirInclusao = false) {
+    for (const candidato of candidatos) {
+      const option = options.find((opt) => opcaoCombinaTextoPadrao(opt, candidato, permitirInclusao));
+      if (option) return option;
+    }
+
+    return null;
+  }
+
+  function textoOpcaoModeloDocumentoSigadoc(item) {
+    if (!item) return '';
+
+    return [
+      item.textContent,
+      item.getAttribute && item.getAttribute('data-search'),
+      item.getAttribute && item.getAttribute('title'),
+      item.querySelector && item.querySelector('a')?.textContent,
+    ].filter(Boolean).join(' ');
+  }
+
+  function modeloDocumentoCombinaSigadoc(item, modeloDocumento) {
+    const texto = normalizarTexto(textoOpcaoModeloDocumentoSigadoc(item));
+    const compacto = compactarTexto(texto);
+    const alvo = normalizarTexto(modeloDocumento);
+    const alvoCompacto = compactarTexto(modeloDocumento);
+
+    if (!compacto || !alvoCompacto) return false;
+    if (alvoCompacto === 'comunicacaointerna') {
+      return compacto.includes('comunicacaointerna');
+    }
+    if (alvoCompacto === 'oficio') {
+      return compacto.includes('oficiooficio') || /\boficio\b/.test(texto);
+    }
+
+    return texto.includes(alvo) || compacto.includes(alvoCompacto);
+  }
+
+  function encontrarOpcaoModeloDocumentoSigadoc(modeloDocumento) {
+    const itens = Array.from(document.querySelectorAll('#ulmod .dropdown-item[data-value]'))
+      .filter((item) => (item.getAttribute('data-value') || '').trim());
+
+    return itens.find((item) => modeloDocumentoCombinaSigadoc(item, modeloDocumento)) || null;
+  }
+
+  function obterModeloDocumentoAtualSigadoc() {
+    const hidden = document.querySelector('input[name="exDocumentoDTO.idMod"]');
+    const label = document.querySelector('#modelos-select .selected-label');
+
+    return {
+      valor: hidden ? limparValorExtraido(hidden.value) : '',
+      texto: label ? limparValorExtraido(label.textContent) : '',
+    };
+  }
+
+  function aplicarSelecaoModeloDocumentoSigadoc(item) {
+    if (!item) return false;
+
+    const valor = item.getAttribute('data-value') || '';
+    if (!valor) return false;
+
+    const hidden = document.querySelector('input[name="exDocumentoDTO.idMod"]');
+    const label = document.querySelector('#modelos-select .selected-label');
+    const textoLabel = limparValorExtraido(item.querySelector('a')?.childNodes?.[0]?.textContent || item.textContent || '');
+
+    Array.from(document.querySelectorAll('#ulmod .dropdown-item.active')).forEach((ativo) => {
+      ativo.classList.remove('active');
+    });
+    item.classList.add('active');
+
+    if (label && textoLabel) label.textContent = textoLabel;
+    if (hidden) setValorCampo(hidden, valor);
+
+    try {
+      item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      const link = item.querySelector('a');
+      if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível simular clique no Modelo:', erro);
+    }
+
+    executarNoContextoDaPagina(`
+      (function(valor) {
+        var item = document.querySelector('#ulmod .dropdown-item[data-value="' + valor + '"]');
+        var hidden = document.getElementsByName('exDocumentoDTO.idMod')[0];
+        var label = document.querySelector('#modelos-select .selected-label');
+
+        if (item) {
+          try {
+            item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            var link = item.querySelector('a');
+            if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          } catch (erro) {}
+          try {
+            var texto = item.querySelector('a') && item.querySelector('a').childNodes[0]
+              ? item.querySelector('a').childNodes[0].textContent
+              : item.textContent;
+            if (label && texto) label.textContent = texto.trim();
+          } catch (erro) {}
+        }
+
+        if (hidden) {
+          hidden.value = valor;
+          hidden.dispatchEvent(new Event('input', { bubbles: true }));
+          hidden.dispatchEvent(new Event('change', { bubbles: true }));
+          if (typeof hidden.onchange === 'function') {
+            try { hidden.onchange.call(hidden, new Event('change', { bubbles: true })); } catch (erro) {}
+          }
+        }
+
+        try {
+          if (typeof alterouModeloSelect === 'function') alterouModeloSelect();
+        } catch (erro) {}
+        try {
+          if (window.jQuery && hidden) window.jQuery(hidden).val(valor).trigger('input').trigger('change');
+        } catch (erro) {}
+      })(${JSON.stringify(valor)});
+    `);
+
+    return true;
+  }
+
+  async function selecionarModeloDocumentoSeNecessario(pacote) {
+    const modeloDocumento = obterModeloDocumentoSigadoc(pacote);
+    const option = encontrarOpcaoModeloDocumentoSigadoc(modeloDocumento);
+
+    if (!option) {
+      return { mudou: false, mensagem: `Modelo ${modeloDocumento} não encontrado no SIGADOC.` };
+    }
+
+    const atual = obterModeloDocumentoAtualSigadoc();
+    const valorAlvo = option.getAttribute('data-value') || '';
+    if (atual.valor && valorAlvo && atual.valor === valorAlvo) {
+      return { mudou: false, mensagem: `Modelo já selecionado: ${modeloDocumento}.` };
+    }
+
+    const mudou = aplicarSelecaoModeloDocumentoSigadoc(option);
+    if (mudou) await aguardar(1400);
+
+    return {
+      mudou,
+      mensagem: mudou
+        ? `Modelo selecionado: ${modeloDocumento}.`
+        : `Não foi possível selecionar o modelo ${modeloDocumento}.`,
+    };
+  }
+
+  function encontrarOpcaoTextoPadrao(select, pacote) {
+    if (!select) return { option: null, sufixo: '', mensagem: 'Campo Texto padrão não encontrado.' };
+
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao);
+    const options = Array.from(select.options);
+    const sufixo = detectarSufixoModeloSigadoc();
+
+    if (!modelo) {
+      return {
+        option: null,
+        sufixo,
+        mensagem: pacote.tipoOficio
+          ? `Modelo não mapeado para o tipo ${pacote.tipoOficio}.`
+          : 'Tipo do ofício não identificado no SPA.',
+      };
+    }
+
+    const usarSufixo = modelo.usarSufixo !== false;
+
+    if (usarSufixo && !sufixo) {
+      return {
+        option: null,
+        sufixo,
+        mensagem: 'Subscritor não identificado para escolher modelo F ou IG.',
+      };
+    }
+
+    const candidatos = usarSufixo
+      ? modelo.bases.flatMap((base) => [
+        `${base} ${sufixo}`,
+        `${base.replace(' - ', ' ')} ${sufixo}`,
+      ])
+      : modelo.bases.flatMap((base) => [
+        base,
+        base.replace(' - ', ' '),
+      ]);
+
+    const optionPorCandidato = encontrarOpcaoPorCandidatos(options, candidatos, !usarSufixo);
+    if (optionPorCandidato) return { option: optionPorCandidato, sufixo, mensagem: '' };
+
+    const basesNormalizadas = modelo.bases.flatMap((base) => [
+      base,
+      base.replace(' - ', ' '),
+    ]).map(compactarTexto);
+
+    if (!usarSufixo) {
+      const porBase = options.find((opt) => {
+        const texto = compactarTexto(textoOpcaoSelect(opt));
+        return basesNormalizadas.some((base) => texto === base || texto.includes(base));
+      });
+
+      return {
+        option: porBase || null,
+        sufixo,
+        mensagem: `Modelo ${modelo.tipo} não encontrado no Texto padrão.`,
+      };
+    }
+
+    const sufixoCompacto = compactarTexto(sufixo);
+    const porBaseESufixo = options.find((opt) => {
+      const texto = compactarTexto(textoOpcaoSelect(opt));
+      return texto.endsWith(sufixoCompacto) &&
+        basesNormalizadas.some((base) => texto.includes(base));
+    });
+
+    return {
+      option: porBaseESufixo || null,
+      sufixo,
+      mensagem: `Modelo ${modelo.tipo} com sufixo ${sufixo} não encontrado no Texto padrão.`,
+    };
+  }
+
+  function aplicarSelecaoTextoPadraoSigadoc(select, option) {
+    const valor = option.value;
+    const indice = Array.prototype.indexOf.call(select.options, option);
+
+    Array.from(select.options).forEach((opt) => {
+      opt.selected = opt === option;
+    });
+
+    if (indice >= 0) select.selectedIndex = indice;
+    select.value = valor;
+    try {
+      select.focus();
+      option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      option.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível simular clique no Texto padrão:', erro);
+    }
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    executarNoContextoDaPagina(`
+      (function(valor) {
+        var select = document.getElementById('preenchimento');
+        if (!select) return;
+        for (var i = 0; i < select.options.length; i += 1) {
+          select.options[i].selected = select.options[i].value === valor;
+          if (select.options[i].value === valor) select.selectedIndex = i;
+        }
+        select.value = valor;
+        try {
+          select.focus();
+          if (select.options[select.selectedIndex]) {
+            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          }
+        } catch (erro) {}
+        var eventoInput = new Event('input', { bubbles: true });
+        var eventoChange = new Event('change', { bubbles: true });
+        select.dispatchEvent(eventoInput);
+        select.dispatchEvent(eventoChange);
+        if (typeof select.onchange === 'function') {
+          try { select.onchange.call(select, eventoChange); } catch (erro) {}
+        }
+        if (window.jQuery) {
+          try {
+            window.jQuery(select).val(valor).trigger('input').trigger('change').trigger('change.select2').trigger('chosen:updated');
+          } catch (erro) {}
+        }
+        if (typeof window.carregaPreench === 'function') {
+          try { window.carregaPreench(); } catch (erro) {}
+          setTimeout(function() {
+            try { window.carregaPreench(); } catch (erro) {}
+          }, 250);
+        } else {
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      })(${JSON.stringify(valor)});
+    `);
+  }
+
+  function selecionarTextoPadraoSeNecessario(pacote) {
+    const select = document.getElementById('preenchimento');
+    if (!select) return { mudou: false, mensagem: 'Campo Texto padrão não encontrado.' };
+
+    const { option, mensagem } = encontrarOpcaoTextoPadrao(select, pacote);
+    if (!option) {
+      return { mudou: false, mensagem };
+    }
+
+    aplicarSelecaoTextoPadraoSigadoc(select, option);
+
+    return {
+      mudou: true,
+      mensagem: select.value === option.value
+        ? `Texto padrão aplicado: ${option.textContent.trim()}`
+        : `Texto padrão selecionado: ${option.textContent.trim()}`,
+    };
+  }
+
+  function obterAreaEditavelSigadoc() {
+    const textarea = obterTextareaConteudoSigadoc();
+    const iframeDoCampo = textarea && textarea.id
+      ? document.getElementById(`cke_${textarea.id}`)?.querySelector('iframe')
+      : null;
+    const iframe = iframeDoCampo || document.querySelector(
+      '#cke_docGovMT_oficio_conteudo iframe, #cke_docGovMT_comunicacaoInterna_conteudo iframe, iframe.cke_wysiwyg_frame'
+    );
+
+    try {
+      if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+        return iframe.contentDocument.body;
+      }
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível acessar o iframe do CKEditor:', erro);
+    }
+
+    return null;
+  }
+
+  function aguardarAreaEditavelSigadoc(timeoutMs = 6000) {
+    const inicio = Date.now();
+    return new Promise((resolve) => {
+      const tentar = () => {
+        const area = obterAreaEditavelSigadoc();
+        if (area) {
+          resolve(area);
+          return;
+        }
+
+        if (Date.now() - inicio > timeoutMs) {
+          resolve(null);
+          return;
+        }
+
+        setTimeout(tentar, 250);
+      };
+      tentar();
+    });
+  }
+
+  function conteudoJaTemTabela(conteudo, pacote) {
+    const texto = normalizarTexto(conteudo);
+    return Boolean(pacote.processo && texto.includes(normalizarTexto(pacote.processo)) &&
+      texto.includes('numero do processo'));
+  }
+
+  async function inserirTabelaNoEditor(pacote) {
+    const areaEditavel = await aguardarAreaEditavelSigadoc();
+    const textarea = obterTextareaConteudoSigadoc();
+    const blocoTabelaELinks = `${pacote.htmlTabela}${montarLinksSpaHtml(pacote)}`;
+
+    if (areaEditavel) {
+      const atual = areaEditavel.innerHTML || '';
+      if (conteudoJaTemTabela(atual, pacote)) return 'Tabela já estava no conteúdo.';
+
+      const corpoAtual = atual.replace(/^\s*<p[^>]*>(?:&nbsp;|\s|<br\s*\/?>)*<\/p>\s*/i, '');
+      const novoConteudo = `${blocoTabelaELinks}<p>&nbsp;</p>${corpoAtual}`;
+      const EventCtor = areaEditavel.ownerDocument.defaultView.Event;
+      areaEditavel.innerHTML = novoConteudo;
+      areaEditavel.dispatchEvent(new EventCtor('input', { bubbles: true }));
+      areaEditavel.dispatchEvent(new EventCtor('change', { bubbles: true }));
+
+      if (textarea) {
+        textarea.value = novoConteudo;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      return 'Tabela inserida no editor.';
+    }
+
+    if (textarea) {
+      if (conteudoJaTemTabela(textarea.value, pacote)) return 'Tabela já estava no conteúdo.';
+      textarea.value = `${blocoTabelaELinks}\n${textarea.value || ''}`;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'Tabela inserida no campo de conteúdo.';
+    }
+
+    return 'Campo de conteúdo não encontrado.';
+  }
+
+  function executarNoContextoDaPagina(codigo) {
+    const script = document.createElement('script');
+    script.textContent = codigo;
+    (document.documentElement || document.head || document.body).appendChild(script);
+    script.remove();
+  }
+
+  function obterDestinatarioSigadoc(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    return (modelo && modelo.destinatario) || DESTINATARIO_PADRAO_SIGADOC;
+  }
+
+  function descricaoDestinatarioCorresponde(atual, esperado) {
+    if (!esperado) return true;
+    if (!atual) return false;
+
+    const textoAtual = normalizarTexto(atual);
+    const textoEsperado = normalizarTexto(esperado);
+
+    return textoAtual.includes(textoEsperado) || textoEsperado.includes(textoAtual);
+  }
+
+  async function preencherDestinatarioSigadoc(pacote) {
+    const sigla = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla');
+    const span = document.getElementById('exDocumentoDTO.lotacaoDestinatarioSelSpan');
+    const descricaoCampo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_descricao');
+    if (!sigla) return 'Campo de destinatário não encontrado.';
+
+    const destino = obterDestinatarioSigadoc(pacote);
+    const siglaDestino = destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
+    const descricaoEsperada = destino.descricao || '';
+
+    setValorCampo(sigla, siglaDestino);
+    try {
+      sigla.focus();
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível focar o destinatário:', erro);
+    }
+
+    const KeyboardEventCtor = sigla.ownerDocument.defaultView.KeyboardEvent;
+    const eventosEnter = ['keydown', 'keypress', 'keyup'];
+    eventosEnter.forEach((tipoEvento) => {
+      sigla.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    try {
+      sigla.blur();
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível remover o foco do destinatário:', erro);
+    }
+
+    executarNoContextoDaPagina(`
+      (function () {
+        var destino = ${JSON.stringify(siglaDestino)};
+        var campo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla') ||
+          document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.sigla')[0];
+
+        if (!campo) return;
+
+        campo.value = destino;
+        campo.dispatchEvent(new Event('input', { bubbles: true }));
+        campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+        try {
+          if (typeof handleEnter === 'function') {
+            handleEnter(campo, {
+              type: 'keypress',
+              keyCode: 13,
+              which: 13,
+              preventDefault: function () {},
+              stopPropagation: function () {}
+            });
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao simular Enter no destinatário:', erro);
+        }
+
+        try {
+          if (typeof ajax_lotacaoDestinatario === 'function') {
+            ajax_lotacaoDestinatario();
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao confirmar destinatário:', erro);
+        }
+      })();
+    `);
+
+    await new Promise((resolve) => setTimeout(resolve, 700));
+
+    const valor = limparValorExtraido((sigla && sigla.value) || (span && span.textContent) || '');
+    const descricao = limparValorExtraido(
+      (span && span.textContent) || (descricaoCampo && descricaoCampo.value) || ''
+    );
+
+    if (normalizarTexto(valor) !== normalizarTexto(siglaDestino)) {
+      return `Destinatário preenchido como ${siglaDestino}; confira se o SIGADOC reconheceu a lotação.`;
+    }
+
+    if (descricao && !descricaoDestinatarioCorresponde(descricao, descricaoEsperada)) {
+      return `Destinatário preenchido como ${siglaDestino}; confira a descrição exibida: ${descricao}.`;
+    }
+
+    if (descricaoEsperada && !descricao) {
+      return `Destinatário preenchido como ${siglaDestino}; confira se o SIGADOC exibiu ${descricaoEsperada}.`;
+    }
+
+    return `Destinatário preenchido como ${siglaDestino} (${descricaoEsperada || 'descrição não informada'}) e Enter enviado.`;
+  }
+
+  function preencherClassificacaoSigadoc(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    const classificacao = modelo && modelo.classificacao;
+    if (!classificacao) return '';
+
+    const campoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0] ||
+      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_id');
+    const campoDescricao = document.getElementsByName('exDocumentoDTO.classificacaoSel.descricao')[0] ||
+      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_descricao');
+    const campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
+      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
+    const span = document.getElementById('exDocumentoDTO.classificacaoSelSpan');
+
+    let alterou = false;
+    if (campoId && classificacao.id) alterou = setValorCampo(campoId, classificacao.id) || alterou;
+    if (campoDescricao) alterou = setValorCampo(campoDescricao, classificacao.descricao) || alterou;
+    if (campoSigla) alterou = setValorCampo(campoSigla, classificacao.codigo) || alterou;
+    if (span) {
+      span.textContent = classificacao.descricao;
+      alterou = true;
+    }
+
+    executarNoContextoDaPagina(`
+      (function(classificacao) {
+        var campoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0];
+        var campoDescricao = document.getElementsByName('exDocumentoDTO.classificacaoSel.descricao')[0];
+        var campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0];
+        var span = document.getElementById('exDocumentoDTO.classificacaoSelSpan');
+
+        if (campoId && classificacao.id) campoId.value = classificacao.id;
+        if (campoDescricao) campoDescricao.value = classificacao.descricao;
+        if (campoSigla) {
+          campoSigla.value = classificacao.codigo;
+          campoSigla.dispatchEvent(new Event('input', { bubbles: true }));
+          campoSigla.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (span) span.textContent = classificacao.descricao;
+        try { if (typeof updateURL === 'function') updateURL(); } catch (erro) {}
+      })(${JSON.stringify(classificacao)});
+    `);
+
+    return alterou
+      ? `Classificação definida como ${classificacao.codigo}.`
+      : 'Campo de classificação não encontrado.';
+  }
+
+  async function preencherCamposSigadoc(pacote) {
+    const mensagens = [];
+    const textoFormal = textoDescricaoAssunto(pacote);
+
+    const descricao = document.getElementById('descrDocumento');
+    if (descricao) {
+      setValorCampo(descricao, textoFormal);
+      mensagens.push('Descrição preenchida.');
+    } else {
+      mensagens.push('Descrição não encontrada.');
+    }
+
+    const assunto = obterCampoAssuntoSigadoc();
+    if (assunto) {
+      setValorCampo(assunto, textoFormal);
+      mensagens.push('Assunto preenchido.');
+    } else {
+      mensagens.push('Assunto não encontrado.');
+    }
+
+    const mensagemClassificacao = preencherClassificacaoSigadoc(pacote);
+    if (mensagemClassificacao) mensagens.push(mensagemClassificacao);
+
+    mensagens.push(await preencherDestinatarioSigadoc(pacote));
+
+    mensagens.push(await inserirTabelaNoEditor(pacote));
+
+    const fechamento = obterCampoFechamentoSigadoc();
+    if (fechamento && selecionarValorPorTexto(fechamento, 'Atenciosamente')) {
+      mensagens.push('Fechamento definido como Atenciosamente.');
+    } else {
+      mensagens.push('Fechamento não alterado.');
+    }
+
+    await storageRemove([PENDING_SIGADOC_KEY]);
+    return mensagens;
+  }
+
+  async function salvarFluxoAssinaturaSigadoc(etapa, extra = {}) {
+    await storageSet({
+      [PENDING_ASSINATURA_KEY]: {
+        criadoEm: new Date().toISOString(),
+        etapa,
+        ...extra,
+      },
+    });
+  }
+
+  async function limparFluxoAssinaturaSigadoc() {
+    await storageRemove([PENDING_ASSINATURA_KEY]);
+  }
+
+  async function salvarFluxoPosAssinaturaSigadoc(pacote) {
+    if (!pacote) return null;
+
+    const destino = obterDestinatarioSigadoc(pacote);
+    const nomeOficioEnviado = montarNomeOficioEnviado(pacote);
+    const nomeArquivo = montarNomeArquivoPdfOficio(pacote);
+    const modoPosAssinatura = obterModoPosAssinaturaSigadoc(pacote);
+    const fluxoSpa = modoPosAssinatura === 'spa';
+
+    const pendente = {
+      criadoEm: new Date().toISOString(),
+      processo: pacote.processo || '',
+      tipoOficio: obterTipoNormalizadoDoPacote(pacote),
+      fluxoSpa,
+      modoPosAssinatura,
+      nomeOficioEnviado,
+      nomeArquivo,
+      destinatarioSigla: destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla,
+      destinatarioDescricao: destino.descricao || '',
+    };
+
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    return pendente;
+  }
+
+  async function obterFinalizacaoSpaPendente() {
+    const resultado = await storageGet([PENDING_SPA_FINALIZACAO_KEY]);
+    const pendente = resultado[PENDING_SPA_FINALIZACAO_KEY];
+    if (!pendente || !pendente.criadoEm) return null;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_SPA_FINALIZACAO_KEY]);
+      return null;
+    }
+
+    return pendente;
+  }
+
+  function extrairNumeroSigadocDaPagina() {
+    const fontes = [
+      document.querySelector('h1')?.textContent,
+      document.querySelector('h2')?.textContent,
+      document.querySelector('h3')?.textContent,
+      document.querySelector('h4')?.textContent,
+      document.querySelector('h5')?.textContent,
+      document.title,
+      document.body ? document.body.innerText : '',
+    ].filter(Boolean).join('\n');
+
+    const match = fontes.match(/\bPGE-[A-Z]{2,8}-\d{4}\/\d+\b/i);
+    return match ? match[0].toUpperCase() : '';
+  }
+
+  function extrairUrlPopitup(valor) {
+    const texto = valor || '';
+    const match = texto.match(/popitup\((['"])(.*?)\1\)/i) || texto.match(/popitup\((.*?)\)/i);
+    if (!match) return '';
+
+    return (match[2] || match[1] || '')
+      .replace(/^['"]|['"]$/g, '')
+      .replace(/&amp;/g, '&');
+  }
+
+  function encontrarUrlImpressaoPdfSigadoc() {
+    const candidatos = Array.from(document.querySelectorAll('button[onclick], a[onclick]'));
+    for (const elemento of candidatos) {
+      const onclick = elemento.getAttribute('onclick') || '';
+      if (!/arquivo\/exibir/i.test(onclick) || !/\.pdf/i.test(onclick)) continue;
+
+      const url = extrairUrlPopitup(onclick);
+      if (url) return new URL(url, window.location.href).href;
+    }
+
+    const linkPdf = Array.from(document.querySelectorAll('a[href], iframe[src], embed[src]'))
+      .map((el) => el.getAttribute('href') || el.getAttribute('src') || '')
+      .find((url) => /arquivo\/exibir/i.test(url) && /\.pdf/i.test(url));
+
+    return linkPdf ? new URL(linkPdf.replace(/&amp;/g, '&'), window.location.href).href : '';
+  }
+
+  function encontrarLinkTramitarSigadoc() {
+    const links = Array.from(document.querySelectorAll('a[href]'));
+    return links.find((link) => {
+      const href = link.getAttribute('href') || '';
+      const texto = normalizarTexto(link.textContent || link.title || '');
+      return /\/expediente\/mov\/transferir/i.test(href) &&
+        (link.id === 'tramitar' || texto.includes('tramitar'));
+    }) || null;
+  }
+
+  let fluxoPosAssinaturaEmAndamento = false;
+
+  async function verificarFluxoPosAssinaturaSigadocPendente() {
+    if (fluxoPosAssinaturaEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+    const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      return;
+    }
+
+    const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
+    const numeroSigadoc = extrairNumeroSigadocDaPagina();
+
+    if (pendente.modoPosAssinatura === 'parar') {
+      if (!pdfUrl && !numeroSigadoc && !encontrarLinkTramitarSigadoc()) return;
+
+      fluxoPosAssinaturaEmAndamento = true;
+      try {
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      } finally {
+        fluxoPosAssinaturaEmAndamento = false;
+      }
+      return;
+    }
+
+    if (!pdfUrl || !numeroSigadoc) return;
+
+    fluxoPosAssinaturaEmAndamento = true;
+
+    try {
+      if (!pendente.fluxoSpa) {
+        await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
+        const textoParaSpa = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
+        if (textoParaSpa) {
+          await copiarTextoSimples(textoParaSpa);
+        }
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+        return;
+      }
+
+      const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
+        processo: pendente.processo,
+        tipoOficio: pendente.tipoOficio,
+        numeroSigadoc,
+      });
+
+      await storageSet({
+        [PENDING_SPA_FINALIZACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          etapa: 'aguardando-botao',
+          arquivoId,
+          nomeArquivo: pendente.nomeArquivo,
+          nomeOficioEnviado: pendente.nomeOficioEnviado,
+          textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
+          numeroSigadoc,
+          processo: pendente.processo,
+          tipoOficio: pendente.tipoOficio,
+        },
+        [PENDING_TRAMITACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          destinatarioSigla: pendente.destinatarioSigla,
+          destinatarioDescricao: pendente.destinatarioDescricao,
+          numeroSigadoc,
+        },
+      });
+
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+
+      const tramitar = encontrarLinkTramitarSigadoc();
+      if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
+      tramitar.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha após assinatura SIGADOC:', erro);
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      const btn = document.getElementById('spa-sigadoc-assinar-btn');
+      atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
+      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+    } finally {
+      fluxoPosAssinaturaEmAndamento = false;
+    }
+  }
+
+  let fluxoTramitacaoEmAndamento = false;
+
+  async function verificarTramitacaoSigadocPendente() {
+    if (fluxoTramitacaoEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
+    const pendente = resultado[PENDING_TRAMITACAO_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      return;
+    }
+
+    const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
+    const ok = document.getElementById('button_ok');
+    const form = document.getElementById('frm');
+    if (!campo || !ok || !form) return;
+
+    fluxoTramitacaoEmAndamento = true;
+
+    try {
+      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
+      setValorCampo(campo, destino);
+      campo.focus();
+
+      const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
+      ['keydown', 'keypress', 'keyup'].forEach((tipoEvento) => {
+        campo.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        }));
+      });
+
+      executarNoContextoDaPagina(`
+        (function () {
+          var destino = ${JSON.stringify(destino)};
+          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
+            document.getElementsByName('lotaResponsavelSel.sigla')[0];
+
+          if (!campo) return;
+          campo.value = destino;
+          campo.dispatchEvent(new Event('input', { bubbles: true }));
+          campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+          try {
+            if (typeof handleEnter === 'function') {
+              handleEnter(campo, {
+                type: 'keypress',
+                keyCode: 13,
+                which: 13,
+                preventDefault: function () {},
+                stopPropagation: function () {}
+              });
+            }
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
+          }
+
+          try {
+            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
+          }
+        })();
+      `);
+
+      await aguardar(1200);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      ok.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+    } finally {
+      fluxoTramitacaoEmAndamento = false;
+    }
+  }
+
+  function obterFontesUsuarioAssinaturaSigadoc() {
+    return {
+      matriculas: [
+        document.getElementById('siglaUsuarioCadastrante')?.value,
+        document.getElementById('siglaUsuSubscritor')?.value,
+        document.getElementById('siglaUsuTitular')?.value,
+        document.getElementById('nomeUsuarioSubscritor')?.value,
+      ].map(limparValorExtraido).filter(Boolean),
+      nomes: [
+        document.getElementById('nomeUsuSubscritor')?.value,
+        obterNomeSubscritorSigadoc(),
+      ].map(limparValorExtraido).filter(Boolean),
+    };
+  }
+
+  function detectarCredencialAssinaturaSigadoc() {
+    const fontes = obterFontesUsuarioAssinaturaSigadoc();
+    const matriculas = fontes.matriculas.map((valor) => normalizarTexto(valor).toUpperCase());
+    const nomes = fontes.nomes.map(normalizarTexto);
+
+    return CREDENCIAIS_ASSINATURA_SIGADOC.find((credencial) => {
+      const matricula = normalizarTexto(credencial.matricula).toUpperCase();
+      const porMatricula = matriculas.includes(matricula);
+      const porNome = credencial.nomes.some((nome) => {
+        const esperado = normalizarTexto(nome);
+        return nomes.some((atual) => atual.includes(esperado) || esperado.includes(atual));
+      });
+
+      return porMatricula || porNome;
+    }) || null;
+  }
+
+  function selecionarAssinaturaPorSenhaSigadoc() {
+    const radio = document.getElementById('ad_password_0') ||
+      document.querySelector('input[name="radioProviderAssinatura"][id^="ad_password"]');
+
+    if (!radio) throw new Error('Opção de assinatura por senha não encontrada.');
+    if (radio.disabled) throw new Error('Opção de assinatura por senha está desabilitada.');
+
+    if (!radio.checked) {
+      radio.click();
+    }
+
+    radio.checked = true;
+    radio.dispatchEvent(new Event('input', { bubbles: true }));
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function desmarcarAcoesExtrasAssinaturaSigadoc() {
+    const seletores = [
+      'input[type="checkbox"][name^="ad_tramitar_"]',
+      'input[type="checkbox"][name^="ad_exibirNoProtocolo_"]',
+    ];
+
+    document.querySelectorAll(seletores.join(',')).forEach((campo) => {
+      campo.checked = false;
+    });
+  }
+
+  async function preencherModalSenhaAssinaturaSigadoc() {
+    const credencial = detectarCredencialAssinaturaSigadoc();
+    if (!credencial) {
+      throw new Error('Usuário logado no SIGADOC não reconhecido para assinatura por senha.');
+    }
+
+    const matricula = await aguardarElemento('#nomeUsuarioSubscritor', 7000);
+    const senha = await aguardarElemento('#senhaUsuarioSubscritor', 7000);
+    const ok = await aguardarElemento('#senhaOk', 7000);
+
+    if (!matricula || !senha || !ok) {
+      throw new Error('Modal de senha do SIGADOC não apareceu com os campos esperados.');
+    }
+
+    setValorCampo(matricula, credencial.matricula);
+    setValorCampo(senha, credencial.senha);
+    await aguardar(250);
+
+    const pacote = await obterPacoteSalvo();
+    if (pacote) {
+      await salvarFluxoPosAssinaturaSigadoc(pacote);
+    }
+
+    await limparFluxoAssinaturaSigadoc();
+    ok.click();
+  }
+
+  async function iniciarFluxoAssinaturaSigadoc(pacote, btn) {
+    const gravar = document.getElementById('btnGravar');
+    if (!gravar) {
+      throw new Error('Botão OK da minuta não encontrado.');
+    }
+
+    await salvarFluxoAssinaturaSigadoc('aguardando-documento', {
+      processo: pacote.processo || '',
+    });
+
+    atualizarBotao(btn, 'copiando', '...', 'Gravando...');
+    await aguardar(300);
+    gravar.click();
+  }
+
+  async function clicarAssinarNaExibicaoSigadoc() {
+    const link = await aguardarElemento('#assinar', 8000);
+    if (!link) return false;
+
+    await salvarFluxoAssinaturaSigadoc('aguardando-tela-assinatura');
+    link.click();
+    return true;
+  }
+
+  async function executarTelaAssinaturaSigadoc() {
+    const botaoAssinar = await aguardarElemento('#bot-assinar', 8000);
+    if (!botaoAssinar) return false;
+
+    selecionarAssinaturaPorSenhaSigadoc();
+    desmarcarAcoesExtrasAssinaturaSigadoc();
+    await salvarFluxoAssinaturaSigadoc('aguardando-modal-senha');
+    await aguardar(250);
+    botaoAssinar.click();
+    await preencherModalSenhaAssinaturaSigadoc();
+    return true;
+  }
+
+  let fluxoAssinaturaEmAndamento = false;
+
+  async function verificarFluxoAssinaturaPendente() {
+    if (fluxoAssinaturaEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_ASSINATURA_KEY]);
+    const pendente = resultado[PENDING_ASSINATURA_KEY];
+    if (!pendente) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_ASSINATURA_MS) {
+      await limparFluxoAssinaturaSigadoc();
+      return;
+    }
+
+    fluxoAssinaturaEmAndamento = true;
+    try {
+      if (document.getElementById('senhaDialog') ||
+          document.getElementById('senhaUsuarioSubscritor')) {
+        await preencherModalSenhaAssinaturaSigadoc();
+        return;
+      }
+
+      if (document.getElementById('bot-assinar') ||
+          document.getElementById('ad_password_0')) {
+        const executou = await executarTelaAssinaturaSigadoc();
+        if (executou) return;
+      }
+
+      if (document.getElementById('assinar')) {
+        const executou = await clicarAssinarNaExibicaoSigadoc();
+        if (executou) return;
+      }
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha no fluxo de assinatura SIGADOC:', erro);
+      await limparFluxoAssinaturaSigadoc();
+      const btn = document.getElementById('spa-sigadoc-assinar-btn');
+      atualizarBotao(btn, 'erro', '!', 'Erro ao assinar');
+      if (btn) btn.title = erro.message || 'Falha ao assinar no SIGADOC.';
+    } finally {
+      fluxoAssinaturaEmAndamento = false;
+    }
+  }
+
+  async function executarPreenchimentoSigadoc(opcoes = {}) {
+    let assinar = Boolean(opcoes.assinar);
+    const btn = document.getElementById(assinar ? 'spa-sigadoc-assinar-btn' : 'spa-sigadoc-btn');
+    const automatico = Boolean(opcoes.automatico);
+    let manterEstadoBotao = false;
+
+    atualizarBotao(btn, 'copiando', '...', automatico ? 'Finalizando...' : 'Preenchendo...');
+
+    try {
+      const pacote = await obterPacoteSalvo();
+      if (!pacote) {
+        atualizarBotao(btn, 'alerta', '!', 'Nenhum dado do SPA');
+        if (btn) btn.title = 'Extraia primeiro os dados no SPA.';
+        return;
+      }
+
+      if (assinar && oficioApenasPreenchimento(pacote)) {
+        assinar = false;
+        if (btn) {
+          btn.title = 'Este tipo foi configurado para preencher sem assinatura automática.';
+        }
+      }
+
+      if (!automatico) {
+        const modeloDocumento = await selecionarModeloDocumentoSeNecessario(pacote);
+        if (modeloDocumento.mudou) {
+          await storageSet({
+            [PENDING_SIGADOC_KEY]: {
+              criadoEm: new Date().toISOString(),
+              processo: pacote.processo,
+              assinar,
+              fase: 'modelo',
+            },
+          });
+
+          atualizarBotao(btn, 'alerta', '...', 'Carregando modelo...');
+          if (btn) {
+            btn.title = `${modeloDocumento.mensagem} Aguardando o SIGADOC atualizar os textos padrão.`;
+          }
+        } else if (modeloDocumento.mensagem && btn) {
+          btn.title = modeloDocumento.mensagem;
+        }
+
+        const selecao = selecionarTextoPadraoSeNecessario(pacote);
+        if (selecao.mudou) {
+          await storageSet({
+            [PENDING_SIGADOC_KEY]: {
+              criadoEm: new Date().toISOString(),
+              processo: pacote.processo,
+              assinar,
+            },
+          });
+
+          atualizarBotao(btn, 'alerta', '...', 'Carregando modelo...');
+          if (btn) {
+            btn.title = `${selecao.mensagem} Aguardando o SIGADOC carregar conteúdo e classificação antes dos campos finais.`;
+          }
+          if (assinar) manterEstadoBotao = true;
+
+          setTimeout(async () => {
+            try {
+              const mensagens = await preencherCamposSigadoc(pacote);
+              if (assinar) {
+                await iniciarFluxoAssinaturaSigadoc(pacote, btn);
+                return;
+              }
+              atualizarBotao(btn, 'sucesso', 'OK', 'Pronto p/ conferir');
+              if (btn) btn.title = mensagens.join(' ');
+              setTimeout(() => restaurarBotaoPreenchimentoSigadoc(btn), 6000);
+            } catch (erro) {
+              console.error('[CDSP - Extrator] Falha ao finalizar preenchimento SIGADOC:', erro);
+              atualizarBotao(btn, 'erro', '!', 'Erro no SIGADOC');
+              if (btn) btn.title = erro.message || 'Falha ao finalizar preenchimento.';
+            }
+          }, 4500);
+          return;
+        }
+
+        if (selecao.mensagem && btn) btn.title = selecao.mensagem;
+      }
+
+      const mensagens = await preencherCamposSigadoc(pacote);
+      if (assinar) {
+        manterEstadoBotao = true;
+        await iniciarFluxoAssinaturaSigadoc(pacote, btn);
+        return;
+      }
+
+      atualizarBotao(btn, 'sucesso', 'OK', 'Pronto p/ conferir');
+      if (btn) btn.title = mensagens.join(' ');
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao preencher SIGADOC:', erro);
+      atualizarBotao(btn, 'erro', '!', 'Erro no SIGADOC');
+      if (btn) btn.title = erro.message || 'Falha ao preencher. Confira o console do navegador.';
+    } finally {
+      if (!manterEstadoBotao) {
+        setTimeout(() => {
+          restaurarBotaoPreenchimentoSigadoc(btn);
+        }, 6000);
+      }
+    }
+  }
+
+  function restaurarBotaoPreenchimentoSigadoc(btn) {
+    if (btn && btn.id === 'spa-sigadoc-assinar-btn') {
+      restaurarBotaoAssinarSigadoc(btn);
+      return;
+    }
+    restaurarBotaoSigadoc(btn);
+  }
+
+  function restaurarBotaoSigadoc(btn) {
+    if (!btn) return;
+    btn.classList.remove('copiando', 'sucesso', 'alerta', 'erro');
+    btn.disabled = false;
+    btn.title = 'Preencher a minuta com os dados salvos do SPA. Não grava, não assina e não tramita.';
+    btn.innerHTML = '<span class="spa-icon">SPA</span> Preencher SIGADOC';
+  }
+
+  function restaurarBotaoAssinarSigadoc(btn) {
+    if (!btn) return;
+    btn.classList.remove('copiando', 'sucesso', 'alerta', 'erro');
+    btn.disabled = false;
+    btn.title = 'Preencher, assinar, baixar e tramitar quando o tipo de ofício estiver mapeado.';
+    btn.innerHTML = '<span class="spa-icon">SIGA</span> Preencher + Assinar';
+  }
+
+  function injetarBotaoSigadoc() {
+    if (!document.getElementById('spa-sigadoc-btn')) {
+      const btn = document.createElement('button');
+      btn.id = 'spa-sigadoc-btn';
+      btn.innerHTML = '<span class="spa-icon">SPA</span> Preencher SIGADOC';
+      btn.title = 'Preencher a minuta com os dados salvos do SPA. Não grava, não assina e não tramita.';
+      btn.addEventListener('click', () => executarPreenchimentoSigadoc());
+      document.body.appendChild(btn);
+    }
+
+    const telaEdicao = Boolean(
+      document.getElementById('btnGravar') &&
+      (document.getElementById('descrDocumento') || obterTextareaConteudoSigadoc())
+    );
+    const btnAssinarAtual = document.getElementById('spa-sigadoc-assinar-btn');
+
+    if (!telaEdicao) {
+      if (btnAssinarAtual) btnAssinarAtual.remove();
+      return;
+    }
+
+    if (btnAssinarAtual) return;
+
+    const btnAssinar = document.createElement('button');
+    btnAssinar.id = 'spa-sigadoc-assinar-btn';
+    btnAssinar.innerHTML = '<span class="spa-icon">SIGA</span> Preencher + Assinar';
+    btnAssinar.title = 'Preencher, assinar, baixar e tramitar quando o tipo de ofício estiver mapeado.';
+    btnAssinar.addEventListener('click', () => executarPreenchimentoSigadoc({ assinar: true }));
+    document.body.appendChild(btnAssinar);
+  }
+
+  async function verificarPreenchimentoPendente() {
+    const resultado = await storageGet([PENDING_SIGADOC_KEY, STORAGE_KEY]);
+    const pendente = resultado[PENDING_SIGADOC_KEY];
+    const pacote = resultado[STORAGE_KEY];
+    if (!pendente || !pacote) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > 1000 * 60 * 5) {
+      await storageRemove([PENDING_SIGADOC_KEY]);
+      return;
+    }
+
+    setTimeout(() => executarPreenchimentoSigadoc({
+      automatico: pendente.fase !== 'modelo',
+      assinar: Boolean(pendente.assinar),
+    }), 2500);
+  }
+
+  // ─── Finalização do ofício no SPA ──────────────────────────────────────────
+
+  function restaurarBotaoPreencherSpa(btn) {
+    if (!btn) return;
+    btn.classList.remove('copiando', 'sucesso', 'alerta', 'erro');
+    btn.disabled = false;
+    btn.title = 'Preencher no SPA com o PDF assinado salvo pela extensão.';
+    btn.innerHTML = '<span class="spa-icon">SPA</span> Preencher SPA';
+  }
+
+  function etapaAtualSpa() {
+    const form = document.getElementById('progress-form');
+    return form ? String(form.getAttribute('data-step-id') || '') : '';
+  }
+
+  function encontrarLinkSpaPorTexto(textoProcurado) {
+    const alvo = normalizarTexto(textoProcurado);
+    return Array.from(document.querySelectorAll('a[href], a.link-submit-redirect')).find((link) => {
+      const texto = normalizarTexto([
+        link.textContent,
+        link.getAttribute('data-title'),
+        link.getAttribute('title'),
+      ].filter(Boolean).join(' '));
+      return texto.includes(alvo);
+    }) || null;
+  }
+
+  async function atualizarFinalizacaoSpaPendente(alteracoes) {
+    const atual = await obterFinalizacaoSpaPendente();
+    if (!atual) throw new Error('Nenhum ofício assinado aguardando preenchimento no SPA.');
+
+    const atualizado = {
+      ...atual,
+      ...alteracoes,
+      atualizadoEm: new Date().toISOString(),
+    };
+
+    await storageSet({ [PENDING_SPA_FINALIZACAO_KEY]: atualizado });
+    return atualizado;
+  }
+
+  async function obterArquivoFinalizacaoSpa(dados) {
+    const resposta = await enviarMensagemExtensao({
+      type: 'cdspOficioObterPdf',
+      id: dados.arquivoId,
+    });
+
+    const pdf = resposta.pdf;
+    const blob = base64ParaBlob(pdf.base64, pdf.mime || 'application/pdf');
+    return new File([blob], dados.nomeArquivo || pdf.nomeArquivo || 'Oficio CDSP.pdf', {
+      type: pdf.mime || 'application/pdf',
+      lastModified: Date.now(),
+    });
+  }
+
+  function anexarArquivoSpa(input, arquivo) {
+    if (!input) throw new Error('Campo de anexos não encontrado no SPA.');
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(arquivo);
+    input.files = dataTransfer.files;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  async function preencherFormularioFinalizacaoSpa(dados, btn) {
+    const inputAnexo = document.getElementById('progress_form_data_Anexos_0_ATR005190') ||
+      document.querySelector('input[type="file"][name*="ATR005190"]');
+    const numeroOficio = document.getElementById('progress_form_data_ATR007999');
+    const numeroSigadoc = document.getElementById('progress_form_data_ATR005103');
+    const encerrar = document.getElementById('btn-progress-save') ||
+      document.querySelector('input[type="submit"][value*="Encerrar"]');
+
+    if (!numeroOficio || !numeroSigadoc || !encerrar) {
+      throw new Error('Campos finais do SPA não foram encontrados.');
+    }
+
+    const arquivo = await obterArquivoFinalizacaoSpa(dados);
+    anexarArquivoSpa(inputAnexo, arquivo);
+
+    const textoRegistro = dados.textoRegistroSpa ||
+      montarTextoRegistroSpa(dados.numeroSigadoc, dados.nomeOficioEnviado);
+
+    setValorCampo(numeroOficio, textoRegistro);
+    setValorCampo(numeroSigadoc, textoRegistro);
+
+    atualizarBotao(btn, 'sucesso', 'OK', 'Encerrando...');
+
+    await storageRemove([PENDING_SPA_FINALIZACAO_KEY]);
+    if (dados.arquivoId) {
+      await enviarMensagemExtensao({
+        type: 'cdspOficioApagarPdf',
+        id: dados.arquivoId,
+      }).catch((erro) => {
+        console.warn('[CDSP - Extrator] Não foi possível apagar o PDF interno:', erro);
+      });
+    }
+
+    await aguardar(350);
+    encerrar.click();
+  }
+
+  async function continuarFinalizacaoSpa(dados, btn) {
+    const etapa = etapaAtualSpa();
+
+    if (etapa === '1245') {
+      await atualizarFinalizacaoSpaPendente({ etapa: 'preencher-formulario' });
+      await preencherFormularioFinalizacaoSpa(dados, btn);
+      return;
+    }
+
+    if (etapa === '751') {
+      const linkInserir = document.querySelector('a.link-submit-redirect[data-step="1245"]') ||
+        encontrarLinkSpaPorTexto('Inserir dados e aguardar resposta de ofício');
+      if (!linkInserir) {
+        throw new Error('Opção "Inserir dados e aguardar resposta de ofício" não encontrada.');
+      }
+
+      await atualizarFinalizacaoSpaPendente({ etapa: 'preencher-formulario' });
+      atualizarBotao(btn, 'copiando', '...', 'Avançando...');
+      linkInserir.click();
+      return;
+    }
+
+    const linkEncerrar = encontrarLinkSpaPorTexto('Encerrar respostas de oficio recebida');
+    if (!linkEncerrar) {
+      throw new Error('Etapa "Encerrar respostas de oficio recebida" não encontrada nesta página do SPA.');
+    }
+
+    await atualizarFinalizacaoSpaPendente({ etapa: 'selecionar-inserir' });
+    atualizarBotao(btn, 'copiando', '...', 'Abrindo etapa...');
+    linkEncerrar.click();
+  }
+
+  async function executarPreencherSpa(botaoOrigem) {
+    const btn = botaoOrigem || document.getElementById('spa-preencher-btn');
+    atualizarBotao(btn, 'copiando', '...', 'Preenchendo...');
+
+    try {
+      const dados = await obterFinalizacaoSpaPendente();
+      if (!dados) {
+        atualizarBotao(btn, 'alerta', '!', 'Nada pendente');
+        if (btn) btn.title = 'Não há ofício assinado guardado para preencher no SPA.';
+        return;
+      }
+
+      await continuarFinalizacaoSpa(dados, btn);
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao preencher SPA:', erro);
+      atualizarBotao(btn, 'erro', '!', 'Erro no SPA');
+      if (btn) btn.title = erro.message || 'Falha ao preencher o SPA.';
+    } finally {
+      setTimeout(() => restaurarBotaoPreencherSpa(btn), 6000);
+    }
+  }
+
+  function injetarBotaoPreencherSpa() {
+    if (document.getElementById('spa-preencher-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'spa-preencher-btn';
+    btn.innerHTML = '<span class="spa-icon">SPA</span> Preencher SPA';
+    btn.title = 'Preencher no SPA com o PDF assinado salvo pela extensão.';
+    btn.addEventListener('click', executarPreencherSpa);
+    document.body.appendChild(btn);
+  }
+
+  let finalizacaoSpaEmAndamento = false;
+
+  async function verificarFinalizacaoSpaPendente() {
+    if (finalizacaoSpaEmAndamento) return;
+
+    const dados = await obterFinalizacaoSpaPendente();
+    if (!dados || dados.etapa === 'aguardando-botao') return;
+
+    const etapa = etapaAtualSpa();
+    const deveContinuar = (dados.etapa === 'selecionar-inserir' && etapa === '751') ||
+      (dados.etapa === 'preencher-formulario' && etapa === '1245');
+
+    if (!deveContinuar) return;
+
+    finalizacaoSpaEmAndamento = true;
+    try {
+      await continuarFinalizacaoSpa(dados, document.getElementById('spa-preencher-btn'));
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha na continuação automática do SPA:', erro);
+      const btn = document.getElementById('spa-preencher-btn');
+      atualizarBotao(btn, 'erro', '!', 'Erro no SPA');
+      if (btn) btn.title = erro.message || 'Falha na continuação automática do SPA.';
+    } finally {
+      finalizacaoSpaEmAndamento = false;
+    }
+  }
+
+  async function aguardarCamposProcessoSpa(timeoutMs = 15000) {
+    const inicio = Date.now();
+    let ultimo = extrairCamposDaPaginaProcesso();
+
+    while (Date.now() - inicio < timeoutMs) {
+      ultimo = extrairCamposDaPaginaProcesso();
+      if (ultimo.processo && (ultimo.vara || ultimo.autor || ultimo.assuntoBruto)) return ultimo;
+      await aguardar(300);
+    }
+
+    return ultimo;
+  }
+
+  async function extrairPacoteProcessoAtualParaResposta() {
+    let campos = await aguardarCamposProcessoSpa();
+    const algumEncontrado = Object.values(campos).some(Boolean);
+    if (!algumEncontrado) {
+      throw new Error('Nenhum campo encontrado na página do processo.');
+    }
+
+    campos = await enriquecerDadosPeloProcessoPrincipal(campos);
+    return criarPacote(campos, 'pagina-processo-em-aba');
+  }
+
+  function instalarExtracaoRemotaSpa() {
+    if (window.CDSP_EXTRATOR_REMOTE_LISTENER_INSTALLED) return;
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
+
+    window.CDSP_EXTRATOR_REMOTE_LISTENER_INSTALLED = true;
+    chrome.runtime.onMessage.addListener((mensagem, _sender, sendResponse) => {
+      if (!mensagem || mensagem.type !== 'CDSP_OFICIOS_EXTRAIR_PROCESSO_ATUAL') return false;
+
+      extrairPacoteProcessoAtualParaResposta()
+        .then((pacote) => sendResponse({ ok: true, pacote }))
+        .catch((erro) => {
+          sendResponse({
+            ok: false,
+            error: erro && erro.message ? erro.message : String(erro),
+          });
+        });
+
+      return true;
+    });
+  }
+
+  // ─── Inicialização ─────────────────────────────────────────────────────────
+
+  function inicializarSpa() {
+    instalarExtracaoRemotaSpa();
+    instalarApiOficiosSpa();
+    removerBotoesSpaSoltos();
+    verificarFinalizacaoSpaPendente();
+
+    let timer = null;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        removerBotoesSpaSoltos();
+        verificarFinalizacaoSpaPendente();
+        notificarMenuOficiosSpa();
+      }, 350);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function inicializarSigadoc() {
+    injetarBotaoSigadoc();
+    verificarPreenchimentoPendente();
+    verificarFluxoAssinaturaPendente();
+    verificarFluxoPosAssinaturaSigadocPendente();
+    verificarTramitacaoSigadocPendente();
+
+    let timer = null;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        injetarBotaoSigadoc();
+        verificarFluxoAssinaturaPendente();
+        verificarFluxoPosAssinaturaSigadocPendente();
+        verificarTramitacaoSigadocPendente();
+      }, 400);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (window.location.hostname === 'spa.pge.mt.gov.br') {
+    inicializarSpa();
+  } else if (HOST_SIGADOC.test(window.location.hostname)) {
+    inicializarSigadoc();
+  }
+})();

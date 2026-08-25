@@ -1,0 +1,161 @@
+CDSP Extensao Geral - Guia de updates
+
+Objetivo:
+- Manter esta extensao pronta para evoluir neste chat quando uma nova pasta ou ZIP de modulo for enviada.
+
+Padrao atual:
+- Menu geral: Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios no mesmo painel, com titulo geral "CDSP".
+- Manifest/action: preservar o nome publico da extensao como "CDSP - Extensao Geral"; o titulo interno do menu pode permanecer "CDSP".
+- Identidade visual unificada no menu geral: cabecalho CDSP grande antigo da Triagem nos modulos, titulos curtos, paleta escura unica e painel de log padronizado.
+- Menu geral: preservar memoria em CDSP_GENERAL_SHELL_STATE para posicao e modulo ativo; o estado inicial minimizado das novas abas deve ser controlado pela checkbox "Abrir minimizado" em CDSP_GENERAL_SHELL_OPEN_MINIMIZED.
+- Extrator SPA/SIGADOC: no SPA, acoes ficam no modulo Oficios do menu geral; no SIGADOC, permanece fora do menu, com os botoes nativos soltos.
+- Extrator SIGADOC: selecionar o campo Modelo antes do Texto padrao; usar Oficio para os modelos comuns e Comunicacao Interna para os tipos PERICIA ESTADO e PERICIA JUSTICA GRATUITA.
+- Extrator SIGADOC: PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, sem baixar PDF e sem copiar texto.
+- Extrator SIGADOC: AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
+- Coordenacao/Gestao: setores dos assessores sao carregados da base interna data/equipe.xlsx, sem Google Sheets.
+- Base interna Excel: o background informa a URL interna e o painel da Coordenacao le o arquivo com ExcelJS; nao voltar a converter o XLSX no service worker.
+- Coordenacao/Gestao: preservar os botoes Cobrar Triagem, Cobrar Correcao e Cobrar Peca dentro do relatorio gerado, nunca no menu compacto.
+- Coordenacao/Gestao: as cobrancas devem usar state.lastRecords/state.lastReportDate do relatorio ja gerado; nao reler a tabela do SPA ao clicar nos botoes.
+- Coordenacao/Gestao: as mensagens de cobranca devem ser agrupadas por gestor de setor usando PROD_GESTORES_TRIAGEM para Triagem e PROD_GESTORES para Correcao/Peca.
+- Busca nos autos processuais: fica como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, independente do modulo ativo no menu; nao deve aparecer na caixa/listagem de processos.
+- Autos processuais: preservar o botao "Processo Completo" dentro do painel interno "Autos do processo"; ele deve abrir um seletor em duas etapas: primeiro Unificado ou Separado; depois Crescente ou Decrescente. O unificado baixa PDFs diretos em paralelo limitado e mescla localmente com pdf-lib local, sem CDN e sem usar documents.pdf como fluxo principal. O separado abre todos os PDFs juntos em uma aba com visual lateral em estilo PJE.
+- Autos processuais: ordenar por data/hora e ID; quando documentos tiverem a mesma data/hora, manter ID crescente para preservar a peca principal antes dos anexos.
+- Autos processuais: no modo Separado, agrupar documentos com mesma data/hora como um andamento; ao visualizar o andamento, carregar o documento principal e pre-carregar os anexos em fila leve para acelerar o clique, com indicador simples de carregamento no frame.
+- Autos processuais: preservar no botao "Abrir tudo" o mesmo seletor sequenciado, sempre usando somente os itens filtrados na tela.
+- Autos processuais: preservar o carregamento automatico inicial de Autos, Pasta e Andamento PJE; o botao do cabecalho deve ser "Atualizar", apenas para refazer a leitura.
+- Autos processuais: preservar a checkbox "Abrir minimizado" em SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED; ela controla somente se novas paginas de processo abrem o painel de Autos recolhido.
+- Andamento PJE: preservar a consulta via Worker/MCP institucional no background, usando tjmt_mni_consultar_processo com movimentos e expedientes; nao reintroduzir credenciais MNI locais na extensao.
+- Andamento PJE: preservar a timeline enriquecida com expedientes vinculados, data de ciencia, prazo legal, prazo final, parte, procuradoria, meio de expedicao, status aberto/fechado/devolvido e item proprio para expediente sem movimento vinculado.
+- Andamento PJE: preservar leitura visual ampla, com tipografia maior, legenda "Expedientes e prazos vinculados" e grade de campos para expedicao, ciencia, prazo final e prazo legal.
+- Autos processuais: preservar checkboxes nos documentos/PDFs listados e nos resultados da pesquisa interna; o botao "Selecionados" abre somente os itens marcados, com seletor Unificado/Separado e Crescente/Decrescente.
+- Autos processuais: a pesquisa dentro dos PDFs deve ter botao "Abrir todos" para os resultados encontrados, tambem com seletor Unificado/Separado e Crescente/Decrescente.
+- Oficios/SIGADOC: o bloco de links anexado abaixo da tabela deve usar "Link dos Documentos Externos" apontando para os autos processuais, no lugar do link simples do processo no SPA; preservar o link do expediente.
+- Redacao e Correcao/Fluxo de Correcao: preservar o bloco compacto dentro do mesmo menu, sem abrir menus secundarios.
+- Redacao e Correcao/Fluxo de Correcao: "Atualizar filtros" deve ler todas as paginas da tabela #procedures-box e montar filtros arrastaveis, com ordem salva em localStorage.
+- Redacao e Correcao/Fluxo de Correcao: preservar filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo, todos com multiplas selecoes.
+- Redacao e Correcao/Fluxo de Correcao: todos os filtros sao opcionais; campos vazios devem ser ignorados, e sem nenhum filtro selecionado o botao Abrir deve pedir confirmacao antes de abrir tudo.
+- Redacao e Correcao/Fluxo de Correcao: "Abrir" deve abrir as pendencias filtradas e clicar automaticamente no link "Visualizar e editar minuta" em cada processo aberto.
+- Redacao e Correcao/Fluxo de Correcao: preservar o clique nativo no link "Visualizar e editar minuta", o preparo de historico da aba em duas etapas e o reparo da seta nativa do SPA, para que abas abertas pelo botao "Abrir" voltem para a pendencia correta.
+- Redacao e Correcao/Fluxo de Correcao: preservar atalhos unicos para "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor", cada um abrindo opcoes por checkbox para "Tela da pendencia" e "Tela da Minuta".
+- Redacao e Correcao/Fluxo de Correcao: preservar "Enviar ao procurador" pelo passo new_progress/2882, "Sugerir encerramento de tarefa" pelo passo new_progress/2756 e "Devolver ao assessor" pelo passo new_progress/2786, com busca local na lista da equipe e preenchimento do campo #progress_form_data_ATR007572.
+- Relatorio de duplicados: preservar as colunas "Manifestacao Sugerida" e "Prazo PJE", limpar repeticoes exatas das celulas e destacar "Expedientes iguais" quando assunto, manifestacao, prazo, distribuicao, ultimo andamento e jurisdicao coincidirem.
+- Relatorio de duplicados: quando os metadados nao bastarem, preservar a conferencia por texto dos PDFs dos expedientes dentro do mesmo processo; usar offscreen, pdf.js local, texto bruto, cache e baixa concorrencia, sem CDN e sem biblioteca nova.
+- Relatorio de duplicados: preservar a busca da coluna de manifestacao por "manifestation", "Manifestacao Sugerida" e "Manisfestacao Sugerida".
+- Relatorio de duplicados: excluir todos os processos identificados como SES, nao apenas o ultimo andamento "Minutac da SES enviada ao(a) Procurador(a)".
+- Relatorio de duplicados: ocultar processos com marcador "Conferido" somente quando todas as pendencias do processo estiverem marcadas; processos parcialmente marcados continuam exibidos com destaque vermelho nas pendencias marcadas.
+- Relatorio de duplicados: preservar destaque forte para expedientes com PDF/texto identico ou metadados equivalentes, incluindo badge no grupo e faixa verde na linha.
+- Publicacao Chrome Web Store: nao reintroduzir jsPDF/jsPDF-AutoTable rejeitados como Blue Argon nem qualquer codigo remoto/CDN; relatorios podem usar Excel e impressao nativa do Chrome para salvar em PDF.
+- Triagem/Programada: preservar o passo "Protocolar agravo de instrumento", que usa o card "Realizar peticionamento em massa - Agravo de instrumento", fase "Minuta elaborada", selecao por pagina e o mesmo fluxo de senha/assinatura dos demais protocolos.
+- Modo Escuro: nao faz parte desta extensao a partir da versao 1.03.
+- SIGADOC: carrega somente o Extrator, sem menu geral.
+
+Como atualizar em versoes futuras:
+1. Identificar o modulo recebido pelo manifest, nome, versao e arquivos principais.
+2. Comparar permissions, host_permissions, background e content_scripts antes de copiar arquivos.
+3. Preservar o menu geral em js/content_bridge.js e css/menu.css.
+4. Atualizar somente a pasta do modulo correspondente em js/ ou css/.
+5. Reaplicar qualquer alteracao feita neste chat quando um ZIP novo trouxer uma versao sem essa alteracao.
+6. Preservar o padrao visual unificado: cabecalho CDSP grande antigo da Triagem, sem icone pequeno exclusivo no modulo Coordenacao embutido, log escuro padronizado e botoes compactos.
+7. Preservar os nomes publicos atuais: Triagem e Protocolo, Redacao e Correcao, Coordenacao, Oficios e "CDSP - Extensao Geral" como nome da extensao no Chrome.
+8. Preservar o filtro "Nota tecnica do NAT" no menu de pesquisa de documentos do modulo de Triagem, com as palavras-chave notaT, Codigo, PM e PF.
+9. Preservar o filtro "Manifestacoes em Geral" com os termos: inicial, contest, impug, embarg, apela, agrav, recurs, contra, cump, edcl, cnt, agint, resp, impsent, impdec, alega, memoriais, parecer, petic, cdsp e mp para o juizo. Nao reintroduzir decis, tutela, liminar ou senten nesse filtro.
+10. Preservar o filtro "Informacoes da SES" com SESDIC, SESOFI, ofi, merged, CIAPS, juntada ses e SESMT.
+11. Preservar o modulo Oficios no SPA ao atualizar o Extrator, sem botao fixo solto no SPA.
+12. Preservar, no modulo Oficios, a extracao dos botoes SIG da caixa pela pagina real do processo: abrir aba temporaria em segundo plano, extrair pelo DOM do processo, fechar a aba e copiar/salvar na pagina inicial.
+13. Preservar a contingencia por leitura direta/fetch da pagina do processo quando a aba temporaria nao responder.
+14. Preservar o repasse de rolagem do menu para a pagina do SPA quando o menu/lista interna chegam ao limite.
+15. Preservar o botao "Cadastrar Agravo" dentro do modulo Redacao e Correcao no menu geral, usando o fluxo existente de Agravo de Instrumento.
+15-A. Preservar a escolha automatica do Agravo: processos com ".4.01." no numero CNJ devem usar "Cadastrar Agravo de Instrumento TRF"; os demais usam o cadastro estadual.
+15-B. Preservar as regras do Agravo TRF: codigo final 9360 usa "Turma Recursal dos Juizados Especiais Federais da SJMT"; codigos finais 3600 a 3606 usam "Tribunal Regional Federal da 1a Regiao"; competencia "TRF1-5a e 6a Turmas-Direito Adm/Civil/Comercial".
+15-C. Preservar na tabela copiada do Agravo, estadual e federal, o rotulo "Agravado e outros".
+15-D. Preservar a formatacao parametrizada da tabela copiada do Agravo: Times New Roman 12, azul #000080, primeira coluna 6,64cm, segunda coluna 12,28cm, largura total 18,92cm, texto justificado, sem negrito, sem recuo inicial e espacamento entre linhas 1,15. O HTML deve manter colgroup, min/max-width e estilos mso; se o documento destino tiver area util menor que 18,92cm, o editor pode reduzir a tabela ao colar.
+15-E. Preservar o preenchimento do Agravo por mapa de campos estadual/TRF e fallback por rotulo: estadual usa ATR001943/ATR001934/ATR001938/ATR001939/ATR001940/ATR001942; TRF usa ATR007883/ATR007884/ATR007891/ATR007892/ATR007893/ATR007894/ATR007895 e step 2934.
+16. Nao reintroduzir o botao solto/flutuante de Agravo de Instrumento no SPA; remover qualquer elemento legado com id spa-cdsp-agravo-instrumento-button.
+16-A. Preservar o bloco "Fluxo de Correcao" no modulo Redacao e Correcao; ele deve ficar no mesmo painel e nao virar popup/menu separado.
+16-B. Preservar a leitura de todas as paginas da caixa de correcao para montar filtros arrastaveis com ordem memorizada.
+16-B1. Preservar multiplas selecoes nos filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo.
+16-B2. Preservar os atalhos "Sugerir encerramento de tarefa" e "Devolver ao assessor" dentro do Fluxo de Correcao.
+16-B3. Preservar a tolerancia de findColumnIndex para achar "Manifestacao Sugerida" mesmo sem classe dt-header ou com icones/filtros no cabecalho; a leitura deve usar posicoes visiveis de th/td, sem confiar no data-index do DataTables.
+16-B2. Preservar Polo passivo como filtro opcional; vazio significa nao filtrar por polo.
+16-C. Preservar a fila local SPA_CDSP_CORRECTION_OPEN_QUEUE para abrir pendencias filtradas e acionar "Visualizar e editar minuta" por procedureId; preservar tambem SPA_CDSP_CORRECTION_BACK_HISTORY, SPA_CDSP_CORRECTION_BACK_CONTEXT e o reparo da seta nativa de voltar.
+16-D. Preservar SPA_CDSP_CORRECTION_SEND_ACTION, o passo 2882 e o clique em #btn-progress-save para os atalhos de envio ao procurador.
+17. Preservar a base interna de equipe em data/equipe.xlsx, em formato de tabela com filtros, e atualizar esse arquivo quando houver mudanca de setor/equipe.
+18. Nao reintroduzir consulta ao Google Sheets nem a host_permission https://docs.google.com/spreadsheets/* sem pedido explicito.
+19. Preservar data/equipe.xlsx em web_accessible_resources para https://spa.pge.mt.gov.br/*, pois o painel da Coordenacao precisa buscar esse arquivo localmente.
+20. Preservar o fluxo da base interna: background informa xlsxUrl e o painel da Coordenacao le o Excel com ExcelJS; nao voltar a converter o XLSX no service worker.
+21. Preservar a ferramenta de busca nos autos processuais como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, carregada mesmo quando o usuario estiver em Redacao e Correcao, Coordenacao ou Oficios; bloquear a ferramenta em /procedures, /procedures/search, /procedures/follows, /procedures/outbox e demais paginas com #procedures-box de listagem.
+21-A. Preservar a deteccao de contexto por numero do processo, link de Documentos Externos, link da Pasta do Processo, main_procedure_id e rotas /procedures/start_procedure, /procedures/{id}/new_progress e /procedures/create_progress, sem aceitar links de processos encontrados dentro de tabelas/listagens como contexto suficiente.
+21-B. Preservar as memorias independentes de minimizacao: CDSP_GENERAL_SHELL_OPEN_MINIMIZED para o menu principal e SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED para o painel de Autos; as duas podem ficar marcadas ao mesmo tempo.
+21-C. Preservar o dominio do Worker/MCP em host_permissions somente para consulta de andamento/prazos; a extensao deve buscar dados, nunca codigo remoto.
+22. Preservar a regra do relatorio gerencial: triagem sem assessor, revisor, correcao e procurador entram como criticos com 2 dias uteis ou mais, ignorando sabado, domingo e feriados nacionais de data fixa.
+23. Preservar a logo do relatorio gerencial em tela como faixa compacta de cabecalho, exibindo a imagem inteira; ela nao deve voltar a ficar quadrada, cortada por object-fit: cover nem ocupar altura excessiva.
+24. Preservar as cores e icones originais do Extrator dentro do modulo Oficios: SIG azul, SPA verde e SIGA dourado quando houver fluxo correspondente.
+25. Preservar os botoes nativos soltos do Extrator no SIGADOC e manter o menu geral fora do SIGADOC.
+26. Preservar a rotina do Extrator que seleciona Modelo antes de Texto padrao no SIGADOC: Oficio para os tipos comuns e Comunicacao Interna para PERICIA ESTADO/PERICIA JUSTICA GRATUITA.
+27. Preservar o comportamento pos-assinatura das pericias: parar na pagina pos-assinatura, sem tramitar, baixar arquivo ou copiar texto.
+28. Preservar AUDIENCIA e SINF DANO MORAL como preenchimento sem assinatura automatica.
+29. Nao reintroduzir jsPDF/jsPDF-AutoTable rejeitados como Blue Argon nem qualquer codigo remoto/CDN; se PDF for necessario, preferir impressao nativa do Chrome ou outra solucao aprovada e local.
+30. Preservar o passo de rotina programada "Protocolar agravo de instrumento" na Triagem, sem agrupa-lo com "Protocolar peticao em massa" ou "Protocolar juntadas da SES", pois ele precisa localizar outro card no SPA.
+31. Preservar o botao "Processo Completo" dentro de js/triagem/spa_extension_panel.js, no painel interno "Autos do processo"; nao reintroduzir js/autos/processo_completo.js, css/autos.css nem botao na pagina nativa dos autos. Preservar js/libs/pdf-lib.min.js e js/libs/pdf-lib.LICENSE.md para o modo Unificado.
+32. Preservar sortExternalAutosItems: ordem por data/hora, com empate por ID crescente quando a data/hora for igual, inclusive no modo Decrescente.
+33. Preservar groupExternalAutosViewerItems no modo Separado para agrupar anexos da mesma data/hora abaixo do documento principal e pre-carregar os anexos quando o andamento entrar na tela, sem abrir todos os frames ao mesmo tempo.
+34. Preservar seletores sequenciados nos botoes "Processo Completo" e "Abrir tudo": primeiro Unificado/Separado; depois Crescente/Decrescente.
+35. Preservar no botao "Abrir tudo" o uso somente de filterExternalDocumentItems da tela atual.
+36. Preservar no Extrator o campo linkAutosSpa e o rotulo "Link dos Documentos Externos" no bloco anexado ao SIGADOC.
+37. Preservar no relatorio de duplicados as colunas "Manifestacao Sugerida" e "Prazo PJE", a limpeza de repeticoes exatas e o destaque visual "Expedientes iguais" por metadados ou texto identico do PDF.
+38. Preservar a conferencia por PDF dos expedientes dentro do mesmo processo, usando offscreen, pdf.js local, texto bruto, cache e baixa concorrencia; nao usar CDN nem biblioteca nova.
+39. Preservar o seletor da Manifestacao Sugerida com suporte a "manifestation" e "Manisfestacao Sugerida".
+40. Preservar a exclusao de todos os processos identificados como SES no relatorio de duplicados e no atalho de abrir duplicados.
+40-A. Preservar a regra do marcador "Conferido": somente ocultar o processo quando todas as pendencias estiverem marcadas; se apenas parte estiver marcada, exibir o processo normalmente e destacar as pendencias marcadas em vermelho.
+41. Preservar na Coordenacao os botoes de cobranca apenas dentro do relatorio gerado e preservar a caixa de mensagens prontas com copia individual/geral.
+42. Manter variaveis globais isoladas por namespace ou IIFE.
+43. Remover console.logs de depuracao e permissoes que nao forem necessarias.
+44. Incrementar manifest.json, README_CARREGAR.txt e este guia quando houver mudanca de arquitetura.
+45. Validar manifest, sintaxe JavaScript e ZIP com manifest na raiz antes de entregar.
+
+Checklist rapido:
+- O menu minimiza e expande.
+- O menu preserva posicao e modulo ativo, e a checkbox "Abrir minimizado" faz novas abas abrirem com o menu principal recolhido.
+- O menu alterna entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios no mesmo painel.
+- Os modulos exibem a marca CDSP no mesmo padrao visual dentro do menu geral.
+- Os logs dos modulos que possuem painel de log usam o mesmo estilo visual e nao crescem sem limite.
+- O filtro "Nota tecnica do NAT" aparece no menu de pesquisa de documentos da Triagem e busca notaT, Codigo, PM ou PF.
+- O filtro "Informacoes da SES" aparece no menu de pesquisa de documentos da Triagem.
+- O filtro "Manifestacoes em Geral" aparece sem os termos decis, tutela, liminar e senten.
+- No SPA, o Extrator aparece pelo modulo Oficios; no SIGADOC, continua com botoes nativos soltos.
+- Na caixa do SPA, o botao SIG usa a pagina do processo da linha, nao apenas os dados resumidos da tabela.
+- A rolagem da tela inicial do SPA funciona quando o ponteiro esta sobre o menu e o menu/lista ja nao conseguem rolar.
+- O modulo Redacao e Correcao contem o botao "Cadastrar Agravo" no menu geral e nao cria botao flutuante de Agravo no SPA.
+- O modulo Redacao e Correcao contem "Fluxo de Correcao" com filtros arrastaveis em ordem memorizada.
+- Os filtros do Fluxo de Correcao aceitam multiplas selecoes em Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo, todos opcionais.
+- No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa, e "Abrir" abre cada pendencia filtrada e clica em "Visualizar e editar minuta".
+- Nas abas abertas pelo Fluxo de Correcao, a seta de voltar do SPA retorna para a pendencia correta, inclusive quando o SPA substituir o destino original pela caixa de entrada.
+- Os atalhos do Fluxo de Correcao usam botoes unicos com checkboxes de origem; "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor" funcionam pela tela da pendencia ou pela tela da minuta, conforme opcao marcada.
+- A ferramenta de busca nos autos processuais aparece nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA mesmo quando outro modulo esta ativo, e nao aparece na caixa/listagem de processos.
+- A checkbox "Abrir minimizado" do painel de Autos faz novas paginas de processo abrirem com esse painel recolhido, sem depender da checkbox do menu principal.
+- A aba "Andamento PJE" exibe movimentos e expedientes/prazos consultados via Worker/MCP, com ciencia e prazo final visiveis no card.
+- A aba "Andamento PJE" deve permanecer legivel em desktop e mobile, com cards de prazo grandes e intuitivos.
+- O painel interno "Autos do processo" mostra o botao "Processo Completo" no cabecalho, junto de Atualizar/Abrir autos, abrindo seletor em duas etapas: Unificado/Separado e depois Crescente/Decrescente.
+- O modo Unificado baixa PDFs diretos em paralelo limitado e mescla localmente em um unico arquivo, carregando pdf-lib apenas sob demanda e respeitando a ordem selecionada.
+- O modo Separado agrupa documentos da mesma data/hora em uma arvore estilo PJE; o documento principal carrega no frame e os anexos do mesmo andamento sao pre-carregados quando o andamento entra na tela.
+- Quando documentos possuem a mesma data/hora, a ordem por ID crescente aparece antes dos anexos, mesmo no modo Decrescente.
+- O botao "Abrir tudo" abre somente os itens filtrados na tela, tambem com seletor Unificado/Separado e depois Crescente/Decrescente.
+- O modulo Coordenacao/Gestao identifica setores usando data/equipe.xlsx e nao depende de Google Sheets.
+- A base data/equipe.xlsx abre como tabela do Excel, com filtro no cabecalho.
+- A base data/equipe.xlsx esta em web_accessible_resources e e lida pelo painel da Coordenacao, nao convertida pelo service worker.
+- O relatorio da Coordenacao mostra Cobrar Triagem, Cobrar Correcao e Cobrar Peca no toolbar do relatorio, e cada botao abre mensagens prontas por gestor.
+- Triagem sem assessor, revisor, correcao e procurador entram no relatorio gerencial como criticos com 2 dias uteis ou mais.
+- A host_permission do Google Sheets nao aparece no manifest.
+- A logo do relatorio gerencial em tela aparece inteira em uma faixa compacta de cabecalho, sem ficar quadrada nem cortada.
+- Os botoes do modulo Oficios mantem as cores e icones originais do Extrator.
+- No SIGADOC, o bloco abaixo da tabela dos Oficios mostra "Link dos Documentos Externos" e "Link do expediente".
+- No SIGADOC, o Extrator seleciona o Modelo correto antes do Texto padrao.
+- PERICIA ESTADO e PERICIA JUSTICA GRATUITA usam Comunicacao Interna e param na pagina pos-assinatura.
+- AUDIENCIA e SINF DANO MORAL usam Oficio e apenas preenchem a minuta.
+- O pacote nao contem as bibliotecas PDF rejeitadas na revisao Blue Argon.
+- A aba Programada mostra "Protocolar agravo de instrumento" e esse passo exige senha como os demais protocolos.
+- O relatorio de duplicados mostra Manifestacao Sugerida, Prazo PJE, limpa valores repetidos na mesma celula e destaca pendencias realmente iguais por metadados ou por texto identico dos PDFs.
+- Processos identificados como SES nao entram no relatorio de duplicados nem no atalho de abrir duplicados.
+- Processos parcialmente marcados com "Conferido" aparecem no relatorio normal; apenas processos com todas as pendencias marcadas ficam ocultos.
+- O Modo Escuro nao e carregado por esta extensao.
+- Nenhum arquivo do ZIP fica acima do manifest.json na estrutura.

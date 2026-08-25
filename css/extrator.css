@@ -1,0 +1,123 @@
+/* CDSP - Extrator SPA/SIGADOC — painel.css */
+
+#spa-extrator-btn,
+#spa-sigadoc-btn,
+#spa-sigadoc-assinar-btn,
+#spa-preencher-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999;
+  background: #1a3a5c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  letter-spacing: 0.3px;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 156px;
+  min-height: 38px;
+}
+
+#spa-sigadoc-btn {
+  background: #245c45;
+  min-width: 178px;
+}
+
+#spa-sigadoc-assinar-btn {
+  bottom: 74px;
+  background: #6a4a12;
+  min-width: 190px;
+}
+
+#spa-preencher-btn {
+  bottom: 74px;
+  background: #245c45;
+  min-width: 166px;
+}
+
+#spa-extrator-btn:hover,
+#spa-sigadoc-btn:hover,
+#spa-sigadoc-assinar-btn:hover,
+#spa-preencher-btn:hover {
+  background: #245080;
+}
+
+#spa-sigadoc-btn:hover {
+  background: #2f7659;
+}
+
+#spa-sigadoc-assinar-btn:hover {
+  background: #825d1c;
+}
+
+#spa-preencher-btn:hover {
+  background: #2f7659;
+}
+
+#spa-extrator-btn .spa-icon,
+#spa-sigadoc-btn .spa-icon,
+#spa-sigadoc-assinar-btn .spa-icon,
+#spa-preencher-btn .spa-icon {
+  font-size: 16px;
+}
+
+#spa-extrator-btn:disabled,
+#spa-sigadoc-btn:disabled,
+#spa-sigadoc-assinar-btn:disabled,
+#spa-preencher-btn:disabled {
+  cursor: wait;
+  opacity: 0.92;
+}
+
+#spa-extrator-btn.sucesso,
+#spa-sigadoc-btn.sucesso,
+#spa-sigadoc-assinar-btn.sucesso,
+#spa-preencher-btn.sucesso {
+  background: #1f7a3f;
+}
+
+#spa-extrator-btn.alerta,
+#spa-sigadoc-btn.alerta,
+#spa-sigadoc-assinar-btn.alerta,
+#spa-preencher-btn.alerta {
+  background: #9a5b00;
+}
+
+#spa-extrator-btn.erro,
+#spa-sigadoc-btn.erro,
+#spa-sigadoc-assinar-btn.erro,
+#spa-preencher-btn.erro {
+  background: #a83232;
+}
+
+.spa-extrator-row-btn {
+  margin-right: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: #1a3a5c;
+  color: #fff;
+  font: 600 11px 'Segoe UI', Arial, sans-serif;
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.spa-extrator-row-btn:hover {
+  background: #245080;
+}
+
+.spa-extrator-row-btn:disabled {
+  cursor: wait;
+  opacity: 0.82;
+}

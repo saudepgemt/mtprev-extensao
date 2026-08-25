@@ -1,0 +1,3 @@
+clipboardWrite: copia textos e dados extraidos pelo usuario.
+downloads: exporta PDFs, Excel e documentos gerados pelo usuario.
+unlimitedStorage: guarda arquivos temporarios e cache local das rotinas.

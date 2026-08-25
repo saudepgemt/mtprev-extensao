@@ -1,0 +1,8 @@
+*.zip
+outputs/
+dist/
+*.crx
+*.pem
+.DS_Store
+Thumbs.db
+node_modules/

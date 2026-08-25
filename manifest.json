@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "CDSP - Extensão Geral",
+  "version": "1.0.50",
+  "version_name": "1.50",
+  "description": "Menu CDSP no SPA com relatorios, fluxo de correcao, autos, oficios e duplicados por PDF.",
+  "permissions": ["scripting", "offscreen", "alarms", "storage", "clipboardWrite", "downloads", "unlimitedStorage"],
+  "host_permissions": [
+    "https://spa.pge.mt.gov.br/*",
+    "https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/*",
+    "https://pje.tjmt.jus.br/*",
+    "https://pje2.tjmt.jus.br/*",
+    "https://www.sigadoc.mt.gov.br/*",
+    "https://sigadoc.mt.gov.br/*"
+  ],
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://spa.pge.mt.gov.br/*"],
+      "js": [
+        "js/content_bridge.js",
+        "js/extrator/content.js"
+      ],
+      "css": [
+        "css/extrator.css",
+        "css/menu.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.sigadoc.mt.gov.br/*",
+        "https://sigadoc.mt.gov.br/*"
+      ],
+      "js": [
+        "js/extrator/content.js"
+      ],
+      "css": [
+        "css/extrator.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["images/cabecalho_cdsp_triagem.png", "images/icon128.png", "data/equipe.xlsx"],
+      "matches": ["https://spa.pge.mt.gov.br/*"]
+    }
+  ],
+  "action": {
+    "default_title": "CDSP - Extensão Geral",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  }
+}

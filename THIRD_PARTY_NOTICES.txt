@@ -1,0 +1,6 @@
+This extension bundles third-party libraries inherited from the consolidated modules:
+
+- ExcelJS, MIT License
+- PDF.js, Apache License 2.0
+
+Also consolidates original CDSP scripts for Triagem, Prazos, Gestao and Extrator SPA/SIGADOC.
