@@ -3708,10 +3708,14 @@
 
   function appendOpenStateDeadlinesSummary(parent, items) {
     const deadlines = [];
+    const seen = new Set();
 
     (Array.isArray(items) ? items : []).forEach((item) => {
       (Array.isArray(item.expedientes) ? item.expedientes : []).forEach((expediente) => {
         if (!expediente || !expediente.isOpenDeadline || !expediente.isStateDeadline) return;
+        const key = openStateDeadlineSummaryKey(expediente);
+        if (key && seen.has(key)) return;
+        if (key) seen.add(key);
         deadlines.push({
           movement: item,
           expediente,
@@ -3759,6 +3763,29 @@
     button.textContent = label;
     if (title) button.title = title;
     return button;
+  }
+
+  function openStateDeadlineSummaryKey(expediente) {
+    if (!expediente) return "";
+
+    const id = normalizeText(expediente.id).toLowerCase();
+    if (id) return "expediente:" + id;
+
+    const documentIds = (Array.isArray(expediente.documentIds) ? expediente.documentIds : [])
+      .map((value) => normalizeText(value).toLowerCase())
+      .filter(Boolean)
+      .sort();
+    if (documentIds.length) return "documentos:" + documentIds.join("|");
+
+    return [
+      normalizeText(expediente.title).toLowerCase(),
+      normalizeText(expediente.deadlineAtRaw || expediente.deadlineAt).toLowerCase(),
+      normalizeText(expediente.awareAtRaw || expediente.awareAt).toLowerCase(),
+      normalizeText(expediente.party).toLowerCase(),
+      normalizeText(expediente.procuradoria).toLowerCase(),
+    ]
+      .filter(Boolean)
+      .join("|");
   }
 
   function renderProcedureMovementsTimeline(container, items, source, filterText, filterOptions) {
