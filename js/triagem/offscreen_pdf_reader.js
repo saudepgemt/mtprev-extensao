@@ -37,9 +37,14 @@ function compactSearchText(text) {
   return normalizeSearchText(text).replace(/[^a-z0-9]+/g, "");
 }
 
-function parseSearchTerms(query) {
+function parseSearchTerms(query, exact) {
   const seen = new Set();
   const terms = [];
+
+  if (exact) {
+    const term = String(query || "").trim();
+    return term ? [term] : [];
+  }
 
   String(query || "")
     .split(";")
@@ -55,13 +60,17 @@ function parseSearchTerms(query) {
   return terms;
 }
 
-function findMatchingSearchTerm(text, query) {
+function findMatchingSearchTerm(text, query, exact) {
   const normalizedText = normalizeSearchText(text);
   const compactText = compactSearchText(text);
-  const terms = parseSearchTerms(query);
+  const terms = parseSearchTerms(query, exact);
 
   for (const term of terms) {
     const normalizedQuery = normalizeSearchText(term);
+    if (exact) {
+      if (normalizedQuery && normalizedText.indexOf(normalizedQuery) >= 0) return term;
+      continue;
+    }
     const compactQuery = compactSearchText(term);
     if (normalizedQuery && normalizedText.indexOf(normalizedQuery) >= 0) return term;
     if (compactQuery.length >= 4 && compactText.indexOf(compactQuery) >= 0) return term;
@@ -70,9 +79,9 @@ function findMatchingSearchTerm(text, query) {
   return "";
 }
 
-function buildSearchSnippet(text, query) {
+function buildSearchSnippet(text, query, exact) {
   const normalized = normalizeSearchText(text);
-  const terms = parseSearchTerms(query);
+  const terms = parseSearchTerms(query, exact);
   if (!normalized || !terms.length) return "";
 
   for (const term of terms) {
@@ -80,7 +89,7 @@ function buildSearchSnippet(text, query) {
     if (!normalizedQuery) continue;
 
     let index = normalized.indexOf(normalizedQuery);
-    if (index < 0) {
+    if (index < 0 && !exact) {
       const compactQuery = compactSearchText(term);
       if (compactQuery.length >= 4) {
         const firstToken = normalizeSearchText(term).split(/\s+/).filter(Boolean)[0] || "";
@@ -98,8 +107,8 @@ function buildSearchSnippet(text, query) {
   return "";
 }
 
-function pageTextMatchesQuery(text, query) {
-  return Boolean(findMatchingSearchTerm(text, query));
+function pageTextMatchesQuery(text, query, exact) {
+  return Boolean(findMatchingSearchTerm(text, query, exact));
 }
 
 function base64ToBytes(value) {
@@ -164,7 +173,7 @@ async function extractPdfText(input) {
   return pages.join("\n");
 }
 
-async function searchPdfText(input, query) {
+async function searchPdfText(input, query, exact) {
   if (!globalThis.pdfjsLib || typeof globalThis.pdfjsLib.getDocument !== "function") {
     throw new Error("PDF.js nao carregado no leitor interno.");
   }
@@ -205,11 +214,11 @@ async function searchPdfText(input, query) {
         page.cleanup();
       }
 
-      const matchedQuery = findMatchingSearchTerm(pageText, query);
+      const matchedQuery = findMatchingSearchTerm(pageText, query, exact);
       if (matchedQuery) {
         return {
           found: true,
-          snippet: buildSearchSnippet(pageText, matchedQuery),
+          snippet: buildSearchSnippet(pageText, matchedQuery, exact),
           matchedQuery,
           textLength: scannedLength,
           pagesRead,
@@ -237,7 +246,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
 
   if (message.type === "SPA_CDSP_OFFSCREEN_SEARCH_PDF_TEXT") {
-    searchPdfText(message.base64 || message.bytes || message.buffer, message.query || "")
+    searchPdfText(message.base64 || message.bytes || message.buffer, message.query || "", message.exact === true)
       .then((result) => {
         sendResponse(Object.assign({ ok: true, requestId: message.requestId || "" }, result));
       })

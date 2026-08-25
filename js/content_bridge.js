@@ -27,6 +27,7 @@
     "SPA_CDSP_OPEN_FILTERED_EXPEDIENTE_TABS",
     "SPA_CDSP_CLASSIFY_PIECE_RECORDS",
     "SPA_CDSP_FINGERPRINT_EXPEDIENTES",
+    "SPA_CDSP_VALIDATE_DUPLICATE_RECORDS",
     "SPA_CDSP_OPEN_PIECE_REPORT_RECORD",
     "SPA_CDSP_SEARCH_AUTOS_DOCUMENT",
     "SPA_CDSP_ENSURE_PDF_LIB",
@@ -709,6 +710,7 @@
         processNumber: data.processNumber || "",
         tribunal: data.tribunal || "",
         query: data.query || "",
+        exact: data.exact === true,
         delayMs: data.delayMs
       },
       (response) => {

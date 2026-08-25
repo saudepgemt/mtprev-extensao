@@ -1979,9 +1979,14 @@ function compactSearchText(text) {
   return normalizeSearchText(text).replace(/[^a-z0-9]+/g, "");
 }
 
-function parseSearchTerms(query) {
+function parseSearchTerms(query, exact) {
   const seen = new Set();
   const terms = [];
+
+  if (exact) {
+    const term = String(query || "").trim();
+    return term ? [term] : [];
+  }
 
   String(query || "")
     .split(";")
@@ -1997,13 +2002,17 @@ function parseSearchTerms(query) {
   return terms;
 }
 
-function findMatchingSearchTerm(text, query) {
+function findMatchingSearchTerm(text, query, exact) {
   const normalizedText = normalizeSearchText(text);
   const compactText = compactSearchText(text);
-  const terms = parseSearchTerms(query);
+  const terms = parseSearchTerms(query, exact);
 
   for (const term of terms) {
     const normalizedQuery = normalizeSearchText(term);
+    if (exact) {
+      if (normalizedQuery && normalizedText.indexOf(normalizedQuery) >= 0) return term;
+      continue;
+    }
     const compactQuery = compactSearchText(term);
     if (normalizedQuery && normalizedText.indexOf(normalizedQuery) >= 0) return term;
     if (compactQuery.length >= 4 && compactText.indexOf(compactQuery) >= 0) return term;
@@ -2267,7 +2276,7 @@ function sendPdfToOffscreen(buffer, requestId) {
   });
 }
 
-async function searchPdfWithOffscreen(buffer, query) {
+async function searchPdfWithOffscreen(buffer, query, exact) {
   await ensureOffscreenDocument();
 
   offscreenRequestSeq += 1;
@@ -2275,7 +2284,7 @@ async function searchPdfWithOffscreen(buffer, query) {
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await sendPdfSearchToOffscreen(buffer, requestId, query);
+      return await sendPdfSearchToOffscreen(buffer, requestId, query, exact);
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
       const canRetry =
@@ -2292,7 +2301,7 @@ async function searchPdfWithOffscreen(buffer, query) {
   return { found: false, snippet: "", textLength: 0, pagesRead: 0, totalPages: 0 };
 }
 
-function sendPdfSearchToOffscreen(buffer, requestId, query) {
+function sendPdfSearchToOffscreen(buffer, requestId, query, exact) {
   const base64 = bytesToBase64(new Uint8Array(buffer));
 
   return new Promise((resolve, reject) => {
@@ -2301,7 +2310,8 @@ function sendPdfSearchToOffscreen(buffer, requestId, query) {
         type: "SPA_CDSP_OFFSCREEN_SEARCH_PDF_TEXT",
         requestId,
         base64,
-        query: String(query || "")
+        query: String(query || ""),
+        exact: exact === true
       },
       (response) => {
         const lastError = chrome.runtime.lastError;
@@ -2626,9 +2636,9 @@ function normalizePdfDownloadUrl(rawUrl) {
   return safeUrl;
 }
 
-function buildTextSearchSnippet(text, query) {
+function buildTextSearchSnippet(text, query, exact) {
   const normalized = normalizeSearchText(text);
-  const terms = parseSearchTerms(query);
+  const terms = parseSearchTerms(query, exact);
   if (!normalized || !terms.length) return "";
 
   for (const term of terms) {
@@ -2636,7 +2646,7 @@ function buildTextSearchSnippet(text, query) {
     if (!normalizedQuery) continue;
 
     let index = normalized.indexOf(normalizedQuery);
-    if (index < 0) {
+    if (index < 0 && !exact) {
       const compact = compactSearchText(text);
       const compactQuery = compactSearchText(term);
       if (compactQuery.length >= 4 && compact.indexOf(compactQuery) >= 0) {
@@ -2654,21 +2664,21 @@ function buildTextSearchSnippet(text, query) {
   return "";
 }
 
-function textContainsSearchQuery(text, query) {
-  return Boolean(findMatchingSearchTerm(text, query));
+function textContainsSearchQuery(text, query, exact) {
+  return Boolean(findMatchingSearchTerm(text, query, exact));
 }
 
-function autosSearchCacheKey(pdfUrl, query) {
-  const key = parseSearchTerms(query)
+function autosSearchCacheKey(pdfUrl, query, exact) {
+  const key = parseSearchTerms(query, exact)
     .map((term) => compactSearchText(term))
     .filter(Boolean)
     .sort()
     .join("|");
-  return pdfUrl + "::" + key;
+  return pdfUrl + "::" + (exact ? "exact::" : "terms::") + key;
 }
 
-function getAutosSearchCache(pdfUrl, query) {
-  const key = autosSearchCacheKey(pdfUrl, query);
+function getAutosSearchCache(pdfUrl, query, exact) {
+  const key = autosSearchCacheKey(pdfUrl, query, exact);
   if (!autosSearchCache.has(key)) return null;
 
   const cached = autosSearchCache.get(key);
@@ -2677,8 +2687,8 @@ function getAutosSearchCache(pdfUrl, query) {
   return Object.assign({}, cached, { fromCache: true });
 }
 
-function setAutosSearchCache(pdfUrl, query, result) {
-  const key = autosSearchCacheKey(pdfUrl, query);
+function setAutosSearchCache(pdfUrl, query, exact, result) {
+  const key = autosSearchCacheKey(pdfUrl, query, exact);
   autosSearchCache.set(key, Object.assign({}, result, { fromCache: false }));
 
   while (autosSearchCache.size > AUTOS_SEARCH_CACHE_MAX) {
@@ -2687,8 +2697,8 @@ function setAutosSearchCache(pdfUrl, query, result) {
   }
 }
 
-async function searchPdfUrlForQuery(pdfUrl, query) {
-  const cached = getAutosSearchCache(pdfUrl, query);
+async function searchPdfUrlForQuery(pdfUrl, query, exact) {
+  const cached = getAutosSearchCache(pdfUrl, query, exact);
   if (cached) return cached;
 
   const controller = new AbortController();
@@ -2726,7 +2736,7 @@ async function searchPdfUrlForQuery(pdfUrl, query) {
     result.byteLength = buffer.byteLength || 0;
 
     try {
-      const offscreen = await searchPdfWithOffscreen(buffer, query);
+      const offscreen = await searchPdfWithOffscreen(buffer, query, exact);
       result.diagnostics.offscreenLength = offscreen && offscreen.textLength ? offscreen.textLength : 0;
       result.diagnostics.offscreenPagesRead = offscreen && offscreen.pagesRead ? offscreen.pagesRead : 0;
       result.diagnostics.offscreenTotalPages = offscreen && offscreen.totalPages ? offscreen.totalPages : 0;
@@ -2749,13 +2759,13 @@ async function searchPdfUrlForQuery(pdfUrl, query) {
         result.diagnostics.rawLength = rawLength;
         result.textLength = Math.max(result.textLength, rawLength);
 
-        const matchedQuery = findMatchingSearchTerm(rawText, query);
+        const matchedQuery = findMatchingSearchTerm(rawText, query, exact);
         if (matchedQuery) {
           result.found = true;
           result.matchedQuery = matchedQuery;
-          result.snippet = buildTextSearchSnippet(rawText, matchedQuery);
+          result.snippet = buildTextSearchSnippet(rawText, matchedQuery, exact);
           result.diagnostics.method = "raw";
-          setAutosSearchCache(pdfUrl, query, result);
+          setAutosSearchCache(pdfUrl, query, exact, result);
           return result;
         }
       } catch (error) {
@@ -2764,7 +2774,7 @@ async function searchPdfUrlForQuery(pdfUrl, query) {
     }
 
     result.inconclusive = result.textLength <= 0;
-    setAutosSearchCache(pdfUrl, query, result);
+    setAutosSearchCache(pdfUrl, query, exact, result);
     return result;
   } finally {
     clearTimeout(timeoutId);
@@ -2774,6 +2784,7 @@ async function searchPdfUrlForQuery(pdfUrl, query) {
 async function searchAutosDocumentContent(message) {
   const record = message && message.record ? message.record : {};
   const query = String((message && message.query) || "").trim();
+  const exact = message && message.exact === true;
   const viewerUrl = normalizeAllowedUrl(record.url);
   const pdfUrl = normalizePdfDownloadUrl(record.url);
 
@@ -2790,13 +2801,14 @@ async function searchAutosDocumentContent(message) {
     };
   }
 
-  const result = await searchPdfUrlForQuery(pdfUrl, query);
+  const result = await searchPdfUrlForQuery(pdfUrl, query, exact);
 
   return {
     ok: true,
     found: Boolean(result && result.found),
     record: Object.assign({}, record, { url: viewerUrl }),
     query,
+    exact,
     matchedQuery: result && result.matchedQuery ? result.matchedQuery : "",
     snippet: result && result.snippet ? result.snippet : "",
     inconclusive: Boolean(result && result.inconclusive),
@@ -3842,6 +3854,207 @@ async function openPieceReportRecord(message) {
   };
 }
 
+function applyConferidoMarkerScript(markerText) {
+  const wanted = String(markerText || "Conferido").trim();
+
+  function sleepLocal(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function normalizeLocal(text) {
+    return String(text || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function visibleLocal(element) {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function textHasMarker(element) {
+    return normalizeLocal(element && element.textContent).indexOf(normalizeLocal(wanted)) >= 0;
+  }
+
+  function markerAlreadyVisible() {
+    const area = document.querySelector("#procedure-show-markers");
+    return Boolean(area && textHasMarker(area));
+  }
+
+  function findMarkerButton() {
+    const candidates = Array.from(
+      document.querySelectorAll(
+        ".btn-marker-modal, form.marker-modal-form button, form[action*='/marker_procedures/list'] button, [title*='Marcador'], [data-original-title*='Marcador']"
+      )
+    );
+    return candidates.find((element) => visibleLocal(element)) || candidates[0] || null;
+  }
+
+  async function waitUntil(test, timeoutMs) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const value = test();
+      if (value) return value;
+      await sleepLocal(200);
+    }
+    return null;
+  }
+
+  function findMarkerRow(container) {
+    const roots = Array.from(
+      (container || document).querySelectorAll(
+        "label, tr, li, .listview__item, .checkbox, .form-check, .custom-control, .marker-item, [data-marker-id]"
+      )
+    );
+    return roots.find((element) => textHasMarker(element)) || null;
+  }
+
+  function associatedCheckbox(row) {
+    if (!row) return null;
+    const direct = row.querySelector("input[type='checkbox']");
+    if (direct) return direct;
+    const labelFor = row.tagName === "LABEL" ? row.getAttribute("for") : "";
+    return labelFor ? document.getElementById(labelFor) : null;
+  }
+
+  async function tryClickMarkerTab(label) {
+    const normalized = normalizeLocal(label);
+    const tabs = Array.from(document.querySelectorAll("a, button, [role='tab']"));
+    const tab = tabs.find((element) => visibleLocal(element) && normalizeLocal(element.textContent).indexOf(normalized) >= 0);
+    if (!tab) return false;
+    tab.click();
+    await sleepLocal(500);
+    return true;
+  }
+
+  async function run() {
+    if (markerAlreadyVisible()) {
+      return { ok: true, already: true, message: "Marcador Conferido ja estava no processo." };
+    }
+
+    const button = findMarkerButton();
+    if (!button) {
+      return { ok: false, error: "Botao Incluir Marcador nao encontrado." };
+    }
+
+    button.click();
+
+    const modal = await waitUntil(() => {
+      const candidates = Array.from(document.querySelectorAll("#modal-marker, .modal.show, .modal"));
+      return candidates.find((element) => visibleLocal(element)) || candidates[0] || null;
+    }, 10000);
+
+    if (!modal) {
+      return { ok: false, error: "Modal de marcadores nao abriu." };
+    }
+
+    await waitUntil(() => {
+      const loading = modal.querySelector(".marker-modal-loading");
+      const content = modal.querySelector(".marker-modal-content");
+      return textHasMarker(modal) || (content && normalizeLocal(content.textContent)) || (loading && !visibleLocal(loading));
+    }, 10000);
+
+    let row = findMarkerRow(modal);
+    if (!row) {
+      await tryClickMarkerTab("MEUS MARCADORES");
+      row = findMarkerRow(modal);
+    }
+    if (!row) {
+      await tryClickMarkerTab("MARCADORES");
+      row = findMarkerRow(modal);
+    }
+    if (!row) {
+      return { ok: false, error: "Marcador Conferido nao encontrado no modal." };
+    }
+
+    const checkbox = associatedCheckbox(row);
+    if (!checkbox) {
+      row.click();
+    } else if (!checkbox.checked) {
+      const safeId = checkbox.id ? checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+      const label = safeId ? modal.querySelector("label[for='" + safeId + "']") : null;
+      (label || checkbox).click();
+    }
+
+    await sleepLocal(900);
+
+    const close =
+      modal.querySelector("a[href*='reload_markers']") ||
+      modal.querySelector("[data-dismiss='modal']") ||
+      modal.querySelector(".close");
+    if (close) close.click();
+    else document.body.click();
+
+    await sleepLocal(500);
+    return { ok: true, already: false, message: "Marcador Conferido aplicado." };
+  }
+
+  return run();
+}
+
+async function validateDuplicateRecords(message) {
+  const records = Array.isArray(message && message.records) ? message.records : [];
+  const delayMs = Number.isFinite(message && message.delayMs)
+    ? Math.max(0, Math.min(2000, message.delayMs))
+    : DEFAULT_DELAY_MS;
+  const results = [];
+
+  for (const record of records) {
+    const pendencyUrl = normalizeAllowedUrl(record && record.pendencyUrl);
+    if (!pendencyUrl) {
+      results.push({
+        ok: false,
+        label: record && (record.expedienteId || record.processNumber) ? record.expedienteId || record.processNumber : "",
+        error: "Registro sem URL de pendencia."
+      });
+      continue;
+    }
+
+    let tab = null;
+    try {
+      tab = await chrome.tabs.create({ url: pendencyUrl, active: false });
+      await waitForTabComplete(tab.id, 20000);
+      await sleep(800);
+
+      const scriptResults = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: "MAIN",
+        func: applyConferidoMarkerScript,
+        args: ["Conferido"]
+      });
+      const result = scriptResults && scriptResults[0] ? scriptResults[0].result : null;
+      results.push(Object.assign({
+        ok: Boolean(result && result.ok),
+        label: record && (record.expedienteId || record.processNumber) ? record.expedienteId || record.processNumber : pendencyUrl,
+        url: pendencyUrl
+      }, result || { error: "Sem retorno da pagina." }));
+    } catch (error) {
+      results.push({
+        ok: false,
+        label: record && (record.expedienteId || record.processNumber) ? record.expedienteId || record.processNumber : pendencyUrl,
+        url: pendencyUrl,
+        error: error && error.message ? error.message : String(error)
+      });
+    } finally {
+      if (tab && tab.id) await removeTabIfOpen(tab.id);
+    }
+
+    if (delayMs) await sleep(delayMs);
+  }
+
+  return {
+    ok: true,
+    validated: results.filter((item) => item.ok).length,
+    failed: results.filter((item) => !item.ok).length,
+    results
+  };
+}
+
 function cdspGeneralTabId(sender) {
   return sender && sender.tab && sender.tab.id ? sender.tab.id : null;
 }
@@ -4318,6 +4531,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           results: [],
+          error: error && error.message ? error.message : String(error)
+        });
+      });
+
+    return true;
+  }
+
+  if (message.type === "SPA_CDSP_VALIDATE_DUPLICATE_RECORDS") {
+    validateDuplicateRecords(message)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          validated: 0,
+          failed: 0,
           error: error && error.message ? error.message : String(error)
         });
       });

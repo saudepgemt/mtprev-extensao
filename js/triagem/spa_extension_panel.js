@@ -898,9 +898,27 @@
 
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 6px;
         align-items: stretch;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-height: 33px;
+        margin: 0;
+        padding: 0 8px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 6px;
+        background: #10283f;
+        color: #eaf4ff;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-filter-wrap {
@@ -1135,6 +1153,26 @@
         text-decoration: none;
       }
 
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-copy-id {
+        align-self: center;
+        border: 1px solid #b7cce0;
+        border-radius: 6px;
+        background: #edf5fb;
+        color: #153653;
+        padding: 7px 9px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open:hover,
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open:focus {
         background: #159474;
@@ -1148,6 +1186,38 @@
         padding: 14px 14px 16px 14px;
         background: #eef5fb;
         color: #132337;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-open-deadlines {
+        margin: 0 0 8px 0;
+        padding: 10px;
+        border: 1px solid #b7dfc8;
+        border-radius: 7px;
+        background: #eaf8ef;
+        color: #123a2b;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-open-deadlines-title {
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-open-deadlines-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 7px;
+        margin-top: 8px;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-open-deadline-item {
+        display: grid;
+        gap: 3px;
+        border: 1px solid #cde8d6;
+        border-radius: 6px;
+        background: #ffffff;
+        padding: 8px;
+        font-size: 11px;
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-row {
@@ -1261,11 +1331,11 @@
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-open {
-        border-left-color: #d58b16;
+        border-left-color: #16a34a;
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-closed {
-        border-left-color: #16876f;
+        border-left-color: #dc2626;
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-title {
@@ -1282,9 +1352,32 @@
         line-height: 1.45;
       }
 
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-status {
+        display: inline-flex;
+        width: fit-content;
+        margin-top: 6px;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 10.5px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-status-open {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-status-closed {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-deadline-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 8px;
         margin-top: 10px;
       }
@@ -1312,6 +1405,24 @@
         flex-wrap: wrap;
         gap: 6px;
         margin-top: 9px;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-action {
+        border: 0;
+        border-radius: 6px;
+        background: #0f7a63;
+        color: #fff;
+        padding: 7px 10px;
+        font-size: 11px;
+        font-weight: 900;
+        cursor: pointer;
       }
 
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
@@ -1574,6 +1685,10 @@
         #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row,
         #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row,
         #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-hit {
+          grid-template-columns: 1fr;
+        }
+
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
           grid-template-columns: 1fr;
         }
 
@@ -2953,8 +3068,85 @@
     return ids;
   }
 
+  function collectProcedureExpedienteResponseIds(expediente) {
+    const ids = [];
+    const push = (value) => {
+      const text = String(value || "").trim();
+      if (text && ids.indexOf(text) < 0) ids.push(text);
+    };
+
+    push(expediente && expediente.responseId);
+    push(expediente && expediente.answerDocumentId);
+    push(expediente && expediente.responseDocumentId);
+    (Array.isArray(expediente && expediente.responseCandidateIds) ? expediente.responseCandidateIds : []).forEach(push);
+    return ids;
+  }
+
+  function parseExternalBrazilianDateValue(value) {
+    const text = String(value || "").trim();
+    if (!text) return null;
+
+    const direct = text.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    if (direct) {
+      return new Date(
+        Number(direct[3]),
+        Number(direct[2]) - 1,
+        Number(direct[1]),
+        Number(direct[4] || 0),
+        Number(direct[5] || 0),
+        0,
+        0
+      );
+    }
+
+    const iso = text.match(/^(\d{4})-?(\d{2})-?(\d{2})(?:[T\s]?(\d{2}):?(\d{2}))?/);
+    if (iso) {
+      return new Date(
+        Number(iso[1]),
+        Number(iso[2]) - 1,
+        Number(iso[3]),
+        Number(iso[4] || 0),
+        Number(iso[5] || 0),
+        0,
+        0
+      );
+    }
+
+    const parsed = Date.parse(text);
+    return Number.isFinite(parsed) ? new Date(parsed) : null;
+  }
+
+  function externalDeadlineRemainingText(deadlineValue) {
+    const deadline = parseExternalBrazilianDateValue(deadlineValue);
+    if (!deadline || Number.isNaN(deadline.getTime())) return "";
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    deadline.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.floor((deadline.getTime() - today.getTime()) / 86400000) + 1;
+    if (diffDays > 1) return diffDays + " dias";
+    if (diffDays === 1) return "1 dia";
+
+    const overdue = Math.abs(diffDays - 1);
+    return overdue > 1 ? "Vencido ha " + overdue + " dias" : "Vencido";
+  }
+
+  function procedureExpedienteOpenStatus(expediente) {
+    return expediente && !expediente.closed && !expediente.returned;
+  }
+
+  function procedureExpedienteStateDeadline(expediente) {
+    const text = normalizeText([expediente && expediente.party, expediente && expediente.procuradoria].join(" ")).toLowerCase();
+    return (
+      text.indexOf("estado de mato grosso") >= 0 ||
+      text.indexOf("procuradoria geral do estado de mato grosso") >= 0
+    );
+  }
+
   function formatProcedureExpedienteInfo(expediente) {
     const documentIds = collectProcedureExpedienteDocumentIds(expediente);
+    const responseIds = collectProcedureExpedienteResponseIds(expediente);
     const id = normalizeText((expediente && expediente.id) || "");
     const documentType = normalizeText((expediente && expediente.documentType) || "Expediente");
     const closed = expediente && expediente.closed === true;
@@ -2971,7 +3163,7 @@
     if (expediente && expediente.procuradoria) summaryParts.push("Procuradoria: " + expediente.procuradoria);
     if (documentIds.length) summaryParts.push("Doc.: " + documentIds.join(", "));
 
-    const status = returned ? "Devolvido" : closed ? "Fechado" : "Aberto";
+    const status = returned || closed ? "Expediente Fechado" : "Expediente em Aberto";
     flags.push(status);
     const domicile = externalMovementBooleanLabel(expediente && expediente.sentToDomicile, "Domicilio", "");
     const personal = externalMovementBooleanLabel(expediente && expediente.personalNotice, "Pessoal", "");
@@ -2983,16 +3175,25 @@
       title: titleParts.filter(Boolean).join(" "),
       summary: summaryParts.join(" · "),
       createdAt: formatExternalMovementDateTime(expediente && expediente.createdAt, "Sem criacao"),
+      createdAtRaw: expediente && expediente.createdAt,
       awareAt: formatExternalMovementDateTime(expediente && expediente.awareAt, "Sem ciencia"),
+      awareAtRaw: expediente && expediente.awareAt,
       awareBy: normalizeText((expediente && expediente.awareBy) || ""),
       deadlineAt: formatExternalMovementDateTime(expediente && expediente.deadlineAt, "Sem prazo final"),
+      deadlineAtRaw: expediente && expediente.deadlineAt,
+      remainingText: externalDeadlineRemainingText(expediente && expediente.deadlineAt),
       legalDeadlineDays: normalizeText((expediente && expediente.legalDeadlineDays) || ""),
       deadlineType: normalizeText((expediente && expediente.deadlineType) || ""),
       manuallyClosedAt: formatExternalMovementDateTime(expediente && expediente.manuallyClosedAt, ""),
       manuallyClosedBy: normalizeText((expediente && expediente.manuallyClosedBy) || ""),
+      party: normalizeText((expediente && expediente.party) || ""),
+      procuradoria: normalizeText((expediente && expediente.procuradoria) || ""),
       documentIds,
+      responseIds,
       closed,
       returned,
+      isOpenDeadline: !closed && !returned,
+      isStateDeadline: procedureExpedienteStateDeadline(expediente),
       flags,
     };
   }
@@ -3006,6 +3207,7 @@
       "Ciencia: " + info.awareAt,
       info.awareBy ? "Ciente por: " + info.awareBy : "",
       "Prazo final: " + info.deadlineAt,
+      info.remainingText ? "Tempo restante: " + info.remainingText : "",
       info.legalDeadlineDays ? "Prazo legal: " + info.legalDeadlineDays + " " + (info.deadlineType || "dias") : "",
       info.flags.join(" ")
     ].filter(Boolean).join(" · ");
@@ -3051,6 +3253,9 @@
         sourceLabel: movement.sourceLabel || "",
         isPdf: false,
         noOpen: true,
+        linkedDocumentIds: linkedIds,
+        documentIds: Array.from(new Set([].concat(linkedIds, ...attached.map((info) => info.documentIds || [])))),
+        responseIds: Array.from(new Set([].concat(...attached.map((info) => info.responseIds || [])))),
         expedientes: attached,
       };
     });
@@ -3069,6 +3274,9 @@
         sourceLabel: raw.sourceLabel || "",
         isPdf: false,
         noOpen: true,
+        linkedDocumentIds: entry.view.documentIds || [],
+        documentIds: entry.view.documentIds || [],
+        responseIds: entry.view.responseIds || [],
         expedientes: [entry.view],
       });
     });
@@ -3161,6 +3369,19 @@
       });
 
     return terms;
+  }
+
+  function normalizedExternalSearchTerm(value) {
+    return normalizeText(value).toLowerCase();
+  }
+
+  function externalSearchTerms(value, exact) {
+    if (exact) {
+      const term = normalizedExternalSearchTerm(String(value || "").trim());
+      return term ? [term] : [];
+    }
+
+    return parseExternalSearchTerms(value).map(normalizedExternalSearchTerm).filter(Boolean);
   }
 
   function addExternalHighlightRange(ranges, start, end) {
@@ -3257,11 +3478,39 @@
     return chip;
   }
 
+  async function copyExternalTextToClipboard(text) {
+    const value = String(text || "").trim();
+    if (!value) return false;
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+
+    const input = document.createElement("textarea");
+    input.value = value;
+    input.setAttribute("readonly", "readonly");
+    input.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+    document.body.appendChild(input);
+    input.select();
+    const ok = document.execCommand("copy");
+    input.remove();
+    return ok;
+  }
+
   function filterExternalDocumentItems(items, filterText, options) {
-    const terms = parseExternalSearchTerms(filterText).map((term) => normalizeText(term).toLowerCase()).filter(Boolean);
-    const implicitTerms = parseExternalSearchTerms(options && options.implicitText)
-      .map((term) => normalizeText(term).toLowerCase())
-      .filter(Boolean);
+    const terms = externalSearchTerms(filterText, Boolean(options && options.exactText));
+    const implicitDefinitions = Array.isArray(options && options.implicitDefinitions)
+      ? options.implicitDefinitions
+      : [];
+    const implicitTerms = implicitDefinitions.length
+      ? implicitDefinitions.reduce((allTerms, definition) => {
+          externalSearchTerms(definition && definition.terms, Boolean(definition && definition.exact)).forEach((term) => {
+            if (allTerms.indexOf(term) < 0) allTerms.push(term);
+          });
+          return allTerms;
+        }, [])
+      : externalSearchTerms(options && options.implicitText, false);
 
     return (items || []).filter((item) => {
       if (!terms.length && !implicitTerms.length) return true;
@@ -3350,6 +3599,30 @@
         info.appendChild(meta);
 
         row.appendChild(info);
+
+        const actions = document.createElement("div");
+        actions.className = "spa-cdsp-external-docs-item-actions";
+        if (source && source.key !== "movements" && item.id) {
+          const copyId = document.createElement("button");
+          copyId.type = "button";
+          copyId.className = "spa-cdsp-external-docs-copy-id";
+          copyId.textContent = "Copiar id";
+          copyId.title = "Copiar o ID deste documento.";
+          copyId.addEventListener("click", async () => {
+            const original = copyId.textContent;
+            try {
+              const copied = await copyExternalTextToClipboard(item.id);
+              copyId.textContent = copied ? "Copiado" : "Falhou";
+            } catch (_error) {
+              copyId.textContent = "Falhou";
+            }
+            setTimeout(() => {
+              copyId.textContent = original;
+            }, 1200);
+          });
+          actions.appendChild(copyId);
+        }
+
         if (!item.noOpen) {
           const open = document.createElement("a");
           open.className = "spa-cdsp-external-docs-open";
@@ -3358,8 +3631,9 @@
           open.rel = "noopener noreferrer";
           open.textContent = item.isPdf ? "Abrir PDF" : "Abrir";
           bindExternalDocumentOpenButton(open, item);
-          row.appendChild(open);
+          actions.appendChild(open);
         }
+        if (actions.childElementCount) row.appendChild(actions);
         day.appendChild(row);
       }
 
@@ -3392,6 +3666,12 @@
       (expediente.closed || expediente.returned ? "spa-cdsp-movement-expediente-closed" : "spa-cdsp-movement-expediente-open");
 
     appendExternalHighlightedSnippet(block, "spa-cdsp-movement-expediente-title", expediente.title || "Expediente/Prazo", filterText);
+    const statusBadge = document.createElement("span");
+    statusBadge.className =
+      "spa-cdsp-movement-expediente-status " +
+      (expediente.isOpenDeadline ? "spa-cdsp-movement-expediente-status-open" : "spa-cdsp-movement-expediente-status-closed");
+    statusBadge.textContent = expediente.isOpenDeadline ? "Expediente em Aberto" : "Expediente Fechado";
+    block.appendChild(statusBadge);
     if (expediente.summary) {
       appendExternalHighlightedSnippet(block, "spa-cdsp-movement-expediente-summary", expediente.summary, filterText);
     }
@@ -3401,6 +3681,7 @@
     appendMovementDeadlineCell(grid, "Expedido em", expediente.createdAt);
     appendMovementDeadlineCell(grid, "Ciência", expediente.awareAt + (expediente.awareBy ? " por " + expediente.awareBy : ""));
     appendMovementDeadlineCell(grid, "Prazo final", expediente.deadlineAt);
+    appendMovementDeadlineCell(grid, "Tempo restante", expediente.remainingText || "Nao informado");
     appendMovementDeadlineCell(
       grid,
       "Prazo legal",
@@ -3425,9 +3706,65 @@
     parent.appendChild(block);
   }
 
+  function appendOpenStateDeadlinesSummary(parent, items) {
+    const deadlines = [];
+
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      (Array.isArray(item.expedientes) ? item.expedientes : []).forEach((expediente) => {
+        if (!expediente || !expediente.isOpenDeadline || !expediente.isStateDeadline) return;
+        deadlines.push({
+          movement: item,
+          expediente,
+          timestamp: parseExternalBrazilianDateValue(expediente.deadlineAtRaw || expediente.deadlineAt)?.getTime() || 0,
+        });
+      });
+    });
+
+    if (!deadlines.length) return;
+    deadlines.sort((left, right) => left.timestamp - right.timestamp);
+
+    const box = document.createElement("section");
+    box.className = "spa-cdsp-movement-open-deadlines";
+
+    const title = document.createElement("div");
+    title.className = "spa-cdsp-movement-open-deadlines-title";
+    title.textContent = "Prazos em aberto do Estado";
+    box.appendChild(title);
+
+    const list = document.createElement("div");
+    list.className = "spa-cdsp-movement-open-deadlines-list";
+    deadlines.slice(0, 12).forEach(({ movement, expediente }) => {
+      const item = document.createElement("div");
+      item.className = "spa-cdsp-movement-open-deadline-item";
+      item.innerHTML =
+        '<strong>' +
+        escapeHtml(expediente.title || movement.type || "Expediente") +
+        "</strong>" +
+        '<span>Prazo final: ' +
+        escapeHtml(expediente.deadlineAt || "Nao informado") +
+        "</span>" +
+        '<span>Tempo restante: ' +
+        escapeHtml(expediente.remainingText || "Nao informado") +
+        "</span>";
+      list.appendChild(item);
+    });
+    box.appendChild(list);
+    parent.appendChild(box);
+  }
+
+  function createMovementActionButton(label, title) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "spa-cdsp-movement-action";
+    button.textContent = label;
+    if (title) button.title = title;
+    return button;
+  }
+
   function renderProcedureMovementsTimeline(container, items, source, filterText, filterOptions) {
     const allItems = Array.isArray(items) ? items : [];
     const filtered = filterExternalDocumentItems(allItems, filterText, filterOptions);
+    const panel = container.closest("#spa-cdsp-external-docs-panel");
     container.textContent = "";
 
     if (!allItems.length) {
@@ -3443,6 +3780,8 @@
       appendExternalDocumentText(container, "spa-cdsp-external-docs-empty", "Nenhuma movimentacao corresponde ao filtro digitado.");
       return;
     }
+
+    appendOpenStateDeadlinesSummary(container, allItems);
 
     const timeline = document.createElement("div");
     timeline.className = "spa-cdsp-movements-timeline";
@@ -3477,6 +3816,18 @@
       else if (item.id) meta.appendChild(createExternalDocumentChip("ID " + item.id));
       if (item.sourceLabel) meta.appendChild(createExternalDocumentChip(item.sourceLabel));
       card.appendChild(meta);
+
+      if (panel && typeof panel._openMovementLinkedDocument === "function") {
+        const actions = document.createElement("div");
+        actions.className = "spa-cdsp-movement-actions";
+        const openDocument = createMovementActionButton("Abrir PDF", "Abrir o documento vinculado a esta movimentação.");
+        openDocument.addEventListener("click", () => panel._openMovementLinkedDocument(item, "document"));
+        const openResponse = createMovementActionButton("Resposta", "Abrir a resposta vinculada a esta movimentação, quando existir.");
+        openResponse.addEventListener("click", () => panel._openMovementLinkedDocument(item, "response"));
+        actions.appendChild(openDocument);
+        actions.appendChild(openResponse);
+        card.appendChild(actions);
+      }
 
       if (Array.isArray(item.expedientes) && item.expedientes.length) {
         const expedientes = document.createElement("div");
@@ -3560,7 +3911,8 @@
     const summaryFilterOptions = controls.summaryFilterOptions ? controls.summaryFilterOptions() : null;
     const items = filterExternalDocumentItems(allItems, summaryFilterText, summaryFilterOptions).filter((item) => item && item.isPdf);
     const text = String(query || "").trim();
-    const terms = parseExternalSearchTerms(text);
+    const exactSearch = Boolean(controls.exactSearch && controls.exactSearch());
+    const terms = exactSearch ? (text ? [text] : []) : parseExternalSearchTerms(text);
 
     if (!allItems.length) {
       controls.progress.textContent = "Carregue o resumo dos autos antes de pesquisar dentro dos documentos.";
@@ -3647,7 +3999,7 @@
           (item.id ? " · ID " + item.id : "") +
           "...";
 
-        const result = await searchAutosDocumentThroughExtension(item, text);
+        const result = await searchAutosDocumentThroughExtension(item, text, exactSearch);
         read += 1;
 
         if (result && result.fromCache) fromCache += 1;
@@ -3904,9 +4256,22 @@
         label: "Informações da SES",
         terms: "SESDIC;SESOFI;ofi;merged;CIAPS;juntada ses;SESMT",
       },
+      {
+        id: "pge_state",
+        label: "PGE/Estado",
+        terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO",
+        exact: true,
+      },
+      {
+        id: "oficio_ses",
+        label: "Ofício SES",
+        terms: "Ofício;Oficio",
+        sources: ["folder"],
+      },
     ];
     const selectedQuickFilters = new Set();
     const quickFilterInputs = {};
+    const quickFilterOptions = {};
 
     quickFilterDefinitions.forEach((definition) => {
       const option = document.createElement("label");
@@ -3925,6 +4290,7 @@
       option.appendChild(text);
       filterMenu.appendChild(option);
       quickFilterInputs[definition.id] = checkbox;
+      quickFilterOptions[definition.id] = option;
     });
 
     const clearQuickFiltersButton = createExternalDocumentsButton("Limpar filtros", "spa-cdsp-external-docs-button-secondary spa-cdsp-external-docs-filter-clear");
@@ -3934,6 +4300,16 @@
     filterWrap.appendChild(filterMenu);
     searchTools.appendChild(search);
     searchTools.appendChild(filterWrap);
+
+    const exactSearchOption = document.createElement("label");
+    exactSearchOption.className = "spa-cdsp-external-docs-exact-option";
+    const exactSearchInput = document.createElement("input");
+    exactSearchInput.type = "checkbox";
+    const exactSearchText = document.createElement("span");
+    exactSearchText.textContent = "Busca exata";
+    exactSearchOption.appendChild(exactSearchInput);
+    exactSearchOption.appendChild(exactSearchText);
+    searchTools.appendChild(exactSearchOption);
 
     const quickActionsBar = document.createElement("div");
     quickActionsBar.className = "spa-cdsp-external-docs-quick-bar";
@@ -4087,8 +4463,21 @@
     quickActionsControls.appendChild(selectedWrap);
     quickActionButtons.forEach((button) => quickActionsControls.appendChild(button));
     quickActionsBar.appendChild(quickActionsControls);
+
+    const movementActionsBar = document.createElement("div");
+    movementActionsBar.className = "spa-cdsp-external-docs-quick-bar";
+    movementActionsBar.style.display = "none";
+
+    const movementActionsControls = document.createElement("div");
+    movementActionsControls.className = "spa-cdsp-external-docs-quick-controls";
+    const latestDecisionButton = createExternalDocumentsButton("Última decisão", "spa-cdsp-external-docs-quick-direct");
+    latestDecisionButton.title = "Abrir o documento da decisão mais recente retornada pelos filtros.";
+    movementActionsControls.appendChild(latestDecisionButton);
+    movementActionsBar.appendChild(movementActionsControls);
+
     searchRow.appendChild(searchTools);
     searchRow.appendChild(quickActionsBar);
+    searchRow.appendChild(movementActionsBar);
 
     const contentSearch = document.createElement("div");
     contentSearch.className = "spa-cdsp-external-docs-content-search";
@@ -4217,7 +4606,27 @@
     }
 
     function getExternalSummaryFilterOptions() {
-      return { implicitText: getSelectedQuickFilterText() };
+      return {
+        exactText: exactSearchInput.checked,
+        implicitText: getSelectedQuickFilterText(),
+        implicitDefinitions: getSelectedQuickFilterDefinitions(),
+      };
+    }
+
+    function updateQuickFilterAvailability(source) {
+      const sourceKey = source && source.key ? source.key : "";
+      quickFilterDefinitions.forEach((definition) => {
+        const option = quickFilterOptions[definition.id];
+        const input = quickFilterInputs[definition.id];
+        const allowedSources = Array.isArray(definition.sources) ? definition.sources : [];
+        const available = !allowedSources.length || allowedSources.indexOf(sourceKey) >= 0;
+        if (option) option.style.display = available ? "" : "none";
+        if (!available && input && input.checked) {
+          input.checked = false;
+          selectedQuickFilters.delete(definition.id);
+        }
+      });
+      updateQuickFilterButtonLabel();
     }
 
     function updateQuickFilterButtonLabel() {
@@ -4393,6 +4802,118 @@
 
     panel._refreshExternalDocumentSelectionControls = refreshExternalDocumentSelectionControls;
 
+    function movementLinkedIds(item, mode) {
+      const ids = [];
+      const push = (value) => {
+        const text = String(value || "").trim();
+        if (text && ids.indexOf(text) < 0) ids.push(text);
+      };
+
+      const sourceArrays =
+        mode === "response"
+          ? [item && item.responseIds]
+          : [item && item.documentIds, item && item.linkedDocumentIds];
+      sourceArrays.forEach((values) => {
+        (Array.isArray(values) ? values : []).forEach(push);
+      });
+      (Array.isArray(item && item.expedientes) ? item.expedientes : []).forEach((expediente) => {
+        const values = mode === "response" ? expediente.responseIds : expediente.documentIds;
+        (Array.isArray(values) ? values : []).forEach(push);
+      });
+      return ids;
+    }
+
+    function externalItemMatchesDocumentId(item, ids) {
+      if (!item || !Array.isArray(ids) || !ids.length) return false;
+      const itemId = String(item.id || "").trim();
+      if (itemId && ids.indexOf(itemId) >= 0) return true;
+      const text = normalizeText([item.type, item.description, item.url, item.viewerUrl, item.pdfUrl].join(" ")).toLowerCase();
+      return ids.some((id) => {
+        const value = normalizeText(id).toLowerCase();
+        return Boolean(value && text.indexOf(value) >= 0);
+      });
+    }
+
+    async function findExternalPdfItemByDocumentIds(ids) {
+      const sourceOrder = ["autos", "folder"];
+      for (const sourceKey of sourceOrder) {
+        const source = sources[sourceKey];
+        if (!source || !source.url) continue;
+        const cache = getSourceCache(sourceKey);
+        if (!cache.loaded) {
+          try {
+            await loadExternalSourceIntoCache(source, { force: false });
+          } catch (_error) {
+            // A outra fonte ainda pode conter o PDF.
+          }
+        }
+        const item = (Array.isArray(cache.items) ? cache.items : []).find((candidate) =>
+          isExternalDocumentSelectable(candidate) && externalItemMatchesDocumentId(candidate, ids)
+        );
+        if (item) return item;
+      }
+      return null;
+    }
+
+    panel._openMovementLinkedDocument = async (item, mode) => {
+      if (panel.dataset.loading === "1" || panel.dataset.openingAll === "1") {
+        status.textContent = "Aguarde a acao atual terminar antes de abrir o PDF vinculado.";
+        return false;
+      }
+
+      const ids = movementLinkedIds(item, mode);
+      if (!ids.length) {
+        status.textContent =
+          mode === "response"
+            ? "Esta movimentacao nao trouxe ID de resposta pelo MCP."
+            : "Esta movimentacao nao trouxe ID de documento pelo MCP.";
+        return false;
+      }
+
+      status.textContent = "Localizando PDF vinculado...";
+      const found = await findExternalPdfItemByDocumentIds(ids);
+      if (!found) {
+        status.textContent = "Nao encontrei PDF vinculado ao(s) ID(s): " + ids.join(", ") + ".";
+        return false;
+      }
+
+      return openExternalDocumentQuickItem(
+        found,
+        status,
+        mode === "response" ? "Resposta vinculada" : "PDF vinculado"
+      );
+    };
+
+    async function openLatestDecisionMovement() {
+      const source = sources.movements;
+      if (!source || !source.url) {
+        status.textContent = "Nao foi possivel identificar o Andamento PJE deste processo.";
+        return;
+      }
+
+      const cache = getSourceCache("movements");
+      if (!cache.loaded) {
+        status.textContent = "Carregando Andamento PJE...";
+        await loadExternalSourceIntoCache(source, { force: false });
+      }
+
+      const decisionDefinition = quickFilterDefinitions.find((definition) => definition.id === "decisions");
+      const currentFilter =
+        getActiveSource().key === "movements" ? search.value : "";
+      const candidates = filterExternalDocumentItems(cache.items, currentFilter, getExternalSummaryFilterOptions());
+      const decisions = filterExternalDocumentItems(candidates, "", {
+        implicitDefinitions: decisionDefinition ? [decisionDefinition] : [],
+      });
+      const target = decisions.find((item) => movementLinkedIds(item, "document").length);
+
+      if (!target) {
+        status.textContent = "Nao encontrei decisao com documento vinculado no Andamento PJE.";
+        return;
+      }
+
+      await panel._openMovementLinkedDocument(target, "document");
+    }
+
     function setExternalDocumentActionButtonsDisabled(disabled) {
       setOpenAllButtonsDisabled(disabled);
       setProcessCompleteButtonsDisabled(disabled);
@@ -4401,6 +4922,7 @@
       quickActionButtons.forEach((button) => {
         button.disabled = disabled;
       });
+      latestDecisionButton.disabled = disabled;
       loadButton.disabled = disabled;
       contentSearchButton.disabled = disabled || panel.dataset.contentSearching === "1";
     }
@@ -4419,6 +4941,8 @@
           ? "Pesquisar por movimento, número, data ou texto... Use ; para vários termos."
           : "Filtrar por tipo, ID, descrição ou data... Use ; para vários termos.";
       quickActionsBar.style.display = source.key === "movements" ? "none" : "";
+      movementActionsBar.style.display = source.key === "movements" ? "" : "none";
+      updateQuickFilterAvailability(source);
       filterMenu.hidden = true;
     }
 
@@ -4704,12 +5228,14 @@
       setProcessCompleteButtonsDisabled(true);
       setSelectedDocumentsButtonsDisabled(true);
       setContentOpenAllButtonsDisabled(true);
+      latestDecisionButton.disabled = true;
       loadButton.textContent = "Carregando...";
       status.textContent = source.loadingText || "Buscando documentos...";
       viewer.textContent = "";
       search.style.display = "none";
       searchRow.style.display = "none";
       quickActionsBar.style.display = isMovements ? "none" : "";
+      movementActionsBar.style.display = isMovements ? "" : "none";
       contentSearch.style.display = "none";
       contentSearchResults.style.display = "none";
       contentSearchResults.textContent = "";
@@ -4742,6 +5268,7 @@
         setProcessCompleteButtonsDisabled(false);
         setSelectedDocumentsButtonsDisabled(false);
         setContentOpenAllButtonsDisabled(false);
+        latestDecisionButton.disabled = false;
         loadButton.textContent = "Atualizar";
       }
     }
@@ -4766,6 +5293,7 @@
       setProcessCompleteButtonsDisabled(true);
       setSelectedDocumentsButtonsDisabled(true);
       setContentOpenAllButtonsDisabled(true);
+      latestDecisionButton.disabled = true;
       quickActionButtons.forEach((button) => {
         button.disabled = true;
       });
@@ -4818,6 +5346,7 @@
         setProcessCompleteButtonsDisabled(false);
         setSelectedDocumentsButtonsDisabled(false);
         setContentOpenAllButtonsDisabled(false);
+        latestDecisionButton.disabled = false;
         quickActionButtons.forEach((button) => {
           button.disabled = false;
         });
@@ -5129,10 +5658,30 @@
       runContentOpenAllMode(contentOpenAllSelectedMode, "desc", contentOpenAllDescButton);
     });
 
+    latestDecisionButton.addEventListener("click", async () => {
+      if (panel.dataset.loading === "1" || panel.dataset.openingAll === "1") {
+        status.textContent = "Aguarde a acao atual terminar antes de abrir a ultima decisao.";
+        return;
+      }
+
+      latestDecisionButton.disabled = true;
+      try {
+        await openLatestDecisionMovement();
+      } catch (error) {
+        status.textContent = "Erro ao abrir ultima decisao: " + (error && error.message ? error.message : error);
+      } finally {
+        latestDecisionButton.disabled = false;
+      }
+    });
+
     search.addEventListener("input", () => {
       const source = getActiveSource();
       const cache = getSourceCache(source.key);
       cache.filterText = search.value || "";
+      renderActiveExternalSourceWithFilters();
+    });
+
+    exactSearchInput.addEventListener("change", () => {
       renderActiveExternalSourceWithFilters();
     });
 
@@ -5149,6 +5698,7 @@
         results: contentSearchResults,
         summaryFilterValue: () => search.value,
         summaryFilterOptions: () => getExternalSummaryFilterOptions(),
+        exactSearch: () => exactSearchInput.checked,
         stopOnFirst: () => contentSearchStopOnFirst.checked,
         concurrencyValue: () => normalizeLimit(contentSearchConcurrency.value),
         onResultsChanged: () => refreshExternalDocumentSelectionControls(),
@@ -6850,7 +7400,61 @@
     });
   }
 
-  function searchAutosDocumentThroughExtension(record, query) {
+  function validateDuplicateRecordsThroughExtension(records) {
+    const payload = (Array.isArray(records) ? records : [records]).filter((record) => record && record.pendencyUrl);
+    if (!payload.length || !canUseExtensionBackgroundTabs()) {
+      return Promise.resolve({
+        ok: false,
+        validated: 0,
+        error: "Sem pendencias com URL para validar.",
+      });
+    }
+
+    return new Promise((resolve) => {
+      extensionRequestSeq += 1;
+      const requestId = "spa-cdsp-duplicate-validate-" + Date.now() + "-" + extensionRequestSeq;
+      const timeoutMs = Math.max(45000, 12000 + payload.length * 18000);
+      const timeoutId = setTimeout(() => {
+        delete extensionPendingRequests[requestId];
+        resolve({
+          ok: false,
+          validated: 0,
+          error: "Tempo excedido validando marcador Conferido.",
+        });
+      }, timeoutMs);
+
+      extensionPendingRequests[requestId] = {
+        resolve: resolve,
+        timeoutId: timeoutId,
+        rawResponse: true,
+      };
+
+      try {
+        window.postMessage(
+          {
+            source: EXTENSION_PAGE_SOURCE,
+            type: "SPA_CDSP_VALIDATE_DUPLICATE_RECORDS",
+            requestId: requestId,
+            records: payload,
+            delayMs: CONFIG.batchOpenDelayMs,
+          },
+          window.location.origin
+        );
+
+        keepCurrentTabFocused();
+      } catch (error) {
+        clearTimeout(timeoutId);
+        delete extensionPendingRequests[requestId];
+        resolve({
+          ok: false,
+          validated: 0,
+          error: error && error.message ? error.message : String(error),
+        });
+      }
+    });
+  }
+
+  function searchAutosDocumentThroughExtension(record, query, exact) {
     const text = String(query || "").trim();
     if (!record || !record.url || !text || !canUseExtensionBackgroundTabs()) {
       return Promise.resolve({
@@ -6888,6 +7492,7 @@
             requestId: requestId,
             record: record,
             query: text,
+            exact: Boolean(exact),
           },
           window.location.origin
         );
@@ -8671,6 +9276,49 @@
     }
   }
 
+  async function validateDuplicateReportRecords(records) {
+    const payload = (Array.isArray(records) ? records : [records]).filter((record) => record && record.pendencyUrl);
+    if (!payload.length) {
+      throw new Error("Nenhuma pendencia com URL foi encontrada para validar.");
+    }
+
+    const response = await validateDuplicateRecordsThroughExtension(payload);
+    if (!response || !response.ok) {
+      throw new Error(response && response.error ? response.error : "A extensão não validou os registros.");
+    }
+
+    (response.results || []).forEach((result) => {
+      if (result.ok) {
+        log("Marcador Conferido aplicado: " + (result.label || "pendencia") + ".", "ok");
+      } else {
+        log(
+          "Falha ao aplicar Conferido em " +
+            (result.label || "pendencia") +
+            ": " +
+            (result.error || "sem detalhe") +
+            ".",
+          "error"
+        );
+      }
+    });
+
+    if (response.failed) {
+      throw new Error(response.failed + " pendencia(s) nao receberam o marcador Conferido.");
+    }
+
+    return response;
+  }
+
+  async function validateDuplicateReportRecord(record) {
+    if (!record) return;
+    await validateDuplicateReportRecords([record]);
+  }
+
+  async function validateDuplicateReportGroup(group) {
+    if (!group) return;
+    await validateDuplicateReportRecords(group.records || []);
+  }
+
   async function runDuplicateReportOpening(label, action) {
     guardStart();
     try {
@@ -8680,6 +9328,21 @@
     } catch (error) {
       log("Erro ao abrir pelo relatorio: " + error.message, "error");
       setStatus("Erro no relatorio");
+    } finally {
+      state.running = false;
+    }
+  }
+
+  async function runDuplicateReportValidation(label, action) {
+    guardStart();
+    try {
+      setStatus(label);
+      await action();
+      setStatus("Relatorio pronto");
+    } catch (error) {
+      log("Erro ao validar pelo relatorio: " + error.message, "error");
+      setStatus("Erro no relatorio");
+      throw error;
     } finally {
       state.running = false;
     }
@@ -8928,9 +9591,29 @@
         });
       });
 
+      const validateGroup = createDuplicateReportButton("Validar todos", "teal");
+      validateGroup.title = "Aplicar o marcador Conferido em todas as pendências deste grupo.";
+      validateGroup.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const previous = validateGroup.textContent;
+        validateGroup.textContent = "Validando...";
+        validateGroup.disabled = true;
+        runDuplicateReportValidation("Validando grupo...", () => validateDuplicateReportGroup(group))
+          .then(() => {
+            validateGroup.textContent = "Validado";
+          })
+          .catch((error) => {
+            validateGroup.textContent = previous;
+            validateGroup.disabled = false;
+            log("Erro ao validar grupo do relatorio: " + error.message, "error");
+          });
+      });
+
       summaryElement.appendChild(groupTitle);
       summaryElement.appendChild(badges);
       summaryElement.appendChild(openGroup);
+      summaryElement.appendChild(validateGroup);
       details.appendChild(summaryElement);
 
       const rowsWrapper = document.createElement("div");
@@ -8991,6 +9674,26 @@
           });
         });
 
+        const validateAction = createDuplicateReportButton(record.validated ? "Conferido" : "Validar", record.validated ? "gray" : "teal");
+        validateAction.title = record.validated
+          ? "Esta pendência já tem o marcador Conferido."
+          : "Aplicar o marcador Conferido nesta pendência.";
+        validateAction.disabled = Boolean(record.validated);
+        validateAction.addEventListener("click", () => {
+          const previous = validateAction.textContent;
+          validateAction.textContent = "Validando...";
+          validateAction.disabled = true;
+          runDuplicateReportValidation("Validando pendencia...", () => validateDuplicateReportRecord(record))
+            .then(() => {
+              validateAction.textContent = "Conferido";
+            })
+            .catch((error) => {
+              validateAction.textContent = previous;
+              validateAction.disabled = false;
+              log("Erro ao validar item do relatorio: " + error.message, "error");
+            });
+        });
+
         if (record.validated) {
           const validatedNotice = document.createElement("div");
           validatedNotice.style.cssText =
@@ -9037,8 +9740,9 @@
         });
 
         const actionCell = document.createElement("div");
-        actionCell.style.cssText = "grid-column:1 / -1;display:flex;justify-content:flex-end;margin-top:-2px;";
+        actionCell.style.cssText = "grid-column:1 / -1;display:flex;justify-content:flex-end;gap:6px;margin-top:-2px;";
         actionCell.appendChild(action);
+        actionCell.appendChild(validateAction);
         row.appendChild(actionCell);
         rowsWrapper.appendChild(row);
       });

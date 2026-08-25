@@ -143,7 +143,7 @@
   const CORRECTION_CLOSE_STEP_ID = "2756";
   const CORRECTION_RETURN_ASSESSOR_FIELD_ID = "progress_form_data_ATR007572";
   const CORRECTION_FILTER_ORDER_KEY = "SPA_CDSP_CORRECTION_FILTER_ORDER";
-  const CORRECTION_FILTER_DEFAULT_ORDER = ["assessors", "judgingBodies", "manifestations", "passivePoles"];
+  const CORRECTION_FILTER_DEFAULT_ORDER = ["assessors", "judgingBodies", "manifestations", "activePoles"];
   const CORRECTION_FILTER_DEFINITIONS = {
     assessors: {
       label: "Assessor(a)",
@@ -163,11 +163,11 @@
       recordKey: "manifestation",
       stateKey: "manifestations"
     },
-    passivePoles: {
-      label: "Polo passivo",
-      placeholder: "Polo passivo (opcional)",
-      recordKey: "passivePole",
-      stateKey: "passivePoles"
+    activePoles: {
+      label: "Polo ativo",
+      placeholder: "Polo ativo (opcional)",
+      recordKey: "activePole",
+      stateKey: "activePoles"
     }
   };
   const CORRECTION_TEAM_NAMES = [
@@ -364,7 +364,7 @@
     correctionFilters: {
       assessors: [],
       judgingBodies: [],
-      passivePoles: [],
+      activePoles: [],
       manifestations: []
     },
     correctionFilterOrder: readStoredCorrectionFilterOrder()
@@ -1389,7 +1389,7 @@
   function columnsForCorrectionFlow() {
     const assessorIndex = findColumnIndex(["Assessor(a)", "Assessor"]);
     const judgingBodyIndex = findColumnIndex(["Órgão julgador", "Orgao julgador", "Julgador"]);
-    const passivePoleIndex = findColumnIndex(["Polo passivo", "Polo Passivo"]);
+    const activePoleIndex = findColumnIndex(["Polo ativo", "Polo Ativo"]);
     const manifestationIndex = findColumnIndex([
       "Manifestação sugerida",
       "Manifestacao sugerida",
@@ -1408,8 +1408,8 @@
     if (judgingBodyIndex < 0) {
       throw new Error("Coluna 'Orgao julgador' nao encontrada ou nao habilitada no SPA.");
     }
-    if (passivePoleIndex < 0) {
-      throw new Error("Coluna 'Polo passivo' nao encontrada ou nao habilitada no SPA.");
+    if (activePoleIndex < 0) {
+      throw new Error("Coluna 'Polo ativo' nao encontrada ou nao habilitada no SPA.");
     }
     if (manifestationIndex < 0) {
       throw new Error("Coluna 'Manifestacao sugerida' nao encontrada ou nao habilitada no SPA.");
@@ -1421,7 +1421,7 @@
     return {
       assessorIndex,
       judgingBodyIndex,
-      passivePoleIndex,
+      activePoleIndex,
       manifestationIndex,
       processIndex
     };
@@ -1432,7 +1432,7 @@
     const processNumber = cellText(row, columns.processIndex) || extractProcessNumber(rowSearchText(row));
     const assessor = cellText(row, columns.assessorIndex);
     const judgingBody = cellText(row, columns.judgingBodyIndex);
-    const passivePole = cellText(row, columns.passivePoleIndex);
+    const activePole = cellText(row, columns.activePoleIndex);
     const manifestation = cellText(row, columns.manifestationIndex);
 
     return {
@@ -1441,7 +1441,7 @@
       processNumber: processNumber || "Processo nao identificado",
       assessor: assessor || "Sem assessor(a)",
       judgingBody: judgingBody || "Sem orgao julgador",
-      passivePole: passivePole || "Sem polo passivo",
+      activePole: activePole || "Sem polo ativo",
       manifestation: manifestation || "Sem manifestacao sugerida"
     };
   }
@@ -1474,7 +1474,7 @@
             record.processNumber,
             record.assessor,
             record.judgingBody,
-            record.passivePole,
+            record.activePole,
             record.manifestation
           ].join("|");
           if (seen.has(key)) return;
@@ -1524,12 +1524,12 @@
     const filters = state.correctionFilters || {};
     const assessors = selectionArray(filters.assessors);
     const judgingBodies = selectionArray(filters.judgingBodies);
-    const passivePoles = selectionArray(filters.passivePoles);
+    const activePoles = selectionArray(filters.activePoles);
     const manifestations = selectionArray(filters.manifestations);
     return (state.correctionRecords || []).filter((record) => {
       if (assessors.length && !selectionHas(assessors, record.assessor)) return false;
       if (judgingBodies.length && !selectionHas(judgingBodies, record.judgingBody)) return false;
-      if (passivePoles.length && !selectionHas(passivePoles, record.passivePole)) return false;
+      if (activePoles.length && !selectionHas(activePoles, record.activePole)) return false;
       if (manifestations.length && !selectionHas(manifestations, record.manifestation)) return false;
       return true;
     });
@@ -1541,7 +1541,7 @@
 
   function selectedCorrectionFilterKeys() {
     const filters = state.correctionFilters || {};
-    return ["assessors", "judgingBodies", "passivePoles", "manifestations"].filter((key) =>
+    return ["assessors", "judgingBodies", "activePoles", "manifestations"].filter((key) =>
       selectionArray(filters[key]).length > 0
     );
   }
@@ -5603,12 +5603,12 @@
 
     const assessorSelect = createCorrectionSelect("spa-cdsp-correction-assessors");
     const judgingBodySelect = createCorrectionSelect("spa-cdsp-correction-judgingBodies");
-    const passivePoleSelect = createCorrectionSelect("spa-cdsp-correction-passivePoles");
+    const activePoleSelect = createCorrectionSelect("spa-cdsp-correction-activePoles");
     const manifestationSelect = createCorrectionSelect("spa-cdsp-correction-manifestations");
     filterFields.appendChild(createCorrectionFilterGroup("assessors", assessorSelect));
     filterFields.appendChild(createCorrectionFilterGroup("judgingBodies", judgingBodySelect));
     filterFields.appendChild(createCorrectionFilterGroup("manifestations", manifestationSelect));
-    filterFields.appendChild(createCorrectionFilterGroup("passivePoles", passivePoleSelect));
+    filterFields.appendChild(createCorrectionFilterGroup("activePoles", activePoleSelect));
 
     const openButton = createButton("Abrir", startCorrectionOpenFlow, "primary");
     openButton.id = "spa-cdsp-correction-open";
@@ -5617,7 +5617,7 @@
     [
       ["assessors", assessorSelect],
       ["judgingBodies", judgingBodySelect],
-      ["passivePoles", passivePoleSelect],
+      ["activePoles", activePoleSelect],
       ["manifestations", manifestationSelect]
     ].forEach(([key, select]) => {
       select.addEventListener("change", () => {
