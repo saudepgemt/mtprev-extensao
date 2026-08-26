@@ -898,7 +898,7 @@
 
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
         gap: 6px;
         align-items: stretch;
       }
@@ -1414,6 +1414,22 @@
         margin-top: 10px;
       }
 
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-response-context {
+        flex: 1 0 100%;
+        color: #274a68;
+        font-size: 11px;
+        font-weight: 900;
+        line-height: 1.35;
+      }
+
       #spa-cdsp-external-docs-panel .spa-cdsp-movement-action {
         border: 0;
         border-radius: 6px;
@@ -1629,6 +1645,7 @@
       }
 
       html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-summary,
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel .spa-cdsp-movement-expediente-response-context,
       html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel .spa-cdsp-movement-deadline-cell {
         color: var(--cdsp-text-soft, #bdc9dd) !important;
       }
@@ -3657,7 +3674,36 @@
     parent.appendChild(cell);
   }
 
-  function appendProcedureExpedienteDetails(parent, expediente, filterText) {
+  function movementExpedientePartyLabel(expediente) {
+    const party = normalizeText(expediente && expediente.party);
+    const procuradoria = normalizeText(expediente && expediente.procuradoria);
+    const combined = normalizeText([party, procuradoria].filter(Boolean).join(" ")).toLowerCase();
+
+    if (combined.indexOf("procuradoria geral do estado de mato grosso") >= 0 || combined.indexOf("estado de mato grosso") >= 0) {
+      return "Estado de Mato Grosso";
+    }
+    if (combined.indexOf("ministerio publico") >= 0) return "Ministerio Publico";
+    if (combined.indexOf("defensoria publica") >= 0) return "Defensoria Publica";
+
+    const label = party || procuradoria;
+    if (!label) return "parte informada no expediente";
+    return label.length > 54 ? label.slice(0, 51).trim() + "..." : label;
+  }
+
+  function createMovementExpedienteLinkItem(expediente) {
+    return {
+      type: expediente && expediente.title ? expediente.title : "Expediente/Prazo",
+      description: expediente && expediente.summary ? expediente.summary : "",
+      isPdf: false,
+      noOpen: true,
+      documentIds: Array.isArray(expediente && expediente.documentIds) ? expediente.documentIds : [],
+      linkedDocumentIds: Array.isArray(expediente && expediente.documentIds) ? expediente.documentIds : [],
+      responseIds: Array.isArray(expediente && expediente.responseIds) ? expediente.responseIds : [],
+      expedientes: expediente ? [expediente] : [],
+    };
+  }
+
+  function appendProcedureExpedienteDetails(parent, expediente, filterText, panel) {
     if (!expediente) return;
 
     const block = document.createElement("div");
@@ -3701,6 +3747,27 @@
       flags.className = "spa-cdsp-movement-deadline-flags";
       expediente.flags.forEach((flag) => flags.appendChild(createExternalDocumentChip(flag)));
       block.appendChild(flags);
+    }
+
+    const responseIds = Array.isArray(expediente.responseIds) ? expediente.responseIds.filter(Boolean) : [];
+    if (responseIds.length && panel && typeof panel._openMovementLinkedDocument === "function") {
+      const actions = document.createElement("div");
+      actions.className = "spa-cdsp-movement-expediente-actions";
+
+      const context = document.createElement("div");
+      context.className = "spa-cdsp-movement-expediente-response-context";
+      context.textContent = "Resposta vinculada a: " + movementExpedientePartyLabel(expediente);
+      actions.appendChild(context);
+
+      const openResponse = createMovementActionButton(
+        "Abrir resposta",
+        "Abrir somente a resposta deste expediente/parte."
+      );
+      openResponse.addEventListener("click", () => {
+        panel._openMovementLinkedDocument(createMovementExpedienteLinkItem(expediente), "response");
+      });
+      actions.appendChild(openResponse);
+      block.appendChild(actions);
     }
 
     parent.appendChild(block);
@@ -3849,10 +3916,7 @@
         actions.className = "spa-cdsp-movement-actions";
         const openDocument = createMovementActionButton("Abrir PDF", "Abrir o documento vinculado a esta movimentação.");
         openDocument.addEventListener("click", () => panel._openMovementLinkedDocument(item, "document"));
-        const openResponse = createMovementActionButton("Resposta", "Abrir a resposta vinculada a esta movimentação, quando existir.");
-        openResponse.addEventListener("click", () => panel._openMovementLinkedDocument(item, "response"));
         actions.appendChild(openDocument);
-        actions.appendChild(openResponse);
         card.appendChild(actions);
       }
 
@@ -3863,7 +3927,7 @@
         heading.className = "spa-cdsp-movement-expedientes-heading";
         heading.textContent = item.expedientes.length === 1 ? "Expediente e prazo vinculado" : "Expedientes e prazos vinculados";
         expedientes.appendChild(heading);
-        item.expedientes.forEach((expediente) => appendProcedureExpedienteDetails(expedientes, expediente, filterText));
+        item.expedientes.forEach((expediente) => appendProcedureExpedienteDetails(expedientes, expediente, filterText, panel));
         card.appendChild(expedientes);
       }
 
@@ -4284,18 +4348,17 @@
         terms: "SESDIC;SESOFI;ofi;merged;CIAPS;juntada ses;SESMT",
       },
       {
-        id: "pge_state",
-        label: "PGE/Estado",
-        terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO",
-        exact: true,
-      },
-      {
         id: "oficio_ses",
         label: "Ofício SES",
         terms: "Ofício;Oficio",
         sources: ["folder"],
       },
     ];
+    const movementPgeStateFilterDefinition = {
+      id: "pge_state_inline",
+      label: "PGE/Estado",
+      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO",
+    };
     const selectedQuickFilters = new Set();
     const quickFilterInputs = {};
     const quickFilterOptions = {};
@@ -4320,6 +4383,11 @@
       quickFilterOptions[definition.id] = option;
     });
 
+    const latestDecisionButton = createExternalDocumentsButton("Última decisão", "spa-cdsp-external-docs-button-secondary spa-cdsp-external-docs-filter-clear");
+    latestDecisionButton.title = "Abrir o documento da decisão mais recente retornada pelos filtros do Andamento PJE.";
+    latestDecisionButton.style.display = "none";
+    filterMenu.appendChild(latestDecisionButton);
+
     const clearQuickFiltersButton = createExternalDocumentsButton("Limpar filtros", "spa-cdsp-external-docs-button-secondary spa-cdsp-external-docs-filter-clear");
     filterMenu.appendChild(clearQuickFiltersButton);
 
@@ -4337,6 +4405,18 @@
     exactSearchOption.appendChild(exactSearchInput);
     exactSearchOption.appendChild(exactSearchText);
     searchTools.appendChild(exactSearchOption);
+
+    const pgeStateOption = document.createElement("label");
+    pgeStateOption.className = "spa-cdsp-external-docs-exact-option";
+    pgeStateOption.style.display = "none";
+    pgeStateOption.title = "Filtrar o Andamento PJE por Estado/PGE.";
+    const pgeStateInput = document.createElement("input");
+    pgeStateInput.type = "checkbox";
+    const pgeStateText = document.createElement("span");
+    pgeStateText.textContent = "PGE/Estado";
+    pgeStateOption.appendChild(pgeStateInput);
+    pgeStateOption.appendChild(pgeStateText);
+    searchTools.appendChild(pgeStateOption);
 
     const quickActionsBar = document.createElement("div");
     quickActionsBar.className = "spa-cdsp-external-docs-quick-bar";
@@ -4491,20 +4571,8 @@
     quickActionButtons.forEach((button) => quickActionsControls.appendChild(button));
     quickActionsBar.appendChild(quickActionsControls);
 
-    const movementActionsBar = document.createElement("div");
-    movementActionsBar.className = "spa-cdsp-external-docs-quick-bar";
-    movementActionsBar.style.display = "none";
-
-    const movementActionsControls = document.createElement("div");
-    movementActionsControls.className = "spa-cdsp-external-docs-quick-controls";
-    const latestDecisionButton = createExternalDocumentsButton("Última decisão", "spa-cdsp-external-docs-quick-direct");
-    latestDecisionButton.title = "Abrir o documento da decisão mais recente retornada pelos filtros.";
-    movementActionsControls.appendChild(latestDecisionButton);
-    movementActionsBar.appendChild(movementActionsControls);
-
     searchRow.appendChild(searchTools);
     searchRow.appendChild(quickActionsBar);
-    searchRow.appendChild(movementActionsBar);
 
     const contentSearch = document.createElement("div");
     contentSearch.className = "spa-cdsp-external-docs-content-search";
@@ -4628,20 +4696,23 @@
       return quickFilterDefinitions.filter((definition) => selectedQuickFilters.has(definition.id));
     }
 
-    function getSelectedQuickFilterText() {
-      return getSelectedQuickFilterDefinitions().map((definition) => definition.terms).join(";");
-    }
-
     function getExternalSummaryFilterOptions() {
+      const implicitDefinitions = getSelectedQuickFilterDefinitions();
+      const activeSource = getActiveSource();
+      if (activeSource && activeSource.key === "movements" && pgeStateInput.checked) {
+        implicitDefinitions.push(movementPgeStateFilterDefinition);
+      }
+
       return {
         exactText: exactSearchInput.checked,
-        implicitText: getSelectedQuickFilterText(),
-        implicitDefinitions: getSelectedQuickFilterDefinitions(),
+        implicitText: implicitDefinitions.map((definition) => definition.terms).join(";"),
+        implicitDefinitions,
       };
     }
 
     function updateQuickFilterAvailability(source) {
       const sourceKey = source && source.key ? source.key : "";
+      const isMovements = sourceKey === "movements";
       quickFilterDefinitions.forEach((definition) => {
         const option = quickFilterOptions[definition.id];
         const input = quickFilterInputs[definition.id];
@@ -4653,6 +4724,8 @@
           selectedQuickFilters.delete(definition.id);
         }
       });
+      latestDecisionButton.style.display = isMovements ? "" : "none";
+      pgeStateOption.style.display = isMovements ? "" : "none";
       updateQuickFilterButtonLabel();
     }
 
@@ -4968,7 +5041,6 @@
           ? "Pesquisar por movimento, número, data ou texto... Use ; para vários termos."
           : "Filtrar por tipo, ID, descrição ou data... Use ; para vários termos.";
       quickActionsBar.style.display = source.key === "movements" ? "none" : "";
-      movementActionsBar.style.display = source.key === "movements" ? "" : "none";
       updateQuickFilterAvailability(source);
       filterMenu.hidden = true;
     }
@@ -5262,7 +5334,6 @@
       search.style.display = "none";
       searchRow.style.display = "none";
       quickActionsBar.style.display = isMovements ? "none" : "";
-      movementActionsBar.style.display = isMovements ? "" : "none";
       contentSearch.style.display = "none";
       contentSearchResults.style.display = "none";
       contentSearchResults.textContent = "";
@@ -5709,6 +5780,10 @@
     });
 
     exactSearchInput.addEventListener("change", () => {
+      renderActiveExternalSourceWithFilters();
+    });
+
+    pgeStateInput.addEventListener("change", () => {
       renderActiveExternalSourceWithFilters();
     });
 
