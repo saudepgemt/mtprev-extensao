@@ -1860,109 +1860,6 @@
     }
   }
 
-  function base64ToUint8Array(base64) {
-    const clean = String(base64 || "")
-      .replace(/^data:[^,]+,/i, "")
-      .replace(/\s+/g, "");
-    if (!clean) return new Uint8Array(0);
-
-    const binary = atob(clean);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    return bytes;
-  }
-
-  function decodeUtf8Bytes(bytes) {
-    try {
-      return new TextDecoder("utf-8").decode(bytes);
-    } catch (_error) {
-      let binary = "";
-      for (let index = 0; index < bytes.length; index += 1) {
-        binary += String.fromCharCode(bytes[index]);
-      }
-      return binary;
-    }
-  }
-
-  function sanitizeMniHtmlDocument(html, title) {
-    let parsed = null;
-    try {
-      parsed = new DOMParser().parseFromString(String(html || ""), "text/html");
-    } catch (_error) {
-      parsed = null;
-    }
-
-    if (!parsed || !parsed.documentElement) {
-      return "<!doctype html><html><head><meta charset=\"utf-8\"><title>" +
-        escapeHtml(title || "Documento PJe") +
-        "</title></head><body><pre>" +
-        escapeHtml(String(html || "")) +
-        "</pre></body></html>";
-    }
-
-    parsed.querySelectorAll("script, iframe, object, embed").forEach((node) => node.remove());
-    parsed.querySelectorAll("*").forEach((node) => {
-      Array.from(node.attributes || []).forEach((attribute) => {
-        const name = String(attribute.name || "").toLowerCase();
-        const value = String(attribute.value || "");
-        if (name.indexOf("on") === 0 || ((name === "href" || name === "src" || name === "xlink:href") && /^\s*javascript:/i.test(value))) {
-          node.removeAttribute(attribute.name);
-        }
-      });
-    });
-
-    if (!parsed.querySelector("meta[charset]")) {
-      const meta = parsed.createElement("meta");
-      meta.setAttribute("charset", "utf-8");
-      parsed.head.insertBefore(meta, parsed.head.firstChild);
-    }
-
-    if (!parsed.querySelector("base")) {
-      const base = parsed.createElement("base");
-      base.setAttribute("target", "_blank");
-      parsed.head.appendChild(base);
-    }
-
-    if (!normalizeText(parsed.title)) parsed.title = title || "Documento PJe";
-    return "<!doctype html>\n" + parsed.documentElement.outerHTML;
-  }
-
-  function openMniDocumentBlob(documentData, label) {
-    const contentBase64 = documentData && documentData.contentBase64;
-    if (!contentBase64) return false;
-
-    const bytes = base64ToUint8Array(contentBase64);
-    if (!bytes.length) return false;
-
-    const title = normalizeText((documentData && (documentData.description || documentData.fileName)) || label || "Documento PJe");
-    const mimeType = normalizeText(documentData && documentData.mimeType).toLowerCase();
-    const fileName = normalizeText(documentData && documentData.fileName).toLowerCase();
-    const isHtml = /html/.test(mimeType) || /\.html?$/.test(fileName);
-    const isPdf = /pdf/.test(mimeType) || /\.pdf$/.test(fileName) || (documentData && documentData.isPdf);
-    const blob = isHtml
-      ? new Blob([sanitizeMniHtmlDocument(decodeUtf8Bytes(bytes), title)], { type: "text/html;charset=utf-8" })
-      : new Blob([bytes], { type: isPdf ? "application/pdf" : mimeType || "application/octet-stream" });
-    const blobUrl = URL.createObjectURL(blob);
-    const opened = window.open(blobUrl, "_blank", "noopener,noreferrer");
-
-    if (!opened) {
-      URL.revokeObjectURL(blobUrl);
-      return false;
-    }
-
-    setTimeout(() => {
-      try {
-        URL.revokeObjectURL(blobUrl);
-      } catch (_error) {
-        // URL temporaria ja liberada pelo navegador.
-      }
-    }, 10 * 60 * 1000);
-
-    return true;
-  }
-
   function bindExternalDocumentOpenButton(open, item) {
     if (!open || !item || !item.isPdf) return;
 
@@ -5038,6 +4935,38 @@
       });
     }
 
+    function externalDocumentVerificationMessage(item, ids, mode) {
+      const itemId = String((item && item.id) || "").trim();
+      if (itemId && ids.indexOf(itemId) >= 0) {
+        return (
+          (mode === "response" ? "Resposta aberta pelo SPA." : "Documento aberto pelo SPA.") +
+          " Conferencia PJe: ID " +
+          itemId +
+          " confirmado pelo Andamento PJe."
+        );
+      }
+
+      const text = normalizeText([item && item.type, item && item.description, item && item.url, item && item.viewerUrl, item && item.pdfUrl].join(" ")).toLowerCase();
+      const matchedId = ids.find((id) => {
+        const value = normalizeText(id).toLowerCase();
+        return Boolean(value && text.indexOf(value) >= 0);
+      });
+
+      if (matchedId) {
+        return (
+          (mode === "response" ? "Resposta aberta pelo SPA." : "Documento aberto pelo SPA.") +
+          " Conferencia PJe: referencia ao ID " +
+          matchedId +
+          " localizada no item do SPA."
+        );
+      }
+
+      return (
+        (mode === "response" ? "Resposta aberta pelo SPA." : "Documento aberto pelo SPA.") +
+        " Conferencia PJe: nao foi possivel confirmar o ID automaticamente."
+      );
+    }
+
     async function findExternalPdfItemByDocumentIds(ids) {
       const sourceOrder = ["autos", "folder"];
       for (const sourceKey of sourceOrder) {
@@ -5059,36 +4988,6 @@
       return null;
     }
 
-    async function openMovementMniDocumentByIds(ids, mode) {
-      const movementsSource = sources && sources.movements;
-      if (!movementsSource || !movementsSource.processNumber || !Array.isArray(ids) || !ids.length) return false;
-
-      const response = await requestExtensionMessage(
-        "SPA_CDSP_FETCH_MNI_DOCUMENT",
-        {
-          processNumber: movementsSource.processNumber || processNumber,
-          tribunal: movementsSource.tribunal || "",
-          documentIds: ids,
-        },
-        90000
-      );
-
-      if (!response || !response.ok || !response.document) {
-        const reason = response && response.error ? response.error : "MNI/PJe nao devolveu arquivo para esse documento.";
-        status.textContent = reason + " Tentando localizar pelo SPA...";
-        return false;
-      }
-
-      const opened = openMniDocumentBlob(
-        response.document,
-        mode === "response" ? "Resposta PJe" : "Documento PJe"
-      );
-      status.textContent = opened
-        ? (mode === "response" ? "Resposta aberta pelo MNI/PJe." : "Documento aberto pelo MNI/PJe.")
-        : "O navegador bloqueou a abertura do documento do PJe.";
-      return opened;
-    }
-
     panel._openMovementLinkedDocument = async (item, mode) => {
       if (panel.dataset.loading === "1" || panel.dataset.openingAll === "1") {
         status.textContent = "Aguarde a acao atual terminar antes de abrir o PDF vinculado.";
@@ -5104,10 +5003,6 @@
         return false;
       }
 
-      status.textContent = "Obtendo documento pelo MNI/PJe...";
-      const openedFromMni = await openMovementMniDocumentByIds(ids, mode);
-      if (openedFromMni) return true;
-
       status.textContent = "Localizando PDF vinculado no SPA...";
       const found = await findExternalPdfItemByDocumentIds(ids);
       if (!found) {
@@ -5115,11 +5010,13 @@
         return false;
       }
 
-      return openExternalDocumentQuickItem(
+      const opened = await openExternalDocumentQuickItem(
         found,
         status,
         mode === "response" ? "Resposta vinculada" : "PDF vinculado"
       );
+      if (opened) status.textContent = externalDocumentVerificationMessage(found, ids, mode);
+      return opened;
     };
 
     async function openLatestDecisionMovement() {

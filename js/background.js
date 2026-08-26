@@ -26,10 +26,8 @@ const PDF_SCAN_TIMEOUT_MS = 45000;
 const PDF_RENDER_TEXT_TIMEOUT_MS = 9000;
 const PDF_RENDER_TEXT_POLL_MS = 600;
 const MNI_MOVEMENTS_TIMEOUT_MS = 60000;
-const MNI_DOCUMENT_TIMEOUT_MS = 60000;
 const MNI_MCP_ENDPOINT_URL = "https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/mcp/dfa12739f3154104961d99e9a8758710de6d78f2934240e1998bd6d590707f5c";
 const MNI_MCP_CONSULT_PROCESS_TOOL = "tjmt_mni_consultar_processo";
-const MNI_MCP_GET_DOCUMENT_TOOL = "tjmt_mni_obter_documento";
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const AUTOS_SEARCH_CACHE_MAX = 250;
 const DUPLICATE_PDF_FINGERPRINT_CACHE_MAX = 180;
@@ -644,43 +642,6 @@ function summarizeMcpCase(payload) {
   };
 }
 
-function normalizeMcpDocumentIds(value) {
-  const ids = [];
-  const push = (item) => {
-    const text = String(item || "").trim();
-    if (text && ids.indexOf(text) < 0) ids.push(text);
-  };
-
-  if (Array.isArray(value)) value.forEach(push);
-  else push(value);
-  return ids.slice(0, 8);
-}
-
-function mniSavedDocumentsFromPayload(payload) {
-  if (!payload || typeof payload !== "object") return [];
-  if (Array.isArray(payload.savedDocuments)) return payload.savedDocuments;
-
-  const result = firstMcpProcessResult(payload);
-  if (result && Array.isArray(result.savedDocuments)) return result.savedDocuments;
-  if (result && result.documents && Array.isArray(result.documents.savedDocuments)) return result.documents.savedDocuments;
-  return [];
-}
-
-function normalizeMniSavedDocument(document) {
-  return {
-    id: pickValue(document && document.id, document && document.documentId),
-    linkedId: pickValue(document && document.linkedId, document && document.idDocumentoVinculado),
-    description: pickValue(document && document.description, document && document.name, document && document.fileName, "Documento PJe"),
-    mimeType: pickValue(document && document.mimeType, document && document.contentType, "application/octet-stream"),
-    isPdf: Boolean(document && (document.isPdf || /pdf/i.test(String(document.mimeType || document.fileName || "")))),
-    fileName: pickValue(document && document.fileName, document && document.name, "documento-pje"),
-    sizeBytes: Number((document && (document.sizeBytes || document.contentSizeBytes)) || 0),
-    available: document && document.available !== false,
-    contentBase64: String((document && (document.contentBase64 || document.base64 || document.content)) || ""),
-    textPreview: document && document.textPreview ? String(document.textPreview) : ""
-  };
-}
-
 async function fetchMniProcedureMovements(message) {
   const processNumber = sanitizeMniProcessNumber(message && message.processNumber);
   const instance = inferMniPjeEndpoint(processNumber, message && message.tribunal);
@@ -791,129 +752,6 @@ async function fetchMniProcedureMovements(message) {
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-async function fetchSingleMniDocument(processNumber, instance, documentId) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MNI_DOCUMENT_TIMEOUT_MS);
-
-  try {
-    const requestId = "cdsp-mni-doc-" + Date.now();
-    const response = await fetch(MNI_MCP_ENDPOINT_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: requestId,
-        method: "tools/call",
-        params: {
-          name: MNI_MCP_GET_DOCUMENT_TOOL,
-          arguments: {
-            numeroProcesso: processNumber,
-            instancia: instance.id,
-            documento: String(documentId),
-            retornarBase64: true,
-            retornarTexto: false,
-            limiteTexto: 1000
-          }
-        }
-      })
-    });
-    const bodyText = await response.text();
-    let rpcPayload = null;
-
-    try {
-      rpcPayload = bodyText ? JSON.parse(bodyText) : null;
-    } catch (_error) {
-      rpcPayload = { error: { message: bodyText.slice(0, 500) || "Resposta MCP nao era JSON." } };
-    }
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: "Worker MCP retornou HTTP " + response.status + " ao obter documento.",
-        details: bodyText.slice(0, 300)
-      };
-    }
-
-    const toolPayload = parseMcpToolPayload(rpcPayload);
-    if (!toolPayload || toolPayload.ok === false || toolPayload.success === false) {
-      return {
-        ok: false,
-        error:
-          (toolPayload && (toolPayload.error || toolPayload.message)) ||
-          "MCP/PJe nao retornou o documento."
-      };
-    }
-
-    const documents = mniSavedDocumentsFromPayload(toolPayload).map(normalizeMniSavedDocument);
-    const document = documents.find((item) => item && item.contentBase64 && item.available) || documents[0] || null;
-    if (!document || !document.contentBase64) {
-      return {
-        ok: false,
-        error: "Documento " + documentId + " sem arquivo retornado pelo MNI/PJe."
-      };
-    }
-
-    return {
-      ok: true,
-      document,
-      documentId: String(documentId)
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error && error.name === "AbortError"
-          ? "Tempo limite excedido ao obter documento no MNI/PJe."
-          : error && error.message
-          ? error.message
-          : String(error)
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function fetchMniDocument(message) {
-  const processNumber = sanitizeMniProcessNumber(message && message.processNumber);
-  const instance = inferMniPjeEndpoint(processNumber, message && message.tribunal);
-  const documentIds = normalizeMcpDocumentIds(
-    (message && (message.documentIds || message.documentos || message.documento)) || (message && message.documentId)
-  );
-
-  if (instance.error) {
-    return { ok: false, error: instance.error, document: null, attemptedDocumentIds: documentIds };
-  }
-  if (!documentIds.length) {
-    return { ok: false, error: "Nenhum ID de documento foi informado.", document: null, attemptedDocumentIds: [] };
-  }
-
-  const errors = [];
-  for (const documentId of documentIds) {
-    const result = await fetchSingleMniDocument(processNumber, instance, documentId);
-    if (result && result.ok && result.document) {
-      return {
-        ok: true,
-        processNumber,
-        sourceLabel: instance.label + " via MNI/PJe",
-        document: result.document,
-        attemptedDocumentIds: documentIds
-      };
-    }
-    if (result && result.error) errors.push(documentId + ": " + result.error);
-  }
-
-  return {
-    ok: false,
-    error: errors[0] || "MNI/PJe nao devolveu arquivo para os IDs informados.",
-    attemptedDocumentIds: documentIds,
-    document: null
-  };
 }
 
 async function syncRoutineAlarm(config) {
@@ -4737,20 +4575,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           movements: [],
-          error: error && error.message ? error.message : String(error)
-        });
-      });
-
-    return true;
-  }
-
-  if (message.type === "SPA_CDSP_FETCH_MNI_DOCUMENT") {
-    fetchMniDocument(message)
-      .then(sendResponse)
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          document: null,
           error: error && error.message ? error.message : String(error)
         });
       });

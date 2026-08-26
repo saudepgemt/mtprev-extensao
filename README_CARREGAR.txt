@@ -26,8 +26,8 @@ Comportamento:
 - No Agravo TRF, o codigo final 9360 usa a Turma Recursal dos Juizados Especiais Federais da SJMT; os codigos 3600 a 3606 usam o Tribunal Regional Federal da 1a Regiao.
 - No Agravo TRF, a competencia preenchida e "TRF1-5a e 6a Turmas-Direito Adm/Civil/Comercial".
 - O preenchimento do cadastro de Agravo reconhece tanto os campos do modelo estadual quanto os do modelo TRF, com fallback por rotulo do campo.
-- Na tabela copiada do agravo, estadual e federal, o campo do agravado sai como "Agravado e outros".
-- A tabela copiada do agravo, estadual e federal, usa Times New Roman 12, azul #000080, colunas de 6,64cm e 12,28cm, texto justificado, sem negrito e sem recuo inicial; o HTML inclui colgroup, largura total de 18,92cm e estilos mso para ajudar o Word/Docs a preservar as medidas ao colar.
+- Na tabela copiada do agravo, estadual e federal, o rotulo fica como "Agravado" e o valor da segunda coluna recebe "e Outros" depois do nome.
+- A tabela copiada do agravo, estadual e federal, usa Times New Roman 12, primeira coluna sem preenchimento colorido, colunas de 6,64cm e 12,28cm, texto justificado, sem negrito e sem recuo inicial; o HTML inclui colgroup, largura total de 18,92cm e estilos mso para ajudar o Word/Docs a preservar as medidas ao colar.
 - O botao solto/flutuante de Agravo de Instrumento nao e mais criado na tela do SPA.
 - O modulo Redacao e Correcao inclui o bloco compacto "Fluxo de Correcao".
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa de correcao e monta filtros arrastaveis, com a ordem salva na memoria do navegador.

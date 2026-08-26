@@ -288,7 +288,6 @@
     rightColumnWidth: "12.28cm",
     rightColumnWidthPt: "348.09pt",
     rightColumnWidthTwips: "6964",
-    headerBackground: "#000080",
     border: "1px solid #000",
     textAlign: "justify",
     fontWeight: "400",
@@ -3292,6 +3291,13 @@
       .join("\n");
   }
 
+  function agravoPassivePoleValue(value) {
+    const text = normalizeText(value);
+    if (!text) return "";
+    if (/\be\s+outros\b/i.test(text)) return text;
+    return text + " e Outros";
+  }
+
   function agravoTableRows(data) {
     const prerogativesPlain = AGRAVO_PREROGATIVE_LINES.concat([AGRAVO_PREROGATIVE_BOLD_PLAIN]).join("\n");
     const prerogativesHtml =
@@ -3327,9 +3333,9 @@
         htmlValue: prerogativesHtml
       },
       {
-        label: "Agravado e outros",
-        plainValue: data.activePole || "",
-        htmlValue: escapeHtml(data.activePole || "")
+        label: "Agravado",
+        plainValue: agravoPassivePoleValue(data.activePole),
+        htmlValue: escapeHtml(agravoPassivePoleValue(data.activePole))
       }
     ];
   }
@@ -3356,9 +3362,7 @@
     const leftStyle =
       "border:" +
       format.border +
-      ";background:" +
-      format.headerBackground +
-      ";color:#fff;font-weight:" +
+      ";background:#fff;color:#111;font-weight:" +
       format.fontWeight +
       ";padding:" +
       format.padding +

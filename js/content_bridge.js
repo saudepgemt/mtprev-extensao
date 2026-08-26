@@ -32,7 +32,6 @@
     "SPA_CDSP_SEARCH_AUTOS_DOCUMENT",
     "SPA_CDSP_ENSURE_PDF_LIB",
     "SPA_CDSP_FETCH_PROCEDURE_MOVEMENTS",
-    "SPA_CDSP_FETCH_MNI_DOCUMENT",
     "SPA_CDSP_SCHEDULE_GET",
     "SPA_CDSP_SCHEDULE_SAVE",
     "SPA_CDSP_SCHEDULE_RUN_NOW",
@@ -710,8 +709,6 @@
         password: typeof data.password === "string" ? data.password : "",
         processNumber: data.processNumber || "",
         tribunal: data.tribunal || "",
-        documentId: data.documentId || "",
-        documentIds: Array.isArray(data.documentIds) ? data.documentIds : [],
         query: data.query || "",
         exact: data.exact === true,
         delayMs: data.delayMs
