@@ -121,3 +121,196 @@
   cursor: wait;
   opacity: 0.82;
 }
+
+.cdsp-sigadoc-menu {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 260px;
+  z-index: 999999;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  background: #102131;
+  color: #f4f8fb;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.cdsp-sigadoc-menu__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: move;
+  background: #172b3d;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  user-select: none;
+}
+
+.cdsp-sigadoc-menu__header strong {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.cdsp-sigadoc-menu__header span {
+  flex: 1;
+  color: #b9cad9;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cdsp-sigadoc-menu__minimize {
+  width: 24px;
+  height: 22px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 5px;
+  background: #20384e;
+  color: #fff;
+  font: 700 13px 'Segoe UI', Arial, sans-serif;
+  cursor: pointer;
+}
+
+.cdsp-sigadoc-menu__body {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+}
+
+.cdsp-sigadoc-menu.is-collapsed .cdsp-sigadoc-menu__body {
+  display: none;
+}
+
+.cdsp-sigadoc-menu__section {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.035);
+}
+
+.cdsp-sigadoc-menu__section > strong {
+  color: #dce9f5;
+  font-size: 11px;
+}
+
+.cdsp-sigadoc-menu__hint {
+  color: #b9cad9;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button,
+.cdsp-sigadoc-menu #spa-sigadoc-btn,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  bottom: auto;
+  right: auto;
+  z-index: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #245c45;
+  color: #fff;
+  font: 700 12px 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button:hover,
+.cdsp-sigadoc-menu #spa-sigadoc-btn:hover {
+  background: #2f7659;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary {
+  background: #1a5c8d;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary:hover {
+  background: #226fa8;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning {
+  background: #6a4a12;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn:hover,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning:hover {
+  background: #825d1c;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger {
+  background: #7a2630;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger:hover {
+  background: #93313c;
+}
+
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button:disabled,
+.cdsp-sigadoc-menu #spa-sigadoc-btn:disabled,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn:disabled {
+  cursor: wait;
+  opacity: 0.86;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-btn.copiando,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.copiando,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.copiando {
+  background: #1a5c8d;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-btn.sucesso,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.sucesso,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.sucesso {
+  background: #1f7a3f;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-btn.alerta,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.alerta,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.alerta {
+  background: #9a5b00;
+}
+
+.cdsp-sigadoc-menu #spa-sigadoc-btn.erro,
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.erro,
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.erro {
+  background: #a83232;
+}
+
+.cdsp-sigadoc-menu__status {
+  min-height: 28px;
+  max-height: 84px;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  background: #0b1824;
+  color: #cbd8e4;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.cdsp-sigadoc-menu__status[data-tone='ok'] {
+  color: #a9f0c0;
+}
+
+.cdsp-sigadoc-menu__status[data-tone='alerta'] {
+  color: #ffd18a;
+}
+
+.cdsp-sigadoc-menu__status[data-tone='busy'] {
+  color: #9bd1ff;
+}

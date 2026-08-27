@@ -8,7 +8,7 @@ Padrao atual:
 - Manifest/action: preservar o nome publico da extensao como "CDSP - Extensao Geral"; o titulo interno do menu pode permanecer "CDSP".
 - Identidade visual unificada no menu geral: cabecalho CDSP grande antigo da Triagem nos modulos, titulos curtos, paleta escura unica e painel de log padronizado.
 - Menu geral: preservar memoria em CDSP_GENERAL_SHELL_STATE para posicao e modulo ativo; o estado inicial minimizado das novas abas deve ser controlado pela checkbox "Abrir minimizado" em CDSP_GENERAL_SHELL_OPEN_MINIMIZED.
-- Extrator SPA/SIGADOC: no SPA, acoes ficam no modulo Oficios do menu geral; no SIGADOC, permanece fora do menu, com os botoes nativos soltos.
+- Extrator SPA/SIGADOC: no SPA, acoes ficam no modulo Oficios do menu geral; no SIGADOC, usar menu compacto proprio apenas com funcoes do SIGADOC, sem carregar os modulos do SPA.
 - Extrator SIGADOC: selecionar o campo Modelo antes do Texto padrao; usar Oficio para os modelos comuns e Comunicacao Interna para os tipos PERICIA ESTADO e PERICIA JUSTICA GRATUITA.
 - Extrator SIGADOC: PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, sem baixar PDF e sem copiar texto.
 - Extrator SIGADOC: AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
@@ -47,7 +47,7 @@ Padrao atual:
 - Publicacao Chrome Web Store: nao reintroduzir jsPDF/jsPDF-AutoTable rejeitados como Blue Argon nem qualquer codigo remoto/CDN; relatorios podem usar Excel e impressao nativa do Chrome para salvar em PDF.
 - Triagem/Programada: preservar o passo "Protocolar agravo de instrumento", que usa o card "Realizar peticionamento em massa - Agravo de instrumento", fase "Minuta elaborada", selecao por pagina e o mesmo fluxo de senha/assinatura dos demais protocolos.
 - Modo Escuro: nao faz parte desta extensao a partir da versao 1.03.
-- SIGADOC: carrega somente o Extrator, sem menu geral.
+- SIGADOC: carrega somente o Extrator em menu proprio compacto, sem menu geral do SPA.
 
 Como atualizar em versoes futuras:
 1. Identificar o modulo recebido pelo manifest, nome, versao e arquivos principais.
@@ -90,7 +90,7 @@ Como atualizar em versoes futuras:
 22. Preservar a regra do relatorio gerencial: triagem sem assessor, revisor, correcao e procurador entram como criticos com 2 dias uteis ou mais, ignorando sabado, domingo e feriados nacionais de data fixa.
 23. Preservar a logo do relatorio gerencial em tela como faixa compacta de cabecalho, exibindo a imagem inteira; ela nao deve voltar a ficar quadrada, cortada por object-fit: cover nem ocupar altura excessiva.
 24. Preservar as cores e icones originais do Extrator dentro do modulo Oficios: SIG azul, SPA verde e SIGA dourado quando houver fluxo correspondente.
-25. Preservar os botoes nativos soltos do Extrator no SIGADOC e manter o menu geral fora do SIGADOC.
+25. Preservar o menu proprio do Extrator no SIGADOC, com funcoes de Oficios e automacao de lista, mantendo o menu geral do SPA fora do SIGADOC.
 26. Preservar a rotina do Extrator que seleciona Modelo antes de Texto padrao no SIGADOC: Oficio para os tipos comuns e Comunicacao Interna para PERICIA ESTADO/PERICIA JUSTICA GRATUITA.
 27. Preservar o comportamento pos-assinatura das pericias: parar na pagina pos-assinatura, sem tramitar, baixar arquivo ou copiar texto.
 28. Preservar AUDIENCIA e SINF DANO MORAL como preenchimento sem assinatura automatica.
@@ -122,7 +122,7 @@ Checklist rapido:
 - O filtro "Nota tecnica do NAT" aparece no menu de pesquisa de documentos da Triagem e busca notaT, Codigo, PM ou PF.
 - O filtro "Informacoes da SES" aparece no menu de pesquisa de documentos da Triagem.
 - O filtro "Manifestacoes em Geral" aparece sem os termos decis, tutela, liminar e senten.
-- No SPA, o Extrator aparece pelo modulo Oficios; no SIGADOC, continua com botoes nativos soltos.
+- No SPA, o Extrator aparece pelo modulo Oficios; no SIGADOC, aparece no menu proprio compacto.
 - Na caixa do SPA, o botao SIG usa a pagina do processo da linha, nao apenas os dados resumidos da tabela.
 - A rolagem da tela inicial do SPA funciona quando o ponteiro esta sobre o menu e o menu/lista ja nao conseguem rolar.
 - O modulo Redacao e Correcao contem o botao "Cadastrar Agravo" no menu geral e nao cria botao flutuante de Agravo no SPA.
@@ -150,6 +150,7 @@ Checklist rapido:
 - Os botoes do modulo Oficios mantem as cores e icones originais do Extrator.
 - No SIGADOC, o bloco abaixo da tabela dos Oficios mostra "Link dos Documentos Externos" e "Link do expediente".
 - No SIGADOC, o Extrator seleciona o Modelo correto antes do Texto padrao.
+- No SIGADOC, o menu proprio permite visitar automaticamente os documentos PGE-OFI visiveis da lista, abrindo cada item e voltando pelo historico do navegador para continuar o proximo.
 - PERICIA ESTADO e PERICIA JUSTICA GRATUITA usam Comunicacao Interna e param na pagina pos-assinatura.
 - AUDIENCIA e SINF DANO MORAL usam Oficio e apenas preenchem a minuta.
 - O pacote nao contem as bibliotecas PDF rejeitadas na revisao Blue Argon.

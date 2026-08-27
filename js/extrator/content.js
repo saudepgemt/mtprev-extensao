@@ -1,5 +1,5 @@
 /**
- * CDSP - Extrator SPA/SIGADOC — content.js v3.14
+ * CDSP - Extrator SPA/SIGADOC — content.js v3.15
  *
  * Fluxos:
  * - SPA: extrai campos visíveis, copia a tabela e salva os dados para o SIGADOC.
@@ -17,6 +17,9 @@
   const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
+  const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
+  const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
+  const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
   const TEMPO_EXPIRACAO_MS = 1000 * 60 * 60 * 8;
   const TEMPO_FLUXO_ASSINATURA_MS = 1000 * 60 * 15;
   const TEMPO_FLUXO_FINALIZACAO_MS = 1000 * 60 * 60 * 8;
@@ -1297,7 +1300,7 @@
     const linhas = montarLinhas(campos);
 
     return {
-      versao: '3.14',
+      versao: '3.15',
       origem,
       urlOrigem: campos.urlOrigem || window.location.href,
       criadoEm: new Date().toISOString(),
@@ -2905,35 +2908,362 @@
     btn.innerHTML = '<span class="spa-icon">SIGA</span> Preencher + Assinar';
   }
 
-  function injetarBotaoSigadoc() {
-    if (!document.getElementById('spa-sigadoc-btn')) {
-      const btn = document.createElement('button');
-      btn.id = 'spa-sigadoc-btn';
-      btn.innerHTML = '<span class="spa-icon">SPA</span> Preencher SIGADOC';
-      btn.title = 'Preencher a minuta com os dados salvos do SPA. Não grava, não assina e não tramita.';
-      btn.addEventListener('click', () => executarPreenchimentoSigadoc());
-      document.body.appendChild(btn);
+  function paginaListaDocumentosSigadoc() {
+    if (/\/sigaex\/app\/expediente\/doc\/listar/i.test(window.location.pathname)) return true;
+    return normalizarTexto(document.title || '').includes('lista de expedientes') &&
+      Boolean(document.querySelector('table.gt-table a[href*="/sigaex/app/expediente/doc/exibir?sigla="]'));
+  }
+
+  function elementoVisivel(elemento) {
+    if (!elemento) return false;
+    const rect = elemento.getBoundingClientRect();
+    const estilo = window.getComputedStyle(elemento);
+    return rect.width > 0 && rect.height > 0 && estilo.display !== 'none' && estilo.visibility !== 'hidden';
+  }
+
+  function coletarLinksListaDocumentosSigadoc() {
+    const links = Array.from(document.querySelectorAll('a[href*="/sigaex/app/expediente/doc/exibir?sigla="]'));
+    const vistos = new Set();
+    const itens = [];
+
+    links.forEach((link) => {
+      if (!elementoVisivel(link)) return;
+      const sigla = limparValorExtraido(link.textContent || '');
+      if (!/^PGE-OFI-\d{4}\/\d+-[A-Z]$/i.test(sigla)) return;
+      if (vistos.has(sigla)) return;
+      vistos.add(sigla);
+      itens.push({
+        sigla,
+        url: new URL(link.getAttribute('href'), window.location.origin).href,
+      });
+    });
+
+    return itens;
+  }
+
+  function lerAutomacaoListaSigadoc() {
+    try {
+      const bruto = sessionStorage.getItem(SIGADOC_LIST_AUTOMATION_KEY);
+      return bruto ? JSON.parse(bruto) : null;
+    } catch (_erro) {
+      return null;
     }
+  }
+
+  function salvarAutomacaoListaSigadoc(estado) {
+    sessionStorage.setItem(SIGADOC_LIST_AUTOMATION_KEY, JSON.stringify({
+      ...estado,
+      atualizadoEm: new Date().toISOString(),
+    }));
+  }
+
+  function limparAutomacaoListaSigadoc() {
+    sessionStorage.removeItem(SIGADOC_LIST_AUTOMATION_KEY);
+  }
+
+  function atualizarStatusMenuSigadoc(texto, tom = '') {
+    const status = document.getElementById('cdsp-sigadoc-menu-status');
+    if (!status) return;
+    status.textContent = texto || 'Pronto';
+    status.dataset.tone = tom;
+  }
+
+  function atualizarResumoAutomacaoListaSigadoc() {
+    const resumo = document.getElementById('cdsp-sigadoc-list-summary');
+    if (!resumo) return;
+
+    const estado = lerAutomacaoListaSigadoc();
+    if (estado && estado.ativo) {
+      resumo.textContent = `${Math.min(estado.indice || 0, estado.total || 0)}/${estado.total || 0} visitado(s).`;
+      return;
+    }
+
+    if (paginaListaDocumentosSigadoc()) {
+      const total = coletarLinksListaDocumentosSigadoc().length;
+      resumo.textContent = `${total} documento(s) na lista.`;
+      return;
+    }
+
+    resumo.textContent = 'Abra a lista de documentos para iniciar.';
+  }
+
+  function localizarLinkListaSigadoc(item) {
+    const links = Array.from(document.querySelectorAll('a[href*="/sigaex/app/expediente/doc/exibir?sigla="]'));
+    return links.find((link) => limparValorExtraido(link.textContent || '') === item.sigla) ||
+      links.find((link) => new URL(link.getAttribute('href'), window.location.origin).href === item.url) ||
+      null;
+  }
+
+  let timerAutomacaoListaSigadoc = null;
+
+  function agendarAutomacaoListaSigadoc(delayMs = 700) {
+    clearTimeout(timerAutomacaoListaSigadoc);
+    timerAutomacaoListaSigadoc = setTimeout(processarAutomacaoListaSigadoc, delayMs);
+  }
+
+  function iniciarAutomacaoListaSigadoc(botao) {
+    const itens = coletarLinksListaDocumentosSigadoc();
+    if (!itens.length) {
+      atualizarBotao(botao, 'alerta', '!', 'Nada na lista');
+      atualizarStatusMenuSigadoc('Nenhum documento PGE-OFI visivel foi encontrado nesta lista.', 'alerta');
+      setTimeout(() => renderizarMenuSigadoc(), 2500);
+      return;
+    }
+
+    salvarAutomacaoListaSigadoc({
+      ativo: true,
+      indice: 0,
+      total: itens.length,
+      itens,
+      urlLista: window.location.href,
+      fase: 'lista',
+      iniciadoEm: new Date().toISOString(),
+    });
+
+    atualizarBotao(botao, 'copiando', '...', 'Visitando...');
+    atualizarStatusMenuSigadoc(`Automacao iniciada com ${itens.length} documento(s).`, 'ok');
+    atualizarResumoAutomacaoListaSigadoc();
+    agendarAutomacaoListaSigadoc(500);
+  }
+
+  function pararAutomacaoListaSigadoc() {
+    limparAutomacaoListaSigadoc();
+    renderizarMenuSigadoc();
+    atualizarStatusMenuSigadoc('Automacao da lista interrompida.', 'alerta');
+  }
+
+  function processarAutomacaoListaSigadoc() {
+    const estado = lerAutomacaoListaSigadoc();
+    if (!estado || !estado.ativo) return;
+
+    if (paginaListaDocumentosSigadoc()) {
+      const itens = Array.isArray(estado.itens) ? estado.itens : [];
+      if ((estado.indice || 0) >= itens.length) {
+        limparAutomacaoListaSigadoc();
+        renderizarMenuSigadoc();
+        atualizarStatusMenuSigadoc(`Automacao concluida. ${itens.length} documento(s) visitado(s).`, 'ok');
+        return;
+      }
+
+      const item = itens[estado.indice || 0];
+      const link = localizarLinkListaSigadoc(item);
+      if (!link) {
+        salvarAutomacaoListaSigadoc({
+          ...estado,
+          indice: (estado.indice || 0) + 1,
+          fase: 'lista',
+          ultimoErro: `Link nao encontrado para ${item.sigla}`,
+        });
+        atualizarStatusMenuSigadoc(`Link nao encontrado para ${item.sigla}; seguindo para o proximo.`, 'alerta');
+        agendarAutomacaoListaSigadoc(500);
+        return;
+      }
+
+      salvarAutomacaoListaSigadoc({
+        ...estado,
+        indice: (estado.indice || 0) + 1,
+        atual: item,
+        fase: 'abrindo',
+      });
+      atualizarStatusMenuSigadoc(`Abrindo ${item.sigla} (${(estado.indice || 0) + 1}/${itens.length})...`, 'busy');
+      atualizarResumoAutomacaoListaSigadoc();
+      setTimeout(() => link.click(), 350);
+      return;
+    }
+
+    if (estado.atual && estado.urlLista) {
+      salvarAutomacaoListaSigadoc({
+        ...estado,
+        fase: 'voltando',
+      });
+      atualizarStatusMenuSigadoc(`${estado.atual.sigla} aberto. Voltando para a lista...`, 'busy');
+      setTimeout(() => {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+        window.location.href = estado.urlLista;
+      }, 1300);
+    }
+  }
+
+  function aplicarEstadoMenuSigadoc(panel) {
+    try {
+      const posicao = JSON.parse(localStorage.getItem(SIGADOC_MENU_POSITION_KEY) || 'null');
+      if (posicao && Number.isFinite(posicao.left) && Number.isFinite(posicao.top)) {
+        panel.style.left = `${posicao.left}px`;
+        panel.style.top = `${posicao.top}px`;
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+      }
+    } catch (_erro) {
+      // Posicao invalida: usa padrao visual.
+    }
+
+    panel.classList.toggle('is-collapsed', localStorage.getItem(SIGADOC_MENU_COLLAPSED_KEY) === '1');
+  }
+
+  function tornarMenuSigadocMovel(panel) {
+    const header = panel.querySelector('.cdsp-sigadoc-menu__header');
+    if (!header || header.dataset.dragReady === '1') return;
+    header.dataset.dragReady = '1';
+
+    let inicio = null;
+    header.addEventListener('mousedown', (event) => {
+      if (event.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      inicio = {
+        x: event.clientX,
+        y: event.clientY,
+        left: rect.left,
+        top: rect.top,
+      };
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!inicio) return;
+      const left = Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, inicio.left + event.clientX - inicio.x));
+      const top = Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, inicio.top + event.clientY - inicio.y));
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!inicio) return;
+      const rect = panel.getBoundingClientRect();
+      localStorage.setItem(SIGADOC_MENU_POSITION_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+      inicio = null;
+    });
+  }
+
+  function criarBotaoMenuSigadoc(id, html, title, onClick, extraClass = '') {
+    let btn = document.getElementById(id);
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = id;
+      btn.type = 'button';
+      btn.addEventListener('click', () => onClick(btn));
+    }
+    btn.className = `cdsp-sigadoc-menu__button ${extraClass}`.trim();
+    btn.innerHTML = html;
+    btn.title = title;
+    return btn;
+  }
+
+  function renderizarMenuSigadoc() {
+    const panel = document.getElementById('cdsp-sigadoc-menu');
+    if (!panel) return;
+
+    const body = panel.querySelector('.cdsp-sigadoc-menu__body');
+    if (!body || body.querySelector('.copiando')) return;
+
+    body.innerHTML = '';
+
+    const acoes = document.createElement('div');
+    acoes.className = 'cdsp-sigadoc-menu__section';
+    const tituloAcoes = document.createElement('strong');
+    tituloAcoes.textContent = 'Oficios';
+    acoes.appendChild(tituloAcoes);
+
+    acoes.appendChild(criarBotaoMenuSigadoc(
+      'spa-sigadoc-btn',
+      '<span class="spa-icon">SPA</span> Preencher SIGADOC',
+      'Preencher a minuta com os dados salvos do SPA. Não grava, não assina e não tramita.',
+      () => executarPreenchimentoSigadoc()
+    ));
 
     const telaEdicao = Boolean(
       document.getElementById('btnGravar') &&
       (document.getElementById('descrDocumento') || obterTextareaConteudoSigadoc())
     );
     const btnAssinarAtual = document.getElementById('spa-sigadoc-assinar-btn');
+    if (telaEdicao) {
+      acoes.appendChild(criarBotaoMenuSigadoc(
+        'spa-sigadoc-assinar-btn',
+        '<span class="spa-icon">SIGA</span> Preencher + Assinar',
+        'Preencher, assinar, baixar e tramitar quando o tipo de ofício estiver mapeado.',
+        () => executarPreenchimentoSigadoc({ assinar: true }),
+        'is-warning'
+      ));
+    } else if (btnAssinarAtual) {
+      btnAssinarAtual.remove();
+    }
+    body.appendChild(acoes);
 
-    if (!telaEdicao) {
-      if (btnAssinarAtual) btnAssinarAtual.remove();
-      return;
+    const automacao = document.createElement('div');
+    automacao.className = 'cdsp-sigadoc-menu__section';
+    const tituloAutomacao = document.createElement('strong');
+    tituloAutomacao.textContent = 'Lista de processos';
+    automacao.appendChild(tituloAutomacao);
+
+    const estado = lerAutomacaoListaSigadoc();
+    const resumo = document.createElement('span');
+    resumo.id = 'cdsp-sigadoc-list-summary';
+    resumo.className = 'cdsp-sigadoc-menu__hint';
+    automacao.appendChild(resumo);
+
+    if (paginaListaDocumentosSigadoc()) {
+      automacao.appendChild(criarBotaoMenuSigadoc(
+        'cdsp-sigadoc-list-run-btn',
+        '<span class="spa-icon">↗</span> Visitar lista',
+        'Abrir cada PGE-OFI visível da lista e voltar para a página anterior automaticamente.',
+        iniciarAutomacaoListaSigadoc,
+        'is-primary'
+      ));
     }
 
-    if (btnAssinarAtual) return;
+    if (estado && estado.ativo) {
+      automacao.appendChild(criarBotaoMenuSigadoc(
+        'cdsp-sigadoc-list-stop-btn',
+        '<span class="spa-icon">■</span> Parar',
+        'Interromper a automação da lista do SIGADOC.',
+        pararAutomacaoListaSigadoc,
+        'is-danger'
+      ));
+    }
 
-    const btnAssinar = document.createElement('button');
-    btnAssinar.id = 'spa-sigadoc-assinar-btn';
-    btnAssinar.innerHTML = '<span class="spa-icon">SIGA</span> Preencher + Assinar';
-    btnAssinar.title = 'Preencher, assinar, baixar e tramitar quando o tipo de ofício estiver mapeado.';
-    btnAssinar.addEventListener('click', () => executarPreenchimentoSigadoc({ assinar: true }));
-    document.body.appendChild(btnAssinar);
+    body.appendChild(automacao);
+
+    const status = document.createElement('div');
+    status.id = 'cdsp-sigadoc-menu-status';
+    status.className = 'cdsp-sigadoc-menu__status';
+    status.textContent = 'Pronto';
+    body.appendChild(status);
+
+    atualizarResumoAutomacaoListaSigadoc();
+  }
+
+  function injetarBotaoSigadoc() {
+    let panel = document.getElementById('cdsp-sigadoc-menu');
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'cdsp-sigadoc-menu';
+      panel.className = 'cdsp-sigadoc-menu';
+      panel.innerHTML = `
+        <div class="cdsp-sigadoc-menu__header">
+          <strong>CDSP</strong>
+          <span>SIGADOC</span>
+          <button type="button" class="cdsp-sigadoc-menu__minimize" title="Minimizar ou expandir">−</button>
+        </div>
+        <div class="cdsp-sigadoc-menu__body"></div>
+      `;
+      document.body.appendChild(panel);
+      aplicarEstadoMenuSigadoc(panel);
+      tornarMenuSigadocMovel(panel);
+
+      const minimize = panel.querySelector('.cdsp-sigadoc-menu__minimize');
+      if (minimize) {
+        minimize.addEventListener('click', () => {
+          panel.classList.toggle('is-collapsed');
+          localStorage.setItem(SIGADOC_MENU_COLLAPSED_KEY, panel.classList.contains('is-collapsed') ? '1' : '0');
+        });
+      }
+    }
+
+    renderizarMenuSigadoc();
   }
 
   async function verificarPreenchimentoPendente() {
@@ -3220,6 +3550,15 @@
     verificarFluxoAssinaturaPendente();
     verificarFluxoPosAssinaturaSigadocPendente();
     verificarTramitacaoSigadocPendente();
+    agendarAutomacaoListaSigadoc(900);
+
+    if (!window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW) {
+      window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW = true;
+      window.addEventListener('pageshow', () => {
+        injetarBotaoSigadoc();
+        agendarAutomacaoListaSigadoc(700);
+      });
+    }
 
     let timer = null;
     const observer = new MutationObserver(() => {
@@ -3229,6 +3568,7 @@
         verificarFluxoAssinaturaPendente();
         verificarFluxoPosAssinaturaSigadocPendente();
         verificarTramitacaoSigadocPendente();
+        atualizarResumoAutomacaoListaSigadoc();
       }, 400);
     });
 

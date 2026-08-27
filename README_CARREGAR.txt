@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.50
+CDSP Extensao Geral - 1.56
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -7,7 +7,7 @@ Menu compacto no SPA:
 - Oficios
 
 Incluido no pacote:
-- CDSP - Extrator SPA/SIGADOC 3.14
+- CDSP - Extrator SPA/SIGADOC 3.15
 
 Removido desta versao:
 - CDSP - Modo Escuro SPA
@@ -66,8 +66,9 @@ Comportamento:
 - Os modulos usam o mesmo padrao visual, com a marca antiga da Triagem e mesmo estilo de log no menu geral.
 - O modulo de Triagem foi atualizado para a base CDSP_Triagem_1.0.14.
 - O menu de pesquisa de documentos da Triagem preserva os filtros "Manifestacoes em Geral", "Nota tecnica do NAT" e "Informacoes da SES".
-- No SPA, o Extrator usa o modulo Oficios; no SIGADOC, os botoes nativos dele permanecem soltos.
-- No SIGADOC nao aparece o menu geral; aparece apenas o Extrator.
+- No SPA, o Extrator usa o modulo Oficios; no SIGADOC, aparece um menu compacto proprio somente com as funcoes do SIGADOC.
+- No SIGADOC nao aparece o menu geral do SPA; aparece apenas o menu do Extrator/SIGADOC.
+- No SIGADOC, a lista de documentos possui automacao para visitar cada PGE-OFI visivel, abrir o documento e voltar pelo historico do navegador para seguir o proximo.
 - O Extrator seleciona o Modelo do SIGADOC antes do Texto padrao: Oficio para modelos comuns e Comunicacao Interna para os novos tipos de pericia.
 - Novos tipos mapeados no Extrator: PERICIA ESTADO, PERICIA JUSTICA GRATUITA, AUDIENCIA e SINF DANO MORAL.
 - PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, baixar arquivo ou copiar texto.
@@ -86,8 +87,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.50.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.56.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.50.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.56.zip" no painel da Chrome Web Store.

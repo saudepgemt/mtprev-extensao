@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.55`
-- Ultima tag publicada no repositorio: `v1.55`
+- Versao atual da extensao: `1.56`
+- Ultima tag publicada no repositorio: `v1.56`
 
 ## Como retomar no notebook
 
@@ -48,6 +48,13 @@ Versao `1.55`:
   - o rotulo ficou `Agravado`;
   - o texto `e Outros` passou para a segunda coluna, apos o nome preenchido.
 - As regras em `GUIA_DE_UPDATES.txt` e `README_CARREGAR.txt` foram atualizadas para evitar regressao.
+
+Versao `1.56`:
+
+- O SIGADOC passou a ter menu compacto proprio, separado do menu geral do SPA.
+- O menu do SIGADOC concentra as funcoes do Extrator: `Preencher SIGADOC`, `Preencher + Assinar` quando a tela permitir, e automacao da lista de processos.
+- Na lista de documentos do SIGADOC, o botao `Visitar lista` abre cada link `PGE-OFI-...`, aguarda brevemente e volta pelo historico do navegador para continuar o proximo item.
+- A automacao da lista usa `sessionStorage` por aba e possui botao `Parar`.
 
 ## Regras permanentes combinadas
 
