@@ -61,7 +61,8 @@ Versao `1.56`:
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
 - Se uma alteracao feita aqui nao estiver no arquivo novo anexado, reaplicar a alteracao antes de consolidar.
 - Nao reintroduzir o modo escuro na extensao geral.
-- Extrator e modo escuro devem ficar separados do menu geral quando existirem como extensoes separadas.
+- No SPA, as funcoes do Extrator ficam integradas no modulo `Oficios` do menu geral.
+- No SIGADOC, carregar apenas o menu compacto proprio do Extrator/SIGADOC, sem menu geral do SPA e sem botoes soltos.
 - O menu geral deve ser compacto, movel e com memoria opcional de minimizacao/posicao.
 - A ferramenta de busca nos autos nao deve aparecer em paginas de caixa/listagem de processos.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
@@ -95,7 +96,16 @@ git diff --check
 Gerar pasta e zip em:
 
 ```text
-D:\Users\05170669127\Documents\Codex\2026-08-26\outputs\
+D:\Users\05170669127\Documents\Codex\AAAA-MM-DD\outputs\
+```
+
+Usar sempre o nome `CDSP Extensao Geral - x.xx`, ajustando `x.xx` para a versao entregue.
+
+Exemplo mais recente nesta maquina:
+
+```text
+D:\Users\05170669127\Documents\Codex\2026-08-27\outputs\CDSP Extensão Geral - 1.56
+D:\Users\05170669127\Documents\Codex\2026-08-27\outputs\CDSP Extensão Geral - 1.56.zip
 ```
 
 No notebook, ajustar o caminho para o usuario local.
