@@ -100,22 +100,22 @@ git diff --check
 
 ## Empacotamento padrao
 
-Gerar pasta e zip em:
+Gerar pasta e zip diretamente na pasta principal compartilhada do projeto:
 
 ```text
-D:\Users\05170669127\Documents\Codex\AAAA-MM-DD\outputs\
+D:\Users\PGE-MT\Desktop\Extensao-Geral\
 ```
 
 Usar sempre o nome `CDSP Extensao Geral - x.xx`, ajustando `x.xx` para a versao entregue.
 
-Exemplo mais recente nesta maquina:
+Exemplo mais recente:
 
 ```text
-D:\Users\PGE-MT\Documents\Codex\2026-08-31\outputs\CDSP Extensao Geral - 1.57
-D:\Users\PGE-MT\Documents\Codex\2026-08-31\outputs\CDSP Extensao Geral - 1.57.zip
+D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - 1.57
+D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - 1.57.zip
 ```
 
-No notebook, ajustar o caminho para o usuario local.
+Todas as novas versoes, pastas e ZIPs a serem usadas devem ficar dentro de `D:\Users\PGE-MT\Desktop\Extensao-Geral`.
 
 ## Observacao sobre chats
 
