@@ -61,6 +61,7 @@ Versao `1.57`:
 - O Fluxo de Correcao passou a ter filtro `Recebido`.
 - No filtro `Recebido`, valores do mesmo dia exibidos pelo SPA como minuto(s), hora(s) ou segundo(s) sao agrupados em uma unica opcao `Hoje`.
 - Os demais valores da coluna `Recebido`, como dias, continuam aparecendo como opcoes proprias.
+- A base interna `data/equipe.xlsx` foi atualizada na pasta da versao `1.57` e deve ser preservada como base oficial nos proximos updates.
 
 ## Regras permanentes combinadas
 
