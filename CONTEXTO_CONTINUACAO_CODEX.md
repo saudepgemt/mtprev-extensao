@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.56`
-- Ultima tag publicada no repositorio: `v1.56`
+- Versao atual da extensao: `1.57`
+- Ultima tag publicada no repositorio: `v1.57`
 
 ## Como retomar no notebook
 
@@ -56,6 +56,12 @@ Versao `1.56`:
 - Na lista de documentos do SIGADOC, o botao `Visitar lista` abre cada link `PGE-OFI-...`, aguarda brevemente e volta pelo historico do navegador para continuar o proximo item.
 - A automacao da lista usa `sessionStorage` por aba e possui botao `Parar`.
 
+Versao `1.57`:
+
+- O Fluxo de Correcao passou a ter filtro `Recebido`.
+- No filtro `Recebido`, valores do mesmo dia exibidos pelo SPA como minuto(s), hora(s) ou segundo(s) sao agrupados em uma unica opcao `Hoje`.
+- Os demais valores da coluna `Recebido`, como dias, continuam aparecendo como opcoes proprias.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -65,6 +71,7 @@ Versao `1.56`:
 - No SIGADOC, carregar apenas o menu compacto proprio do Extrator/SIGADOC, sem menu geral do SPA e sem botoes soltos.
 - O menu geral deve ser compacto, movel e com memoria opcional de minimizacao/posicao.
 - A ferramenta de busca nos autos nao deve aparecer em paginas de caixa/listagem de processos.
+- No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes
@@ -104,8 +111,8 @@ Usar sempre o nome `CDSP Extensao Geral - x.xx`, ajustando `x.xx` para a versao 
 Exemplo mais recente nesta maquina:
 
 ```text
-D:\Users\05170669127\Documents\Codex\2026-08-27\outputs\CDSP Extensão Geral - 1.56
-D:\Users\05170669127\Documents\Codex\2026-08-27\outputs\CDSP Extensão Geral - 1.56.zip
+D:\Users\PGE-MT\Documents\Codex\2026-08-31\outputs\CDSP Extensao Geral - 1.57
+D:\Users\PGE-MT\Documents\Codex\2026-08-31\outputs\CDSP Extensao Geral - 1.57.zip
 ```
 
 No notebook, ajustar o caminho para o usuario local.

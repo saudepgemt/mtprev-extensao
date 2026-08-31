@@ -11,7 +11,7 @@
       processingTimeoutMs: 180000,
       panelId: "spa-cdsp-deadline-panel",
       headerImageUrl: "",
-      version: "1.50"
+      version: "1.57"
     },
     window.SPA_CDSP_DEADLINE_REPORT_CONFIG || {}
   );
@@ -143,7 +143,7 @@
   const CORRECTION_CLOSE_STEP_ID = "2756";
   const CORRECTION_RETURN_ASSESSOR_FIELD_ID = "progress_form_data_ATR007572";
   const CORRECTION_FILTER_ORDER_KEY = "SPA_CDSP_CORRECTION_FILTER_ORDER";
-  const CORRECTION_FILTER_DEFAULT_ORDER = ["assessors", "judgingBodies", "manifestations", "activePoles"];
+  const CORRECTION_FILTER_DEFAULT_ORDER = ["assessors", "judgingBodies", "manifestations", "activePoles", "receivedPeriods"];
   const CORRECTION_FILTER_DEFINITIONS = {
     assessors: {
       label: "Assessor(a)",
@@ -168,6 +168,12 @@
       placeholder: "Polo ativo (opcional)",
       recordKey: "activePole",
       stateKey: "activePoles"
+    },
+    receivedPeriods: {
+      label: "Recebido",
+      placeholder: "Recebido",
+      recordKey: "receivedPeriod",
+      stateKey: "receivedPeriods"
     }
   };
   const CORRECTION_TEAM_NAMES = [
@@ -364,7 +370,8 @@
       assessors: [],
       judgingBodies: [],
       activePoles: [],
-      manifestations: []
+      manifestations: [],
+      receivedPeriods: []
     },
     correctionFilterOrder: readStoredCorrectionFilterOrder()
   };
@@ -1389,6 +1396,7 @@
     const assessorIndex = findColumnIndex(["Assessor(a)", "Assessor"]);
     const judgingBodyIndex = findColumnIndex(["Órgão julgador", "Orgao julgador", "Julgador"]);
     const activePoleIndex = findColumnIndex(["Polo ativo", "Polo Ativo"]);
+    const receivedIndex = findColumnIndex(["received_at", "Recebido"]);
     const manifestationIndex = findColumnIndex([
       "Manifestação sugerida",
       "Manifestacao sugerida",
@@ -1413,6 +1421,9 @@
     if (manifestationIndex < 0) {
       throw new Error("Coluna 'Manifestacao sugerida' nao encontrada ou nao habilitada no SPA.");
     }
+    if (receivedIndex < 0) {
+      throw new Error("Coluna 'Recebido' nao encontrada ou nao habilitada no SPA.");
+    }
     if (processIndex < 0) {
       throw new Error("Coluna 'Numero do Processo' nao encontrada ou nao habilitada no SPA.");
     }
@@ -1422,8 +1433,24 @@
       judgingBodyIndex,
       activePoleIndex,
       manifestationIndex,
+      receivedIndex,
       processIndex
     };
+  }
+
+  function normalizeCorrectionReceivedPeriod(text) {
+    const raw = String(text || "").replace(/\s+/g, " ").trim();
+    const normalized = normalizeKey(raw);
+    if (!normalized) return "Sem recebido";
+    if (
+      normalized === "hoje" ||
+      normalized.indexOf("hora") >= 0 ||
+      normalized.indexOf("minuto") >= 0 ||
+      normalized.indexOf("segundo") >= 0
+    ) {
+      return "Hoje";
+    }
+    return raw;
   }
 
   function buildCorrectionRecord(row, columns) {
@@ -1433,6 +1460,7 @@
     const judgingBody = cellText(row, columns.judgingBodyIndex);
     const activePole = cellText(row, columns.activePoleIndex);
     const manifestation = cellText(row, columns.manifestationIndex);
+    const receivedText = cellText(row, columns.receivedIndex);
 
     return {
       procedureId,
@@ -1441,7 +1469,8 @@
       assessor: assessor || "Sem assessor(a)",
       judgingBody: judgingBody || "Sem orgao julgador",
       activePole: activePole || "Sem polo ativo",
-      manifestation: manifestation || "Sem manifestacao sugerida"
+      manifestation: manifestation || "Sem manifestacao sugerida",
+      receivedPeriod: normalizeCorrectionReceivedPeriod(receivedText)
     };
   }
 
@@ -1525,11 +1554,13 @@
     const judgingBodies = selectionArray(filters.judgingBodies);
     const activePoles = selectionArray(filters.activePoles);
     const manifestations = selectionArray(filters.manifestations);
+    const receivedPeriods = selectionArray(filters.receivedPeriods);
     return (state.correctionRecords || []).filter((record) => {
       if (assessors.length && !selectionHas(assessors, record.assessor)) return false;
       if (judgingBodies.length && !selectionHas(judgingBodies, record.judgingBody)) return false;
       if (activePoles.length && !selectionHas(activePoles, record.activePole)) return false;
       if (manifestations.length && !selectionHas(manifestations, record.manifestation)) return false;
+      if (receivedPeriods.length && !selectionHas(receivedPeriods, record.receivedPeriod)) return false;
       return true;
     });
   }
@@ -1540,7 +1571,7 @@
 
   function selectedCorrectionFilterKeys() {
     const filters = state.correctionFilters || {};
-    return ["assessors", "judgingBodies", "activePoles", "manifestations"].filter((key) =>
+    return ["assessors", "judgingBodies", "activePoles", "manifestations", "receivedPeriods"].filter((key) =>
       selectionArray(filters[key]).length > 0
     );
   }
@@ -5609,10 +5640,12 @@
     const judgingBodySelect = createCorrectionSelect("spa-cdsp-correction-judgingBodies");
     const activePoleSelect = createCorrectionSelect("spa-cdsp-correction-activePoles");
     const manifestationSelect = createCorrectionSelect("spa-cdsp-correction-manifestations");
+    const receivedPeriodSelect = createCorrectionSelect("spa-cdsp-correction-receivedPeriods");
     filterFields.appendChild(createCorrectionFilterGroup("assessors", assessorSelect));
     filterFields.appendChild(createCorrectionFilterGroup("judgingBodies", judgingBodySelect));
     filterFields.appendChild(createCorrectionFilterGroup("manifestations", manifestationSelect));
     filterFields.appendChild(createCorrectionFilterGroup("activePoles", activePoleSelect));
+    filterFields.appendChild(createCorrectionFilterGroup("receivedPeriods", receivedPeriodSelect));
 
     const openButton = createButton("Abrir", startCorrectionOpenFlow, "primary");
     openButton.id = "spa-cdsp-correction-open";
@@ -5622,7 +5655,8 @@
       ["assessors", assessorSelect],
       ["judgingBodies", judgingBodySelect],
       ["activePoles", activePoleSelect],
-      ["manifestations", manifestationSelect]
+      ["manifestations", manifestationSelect],
+      ["receivedPeriods", receivedPeriodSelect]
     ].forEach(([key, select]) => {
       select.addEventListener("change", () => {
         const definition = CORRECTION_FILTER_DEFINITIONS[key];

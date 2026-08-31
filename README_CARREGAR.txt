@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.56
+CDSP Extensao Geral - 1.57
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -32,6 +32,7 @@ Comportamento:
 - O modulo Redacao e Correcao inclui o bloco compacto "Fluxo de Correcao".
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa de correcao e monta filtros arrastaveis, com a ordem salva na memoria do navegador.
 - Os filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo aceitam multiplas selecoes.
+- O Fluxo de Correcao tambem filtra por Recebido; minuto(s), hora(s) e segundo(s) aparecem agrupados como "Hoje", e os demais periodos permanecem como opcoes proprias.
 - A leitura dos filtros usa a posicao visivel das colunas da tabela, para alinhar "Manifestacao Sugerida" com os valores exibidos no SPA.
 - Todos os filtros sao opcionais; se todos ficarem vazios, o botao "Abrir" pergunta antes de abrir todos os processos lidos.
 - O botao "Abrir" abre as pendencias filtradas e, em cada aba, aciona automaticamente "Visualizar e editar minuta".
@@ -87,8 +88,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.56.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.57.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.56.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.57.zip" no painel da Chrome Web Store.

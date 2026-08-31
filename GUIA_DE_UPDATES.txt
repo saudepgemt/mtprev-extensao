@@ -33,6 +33,7 @@ Padrao atual:
 - Redacao e Correcao/Fluxo de Correcao: preservar o bloco compacto dentro do mesmo menu, sem abrir menus secundarios.
 - Redacao e Correcao/Fluxo de Correcao: "Atualizar filtros" deve ler todas as paginas da tabela #procedures-box e montar filtros arrastaveis, com ordem salva em localStorage.
 - Redacao e Correcao/Fluxo de Correcao: preservar filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo, todos com multiplas selecoes.
+- Redacao e Correcao/Fluxo de Correcao: preservar o filtro Recebido; valores exibidos pelo SPA como minuto(s), hora(s) ou segundo(s) devem aparecer em uma unica opcao "Hoje", e os demais periodos devem permanecer como opcoes proprias.
 - Redacao e Correcao/Fluxo de Correcao: todos os filtros sao opcionais; campos vazios devem ser ignorados, e sem nenhum filtro selecionado o botao Abrir deve pedir confirmacao antes de abrir tudo.
 - Redacao e Correcao/Fluxo de Correcao: "Abrir" deve abrir as pendencias filtradas e clicar automaticamente no link "Visualizar e editar minuta" em cada processo aberto.
 - Redacao e Correcao/Fluxo de Correcao: preservar o clique nativo no link "Visualizar e editar minuta", o preparo de historico da aba em duas etapas e o reparo da seta nativa do SPA, para que abas abertas pelo botao "Abrir" voltem para a pendencia correta.
@@ -73,7 +74,8 @@ Como atualizar em versoes futuras:
 16. Nao reintroduzir o botao solto/flutuante de Agravo de Instrumento no SPA; remover qualquer elemento legado com id spa-cdsp-agravo-instrumento-button.
 16-A. Preservar o bloco "Fluxo de Correcao" no modulo Redacao e Correcao; ele deve ficar no mesmo painel e nao virar popup/menu separado.
 16-B. Preservar a leitura de todas as paginas da caixa de correcao para montar filtros arrastaveis com ordem memorizada.
-16-B1. Preservar multiplas selecoes nos filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo.
+16-B1. Preservar multiplas selecoes nos filtros de Assessor(a), Orgao julgador, Manifestacao sugerida, Polo passivo e Recebido.
+16-B1-A. Preservar a normalizacao do filtro Recebido: minuto(s), hora(s) e segundo(s) entram como "Hoje"; dias e demais textos ficam como opcoes proprias.
 16-B2. Preservar os atalhos "Sugerir encerramento de tarefa" e "Devolver ao assessor" dentro do Fluxo de Correcao.
 16-B3. Preservar a tolerancia de findColumnIndex para achar "Manifestacao Sugerida" mesmo sem classe dt-header ou com icones/filtros no cabecalho; a leitura deve usar posicoes visiveis de th/td, sem confiar no data-index do DataTables.
 16-B2. Preservar Polo passivo como filtro opcional; vazio significa nao filtrar por polo.
@@ -127,7 +129,8 @@ Checklist rapido:
 - A rolagem da tela inicial do SPA funciona quando o ponteiro esta sobre o menu e o menu/lista ja nao conseguem rolar.
 - O modulo Redacao e Correcao contem o botao "Cadastrar Agravo" no menu geral e nao cria botao flutuante de Agravo no SPA.
 - O modulo Redacao e Correcao contem "Fluxo de Correcao" com filtros arrastaveis em ordem memorizada.
-- Os filtros do Fluxo de Correcao aceitam multiplas selecoes em Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo, todos opcionais.
+- Os filtros do Fluxo de Correcao aceitam multiplas selecoes em Assessor(a), Orgao julgador, Manifestacao sugerida, Polo passivo e Recebido, todos opcionais.
+- No filtro Recebido, processos do mesmo dia exibidos como minuto(s), hora(s) ou segundo(s) aparecem agrupados em "Hoje".
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa, e "Abrir" abre cada pendencia filtrada e clica em "Visualizar e editar minuta".
 - Nas abas abertas pelo Fluxo de Correcao, a seta de voltar do SPA retorna para a pendencia correta, inclusive quando o SPA substituir o destino original pela caixa de entrada.
 - Os atalhos do Fluxo de Correcao usam botoes unicos com checkboxes de origem; "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor" funcionam pela tela da pendencia ou pela tela da minuta, conforme opcao marcada.
