@@ -39,6 +39,10 @@ Padrao atual:
 - Redacao e Correcao/Fluxo de Correcao: preservar o clique nativo no link "Visualizar e editar minuta", o preparo de historico da aba em duas etapas e o reparo da seta nativa do SPA, para que abas abertas pelo botao "Abrir" voltem para a pendencia correta.
 - Redacao e Correcao/Fluxo de Correcao: preservar atalhos unicos para "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor", cada um abrindo opcoes por checkbox para "Tela da pendencia" e "Tela da Minuta".
 - Redacao e Correcao/Fluxo de Correcao: preservar "Enviar ao procurador" pelo passo new_progress/2882, "Sugerir encerramento de tarefa" pelo passo new_progress/2756 e "Devolver ao assessor" pelo passo new_progress/2786, com busca local na lista da equipe e preenchimento do campo #progress_form_data_ATR007572.
+- Redacao e Correcao/Agravo: preservar o botao pequeno "Copiar" associado ao botao "Cadastrar Agravo"; ele deve copiar a ultima tabela gerada pelo Agravo, e essa memoria deve ser substituida dinamicamente sempre que um novo cadastro de agravo for iniciado.
+- Redacao e Correcao/Simples Encerramento: preservar o fluxo progressivo com tipo, peca, campos ID/Data e checklist. Por enquanto somente Preclusao Consumativa + Contestacao esta parametrizado; os demais tipos/pecas devem permanecer disponiveis para parametrizacao futura.
+- Redacao e Correcao/Simples Encerramento: a data deve seguir dd/mm/aaaa; o botao Gerar Simples Encerramento so deve ficar habilitado com ID, data valida e todos os itens do checklist marcados.
+- Redacao e Correcao/Simples Encerramento: o texto gerado deve usar HTML copiavel em Times New Roman 14, espacamento 1,15 e primeira linha de 1,25cm, com copia automatica ao gerar e botao para copiar novamente.
 - Relatorio de duplicados: preservar as colunas "Manifestacao Sugerida" e "Prazo PJE", limpar repeticoes exatas das celulas e destacar "Expedientes iguais" quando assunto, manifestacao, prazo, distribuicao, ultimo andamento e jurisdicao coincidirem.
 - Relatorio de duplicados: quando os metadados nao bastarem, preservar a conferencia por texto dos PDFs dos expedientes dentro do mesmo processo; usar offscreen, pdf.js local, texto bruto, cache e baixa concorrencia, sem CDN e sem biblioteca nova.
 - Relatorio de duplicados: preservar a busca da coluna de manifestacao por "manifestation", "Manifestacao Sugerida" e "Manisfestacao Sugerida".
@@ -81,6 +85,9 @@ Como atualizar em versoes futuras:
 16-B2. Preservar Polo passivo como filtro opcional; vazio significa nao filtrar por polo.
 16-C. Preservar a fila local SPA_CDSP_CORRECTION_OPEN_QUEUE para abrir pendencias filtradas e acionar "Visualizar e editar minuta" por procedureId; preservar tambem SPA_CDSP_CORRECTION_BACK_HISTORY, SPA_CDSP_CORRECTION_BACK_CONTEXT e o reparo da seta nativa de voltar.
 16-D. Preservar SPA_CDSP_CORRECTION_SEND_ACTION, o passo 2882 e o clique em #btn-progress-save para os atalhos de envio ao procurador.
+16-E. Preservar o botao pequeno "Copiar" ao lado de "Cadastrar Agravo", usando SPA_CDSP_AGRAVO_LAST_CLIPBOARD para recopia da ultima tabela gerada e atualizando essa memoria a cada novo cadastro.
+16-F. Preservar o fluxo "Simples Encerramento" dentro do modulo Redacao e Correcao, com exibicao progressiva de campos, checklist obrigatorio e copia automatica/manual do texto.
+16-F1. Preservar, no Simples Encerramento, a parametrizacao de Preclusao Consumativa + Contestacao; nao adicionar modelos sem parametrizacao expressa do usuario.
 17. Preservar a base interna de equipe em data/equipe.xlsx, em formato de tabela com filtros, e atualizar esse arquivo quando houver mudanca de setor/equipe.
 18. Nao reintroduzir consulta ao Google Sheets nem a host_permission https://docs.google.com/spreadsheets/* sem pedido explicito.
 19. Preservar data/equipe.xlsx em web_accessible_resources para https://spa.pge.mt.gov.br/*, pois o painel da Coordenacao precisa buscar esse arquivo localmente.
@@ -134,6 +141,8 @@ Checklist rapido:
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa, e "Abrir" abre cada pendencia filtrada e clica em "Visualizar e editar minuta".
 - Nas abas abertas pelo Fluxo de Correcao, a seta de voltar do SPA retorna para a pendencia correta, inclusive quando o SPA substituir o destino original pela caixa de entrada.
 - Os atalhos do Fluxo de Correcao usam botoes unicos com checkboxes de origem; "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor" funcionam pela tela da pendencia ou pela tela da minuta, conforme opcao marcada.
+- O botao "Cadastrar Agravo" possui um botao pequeno "Copiar" ao lado, que recopia a ultima tabela de agravo salva dinamicamente.
+- O modulo Redacao e Correcao contem "Simples Encerramento"; somente Preclusao Consumativa + Contestacao gera texto no momento, com ID, data dd/mm/aaaa e checklist completo.
 - A ferramenta de busca nos autos processuais aparece nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA mesmo quando outro modulo esta ativo, e nao aparece na caixa/listagem de processos.
 - A checkbox "Abrir minimizado" do painel de Autos faz novas paginas de processo abrirem com esse painel recolhido, sem depender da checkbox do menu principal.
 - A aba "Andamento PJE" exibe movimentos e expedientes/prazos consultados via Worker/MCP, com ciencia e prazo final visiveis no card.

@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.57`
-- Ultima tag publicada no repositorio: `v1.57`
+- Versao atual da extensao: `1.58`
+- Ultima tag publicada no repositorio: `v1.58`
 
 ## Como retomar no notebook
 
@@ -63,6 +63,14 @@ Versao `1.57`:
 - Os demais valores da coluna `Recebido`, como dias, continuam aparecendo como opcoes proprias.
 - A base interna `data/equipe.xlsx` foi atualizada na pasta da versao `1.57` e deve ser preservada como base oficial nos proximos updates.
 
+Versao `1.58`:
+
+- No modulo Redacao e Correcao, o botao `Cadastrar Agravo` passou a ter um botao pequeno `Copiar` associado visualmente, para recopia da ultima tabela de agravo gerada.
+- A tabela de agravo salva para recopia e dinamica: sempre que um novo cadastro de agravo e iniciado, a memoria e substituida pela tabela do processo atual.
+- Foi criado o fluxo `Simples Encerramento`, com selecao progressiva de tipo, peca, ID, data e checklist.
+- No `Simples Encerramento`, ficou parametrizada a combinacao `Preclusao Consumativa` + `Contestacao`, gerando texto HTML formatado e copiando automaticamente para a area de transferencia.
+- O texto do `Simples Encerramento` tambem pode ser copiado novamente pelo botao `Copiar`, inclusive apos fechar a caixa de visualizacao.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -73,6 +81,8 @@ Versao `1.57`:
 - O menu geral deve ser compacto, movel e com memoria opcional de minimizacao/posicao.
 - A ferramenta de busca nos autos nao deve aparecer em paginas de caixa/listagem de processos.
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
+- No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
+- Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes
@@ -112,8 +122,8 @@ Usar sempre o nome `CDSP Extensao Geral - x.xx`, ajustando `x.xx` para a versao 
 Exemplo mais recente:
 
 ```text
-D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - 1.57
-D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - 1.57.zip
+D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - x.xx
+D:\Users\PGE-MT\Desktop\Extensao-Geral\CDSP Extensao Geral - x.xx.zip
 ```
 
 Todas as novas versoes, pastas e ZIPs a serem usadas devem ficar dentro de `D:\Users\PGE-MT\Desktop\Extensao-Geral`.

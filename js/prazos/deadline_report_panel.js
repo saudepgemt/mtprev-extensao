@@ -11,7 +11,7 @@
       processingTimeoutMs: 180000,
       panelId: "spa-cdsp-deadline-panel",
       headerImageUrl: "",
-      version: "1.57"
+      version: "1.58"
     },
     window.SPA_CDSP_DEADLINE_REPORT_CONFIG || {}
   );
@@ -238,6 +238,7 @@
   const PANEL_POSITION_KEY = "SPA_CDSP_DEADLINE_PANEL_POSITION";
   const AGRAVO_ACTION_KEY = "SPA_CDSP_AGRAVO_INSTRUMENTO_ACTION";
   const AGRAVO_ACTION_MAX_AGE_MS = 10 * 60 * 1000;
+  const AGRAVO_LAST_CLIPBOARD_KEY = "SPA_CDSP_AGRAVO_LAST_CLIPBOARD";
   const AGRAVO_BUTTON_ID = "spa-cdsp-agravo-instrumento-button";
   const AGRAVO_SUBJECT_LABEL = "Multas e demais San\u00e7\u00f5es";
   const AGRAVO_STATE_COMPETENCE_LABELS = [
@@ -310,6 +311,55 @@
   const AGRAVO_PREROGATIVE_BOLD =
     "Dispensa de juntada dos autos integrais, tendo em vista que se trata de processo eletr\u00f4nico (CPC, art. 1017, \u00a75\u00b0 do CPC).";
   const AGRAVO_PREROGATIVE_BOLD_PLAIN = "- " + AGRAVO_PREROGATIVE_BOLD;
+  const SIMPLE_CLOSURE_LAST_CLIPBOARD_KEY = "SPA_CDSP_SIMPLE_CLOSURE_LAST_CLIPBOARD";
+  const SIMPLE_CLOSURE_TYPES = {
+    preclusao_temporal: {
+      label: "Preclus\u00e3o Temporal",
+      pieces: [
+        "Agravo de Instrumento/Interno",
+        "Embargos de Declara\u00e7\u00e3o",
+        "Apela\u00e7\u00e3o/Recurso Inominado",
+        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"
+      ]
+    },
+    conteudo_irrecorrivel: {
+      label: "Conte\u00fado ao qual n\u00e3o cabe Recorrer/Manifestar",
+      pieces: [
+        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+        "Manifesta\u00e7\u00e3o",
+        "Agravo de Instrumento",
+        "Embargos de Declara\u00e7\u00e3o em Ac\u00f3rd\u00e3o",
+        "Embargos de Declara\u00e7\u00e3o em Senten\u00e7a",
+        "Agravo Interno"
+      ]
+    },
+    demais_situacoes: {
+      label: "Demais Situa\u00e7\u00f5es",
+      pieces: ["Pauta de Julgamento", "Retorno dos Autos", "Decl\u00ednio de Compet\u00eancia"]
+    },
+    preclusao_consumativa: {
+      label: "Preclus\u00e3o Consumativa",
+      pieces: [
+        "Agravo de Instrumento",
+        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+        "Contesta\u00e7\u00e3o",
+        "Apela\u00e7\u00e3o",
+        "Embargos de Declara\u00e7\u00e3o",
+        "Contrarraz\u00f5es"
+      ]
+    }
+  };
+  const SIMPLE_CLOSURE_PARAMETERIZED_KEY = "preclusao_consumativa|Contesta\u00e7\u00e3o";
+  const SIMPLE_CLOSURE_CHECKLIST = [
+    "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o",
+    "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar"
+  ];
+  const SIMPLE_CLOSURE_FORMAT = {
+    fontFamily: "'Times New Roman', Times, serif",
+    fontSize: "14pt",
+    lineHeight: "115%",
+    textIndent: "1.25cm"
+  };
   const DEADLINE_STYLE_PRESETS = {
     long: {
       label: "Azul",
@@ -3519,16 +3569,13 @@
     }
   }
 
-  async function copyAgravoTableToClipboard(data) {
-    const html = buildAgravoClipboardHtml(data);
-    const plain = buildAgravoClipboardPlain(data);
-
+  async function copyHtmlToClipboard(html, plain) {
     try {
       if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
         await navigator.clipboard.write([
           new ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([plain], { type: "text/plain" })
+            "text/html": new Blob([String(html || "")], { type: "text/html" }),
+            "text/plain": new Blob([String(plain || "")], { type: "text/plain" })
           })
         ]);
         return true;
@@ -3538,6 +3585,272 @@
     }
 
     return fallbackCopyHtml(html);
+  }
+
+  function storeLastAgravoClipboard(data) {
+    const payload = {
+      type: "agravo_table",
+      createdAt: Date.now(),
+      procedureId: data && data.procedureId ? String(data.procedureId) : "",
+      processNumber: data && data.processNumber ? String(data.processNumber) : "",
+      html: buildAgravoClipboardHtml(data || {}),
+      plain: buildAgravoClipboardPlain(data || {})
+    };
+    window.localStorage.setItem(AGRAVO_LAST_CLIPBOARD_KEY, JSON.stringify(payload));
+    return payload;
+  }
+
+  function readLastAgravoClipboard() {
+    let payload = null;
+    try {
+      payload = JSON.parse(window.localStorage.getItem(AGRAVO_LAST_CLIPBOARD_KEY) || "null");
+    } catch (_error) {
+      window.localStorage.removeItem(AGRAVO_LAST_CLIPBOARD_KEY);
+      return null;
+    }
+    if (!payload || payload.type !== "agravo_table" || !payload.html) return null;
+    return payload;
+  }
+
+  async function copyStoredAgravoTable() {
+    const payload = readLastAgravoClipboard();
+    if (!payload) {
+      window.alert("Ainda nao ha tabela de agravo salva para copiar. Use primeiro o botao Cadastrar Agravo.");
+      return false;
+    }
+    const copied = await copyHtmlToClipboard(payload.html, payload.plain || "");
+    if (copied) {
+      log(
+        "Tabela do agravo copiada novamente" +
+          (payload.processNumber ? " para o processo " + payload.processNumber : "") +
+          ".",
+        "ok"
+      );
+    } else {
+      log("Nao foi possivel copiar novamente a tabela do agravo.", "error");
+      window.alert("Nao consegui copiar a tabela do agravo. Confira se o navegador permitiu acesso ao clipboard.");
+    }
+    return copied;
+  }
+
+  async function copyAgravoTableToClipboard(data) {
+    const payload = storeLastAgravoClipboard(data);
+    return copyHtmlToClipboard(payload.html, payload.plain);
+  }
+
+  function simpleClosureComboKey(typeKey, pieceLabel) {
+    return String(typeKey || "") + "|" + String(pieceLabel || "");
+  }
+
+  function isSimpleClosureParameterized(typeKey, pieceLabel) {
+    return simpleClosureComboKey(typeKey, pieceLabel) === SIMPLE_CLOSURE_PARAMETERIZED_KEY;
+  }
+
+  function simpleClosurePieceOptions(typeKey) {
+    const definition = SIMPLE_CLOSURE_TYPES[typeKey];
+    return definition && Array.isArray(definition.pieces) ? definition.pieces.slice() : [];
+  }
+
+  function isValidBrazilianDate(value) {
+    const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return false;
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (year < 1900 || month < 1 || month > 12 || day < 1) return false;
+
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  }
+
+  function formatBrazilianDateInput(value) {
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return digits.slice(0, 2) + "/" + digits.slice(2);
+    return digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
+  }
+
+  function simpleClosureParagraph(text) {
+    const format = SIMPLE_CLOSURE_FORMAT;
+    return (
+      '<p style="font-family:' +
+      format.fontFamily +
+      ";font-size:" +
+      format.fontSize +
+      ";line-height:" +
+      format.lineHeight +
+      ";text-indent:" +
+      format.textIndent +
+      ';margin:0 0 8pt 0;mso-line-height-rule:auto;white-space:pre-wrap;">' +
+      escapeHtml(text) +
+      "</p>"
+    );
+  }
+
+  function buildSimpleClosureHtml(data) {
+    const piece = data && data.piece ? data.piece : "";
+    const protocolDate = data && data.protocolDate ? data.protocolDate : "";
+    const protocolId = data && data.protocolId ? data.protocolId : "";
+    const lines = [
+      "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece,
+      "- A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".",
+      "- Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:",
+      "  - N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;",
+      "  - N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc."
+    ];
+
+    return (
+      '<div style="font-family:' +
+      SIMPLE_CLOSURE_FORMAT.fontFamily +
+      ";font-size:" +
+      SIMPLE_CLOSURE_FORMAT.fontSize +
+      ";line-height:" +
+      SIMPLE_CLOSURE_FORMAT.lineHeight +
+      ';color:#111;background:#fff;">' +
+      lines.map(simpleClosureParagraph).join("") +
+      "</div>"
+    );
+  }
+
+  function buildSimpleClosurePlain(data) {
+    const piece = data && data.piece ? data.piece : "";
+    const protocolDate = data && data.protocolDate ? data.protocolDate : "";
+    const protocolId = data && data.protocolId ? data.protocolId : "";
+    return [
+      "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece,
+      "",
+      "- A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".",
+      "- Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:",
+      "  - N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;",
+      "  - N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc."
+    ].join("\n");
+  }
+
+  function storeLastSimpleClosureClipboard(data) {
+    const payload = {
+      type: "simple_closure_text",
+      createdAt: Date.now(),
+      closureType: data && data.closureType ? String(data.closureType) : "",
+      piece: data && data.piece ? String(data.piece) : "",
+      html: buildSimpleClosureHtml(data || {}),
+      plain: buildSimpleClosurePlain(data || {})
+    };
+    window.localStorage.setItem(SIMPLE_CLOSURE_LAST_CLIPBOARD_KEY, JSON.stringify(payload));
+    return payload;
+  }
+
+  function readLastSimpleClosureClipboard() {
+    let payload = null;
+    try {
+      payload = JSON.parse(window.localStorage.getItem(SIMPLE_CLOSURE_LAST_CLIPBOARD_KEY) || "null");
+    } catch (_error) {
+      window.localStorage.removeItem(SIMPLE_CLOSURE_LAST_CLIPBOARD_KEY);
+      return null;
+    }
+    if (!payload || payload.type !== "simple_closure_text" || !payload.html) return null;
+    return payload;
+  }
+
+  async function copySimpleClosurePayload(payload) {
+    if (!payload || !payload.html) return false;
+    const copied = await copyHtmlToClipboard(payload.html, payload.plain || "");
+    if (copied) log("Texto do Simples Encerramento copiado para a area de transferencia.", "ok");
+    else log("Nao foi possivel copiar o texto do Simples Encerramento.", "error");
+    return copied;
+  }
+
+  async function copyStoredSimpleClosureText() {
+    const payload = readLastSimpleClosureClipboard();
+    if (!payload) {
+      window.alert("Ainda nao ha texto de Simples Encerramento salvo para copiar. Gere o texto primeiro.");
+      return false;
+    }
+    const copied = await copySimpleClosurePayload(payload);
+    if (!copied) window.alert("Nao consegui copiar o texto. Confira se o navegador permitiu acesso ao clipboard.");
+    return copied;
+  }
+
+  function closeSimpleClosureModal() {
+    const old = document.querySelector("#spa-cdsp-simple-closure-modal");
+    if (old) old.remove();
+  }
+
+  function renderSimpleClosureModal(payload) {
+    closeSimpleClosureModal();
+    if (!document.body || !payload) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "spa-cdsp-simple-closure-modal";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.style.cssText =
+      "position:fixed;inset:0;z-index:2147483647;background:rgba(8,13,20,.62);" +
+      "display:flex;align-items:center;justify-content:center;padding:18px;";
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText =
+      "width:min(780px,96vw);max-height:88vh;overflow:auto;background:#fff;color:#111;border-radius:8px;" +
+      "box-shadow:0 20px 60px rgba(0,0,0,.38);border:1px solid #d2dae8;";
+
+    const toolbar = document.createElement("div");
+    toolbar.style.cssText =
+      "display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;" +
+      "background:#1f2d3a;color:#fff;padding:9px 10px;border-bottom:1px solid #d2dae8;";
+
+    const title = document.createElement("div");
+    title.textContent = "Simples Encerramento";
+    title.style.cssText = "font-size:13px;font-weight:800;line-height:1.2;";
+
+    const buttons = document.createElement("div");
+    buttons.style.cssText = "display:flex;gap:6px;align-items:center;";
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = "Copiar";
+    copyButton.style.cssText =
+      "border:0;border-radius:5px;background:#26317d;color:white;font-size:12px;font-weight:800;" +
+      "padding:7px 10px;cursor:pointer;";
+    copyButton.addEventListener("click", () => {
+      copySimpleClosurePayload(payload).catch((error) => log(error.message || String(error), "error"));
+    });
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.textContent = "Fechar";
+    closeButton.style.cssText =
+      "border:0;border-radius:5px;background:#425466;color:white;font-size:12px;font-weight:800;" +
+      "padding:7px 10px;cursor:pointer;";
+    closeButton.addEventListener("click", closeSimpleClosureModal);
+
+    const body = document.createElement("div");
+    body.style.cssText = "padding:18px 22px;background:#fff;";
+    body.innerHTML = payload.html;
+
+    buttons.appendChild(copyButton);
+    buttons.appendChild(closeButton);
+    toolbar.appendChild(title);
+    toolbar.appendChild(buttons);
+    dialog.appendChild(toolbar);
+    dialog.appendChild(body);
+    overlay.appendChild(dialog);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeSimpleClosureModal();
+    });
+    document.body.appendChild(overlay);
+  }
+
+  async function generateSimpleClosureText(data) {
+    const payload = storeLastSimpleClosureClipboard(data);
+    const copied = await copySimpleClosurePayload(payload);
+    renderSimpleClosureModal(payload);
+    if (!copied) {
+      window.alert(
+        "O texto foi gerado, mas nao consegui copiar automaticamente.\n\n" +
+          "Use o botao Copiar na caixa aberta."
+      );
+    }
+    return payload;
   }
 
   function collectAgravoProcedureData() {
@@ -5335,6 +5648,29 @@
     return button;
   }
 
+  function createSmallUtilityButton(text, title, onclick) {
+    const button = createButton(text, onclick, "neutral");
+    button.title = title || text;
+    button.style.cssText =
+      "border:1px solid #5b6b7d;padding:0 8px;border-radius:5px;cursor:pointer;" +
+      "font-size:11px;font-weight:800;line-height:1;background:#1f2d3a;color:#e8f0f7;" +
+      "height:34px;min-width:54px;white-space:nowrap;";
+    return button;
+  }
+
+  function createAgravoActionGroup() {
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText =
+      "display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;";
+
+    const mainButton = createButton("Cadastrar Agravo", startAgravoInstrumentoRegistration, "neutral");
+    const copyButton = createSmallUtilityButton("Copiar", "Copiar novamente a ultima tabela do Agravo", copyStoredAgravoTable);
+
+    wrapper.appendChild(mainButton);
+    wrapper.appendChild(copyButton);
+    return wrapper;
+  }
+
   function selectValues(select) {
     if (!select) return [];
     return Array.from(select.selectedOptions || [])
@@ -5607,6 +5943,234 @@
     details.appendChild(summary);
     details.appendChild(inner);
     return details;
+  }
+
+  function createSimpleClosureSelect(id, placeholder) {
+    const select = document.createElement("select");
+    select.id = id;
+    select.style.cssText =
+      "width:100%;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;" +
+      "font-size:11px;font-weight:700;padding:7px 8px;min-height:34px;outline:none;";
+
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = placeholder;
+    select.appendChild(option);
+    return select;
+  }
+
+  function fillSimpleClosureSelect(select, placeholder, options) {
+    if (!select) return;
+    const selected = select.value;
+    select.innerHTML = "";
+
+    const placeholderOption = document.createElement("option");
+    placeholderOption.value = "";
+    placeholderOption.textContent = placeholder;
+    select.appendChild(placeholderOption);
+
+    (Array.isArray(options) ? options : []).forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      if (item.value === selected) option.selected = true;
+      select.appendChild(option);
+    });
+  }
+
+  function createSimpleClosureLabeledField(labelText, input) {
+    const label = document.createElement("label");
+    label.style.cssText =
+      "display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:6px;color:#b8c6d1;" +
+      "font-size:11px;font-weight:800;";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = labelText;
+
+    input.style.cssText =
+      "width:100%;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;" +
+      "font-size:12px;font-weight:700;padding:7px 8px;outline:none;min-height:34px;";
+
+    label.appendChild(labelSpan);
+    label.appendChild(input);
+    return label;
+  }
+
+  function createSimpleClosureCheckbox(text) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    const span = document.createElement("span");
+
+    input.type = "checkbox";
+    input.style.margin = "0";
+    span.textContent = text;
+    span.style.cssText = "min-width:0;";
+    label.style.cssText =
+      "display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:start;" +
+      "border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;" +
+      "font-size:11px;font-weight:700;line-height:1.25;padding:7px 8px;cursor:pointer;";
+    label.appendChild(input);
+    label.appendChild(span);
+    return { label, input };
+  }
+
+  function createSimpleClosureSection() {
+    const section = document.createElement("details");
+    section.id = "spa-cdsp-simple-closure-flow";
+    section.style.cssText =
+      "margin-top:8px;border:1px solid #344253;border-radius:6px;background:#101821;overflow:hidden;";
+
+    const summary = document.createElement("summary");
+    summary.textContent = "Simples Encerramento";
+    summary.style.cssText =
+      "cursor:pointer;list-style:none;padding:8px 9px;background:#1f2d3a;color:#e8f0f7;" +
+      "font-size:12px;font-weight:800;line-height:1.2;";
+
+    const body = document.createElement("div");
+    body.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;padding:8px;";
+
+    const typeLabel = document.createElement("label");
+    typeLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
+    const typeTitle = document.createElement("span");
+    typeTitle.textContent = "Tipo do Simples Encerramento";
+    const typeSelect = createSimpleClosureSelect("spa-cdsp-simple-closure-type", "Selecione...");
+    fillSimpleClosureSelect(
+      typeSelect,
+      "Selecione...",
+      Object.keys(SIMPLE_CLOSURE_TYPES).map((key) => ({
+        value: key,
+        label: SIMPLE_CLOSURE_TYPES[key].label
+      }))
+    );
+    typeLabel.appendChild(typeTitle);
+    typeLabel.appendChild(typeSelect);
+
+    const pieceLabel = document.createElement("label");
+    pieceLabel.style.cssText = "display:none;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
+    const pieceTitle = document.createElement("span");
+    pieceTitle.textContent = "Tipo da Pe\u00e7a";
+    const pieceSelect = createSimpleClosureSelect("spa-cdsp-simple-closure-piece", "Selecione...");
+    pieceLabel.appendChild(pieceTitle);
+    pieceLabel.appendChild(pieceSelect);
+
+    const fields = document.createElement("div");
+    fields.style.cssText = "display:none;grid-template-columns:1fr;gap:6px;";
+
+    const idInput = document.createElement("input");
+    idInput.type = "text";
+    idInput.placeholder = "ID";
+    idInput.autocomplete = "off";
+    const dateInput = document.createElement("input");
+    dateInput.type = "text";
+    dateInput.placeholder = "dd/mm/aaaa";
+    dateInput.inputMode = "numeric";
+    dateInput.maxLength = 10;
+    dateInput.autocomplete = "off";
+    fields.appendChild(createSimpleClosureLabeledField("ID", idInput));
+    fields.appendChild(createSimpleClosureLabeledField("Data", dateInput));
+
+    const checklistBox = document.createElement("div");
+    checklistBox.style.cssText = "display:none;grid-template-columns:1fr;gap:6px;";
+    const checklistTitle = document.createElement("div");
+    checklistTitle.textContent = "Checklist";
+    checklistTitle.style.cssText =
+      "padding:7px 8px;border:1px solid #344253;border-radius:5px;background:#1f2d3a;color:#e8f0f7;" +
+      "font-size:12px;font-weight:800;text-align:center;";
+    checklistBox.appendChild(checklistTitle);
+
+    const checklistItems = SIMPLE_CLOSURE_CHECKLIST.map(createSimpleClosureCheckbox);
+    checklistItems.forEach((item) => checklistBox.appendChild(item.label));
+
+    const unavailable = document.createElement("div");
+    unavailable.textContent = "Modelo ainda nao parametrizado.";
+    unavailable.style.cssText =
+      "display:none;padding:7px 8px;border:1px solid #344253;border-radius:5px;background:#0c1219;" +
+      "color:#b8c6d1;font-size:11px;font-weight:700;text-align:center;";
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:none;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;";
+    const generateButton = createButton(
+      "Gerar Simples Encerramento",
+      () =>
+        generateSimpleClosureText({
+          closureType: SIMPLE_CLOSURE_TYPES[typeSelect.value].label,
+          piece: pieceSelect.value,
+          protocolId: idInput.value.replace(/\s+/g, " ").trim(),
+          protocolDate: dateInput.value.replace(/\s+/g, " ").trim()
+        }),
+      "primary"
+    );
+    const copyButton = createSmallUtilityButton("Copiar", "Copiar novamente o ultimo Simples Encerramento", copyStoredSimpleClosureText);
+    actions.appendChild(generateButton);
+    actions.appendChild(copyButton);
+
+    function setGenerateEnabled(enabled) {
+      generateButton.disabled = !enabled;
+      generateButton.style.opacity = enabled ? "1" : ".55";
+      generateButton.style.cursor = enabled ? "pointer" : "not-allowed";
+    }
+
+    function refresh() {
+      const typeKey = typeSelect.value;
+      const pieceValue = pieceSelect.value;
+      const hasType = Boolean(typeKey);
+      const pieceOptions = simpleClosurePieceOptions(typeKey);
+      const parameterized = isSimpleClosureParameterized(typeKey, pieceValue);
+      const hasId = Boolean(idInput.value.replace(/\s+/g, " ").trim());
+      const hasValidDate = isValidBrazilianDate(dateInput.value);
+      const readyForChecklist = parameterized && hasId && hasValidDate;
+      const checklistComplete = checklistItems.every((item) => item.input.checked);
+
+      pieceLabel.style.display = hasType ? "grid" : "none";
+      unavailable.style.display = hasType && pieceValue && !parameterized ? "block" : "none";
+      fields.style.display = parameterized ? "grid" : "none";
+      checklistBox.style.display = readyForChecklist ? "grid" : "none";
+      actions.style.display = parameterized ? "grid" : "none";
+      setGenerateEnabled(readyForChecklist && checklistComplete);
+
+      if (hasType) {
+        fillSimpleClosureSelect(
+          pieceSelect,
+          "Selecione...",
+          pieceOptions.map((label) => ({ value: label, label }))
+        );
+      }
+    }
+
+    typeSelect.addEventListener("change", () => {
+      pieceSelect.value = "";
+      idInput.value = "";
+      dateInput.value = "";
+      checklistItems.forEach((item) => {
+        item.input.checked = false;
+      });
+      refresh();
+    });
+    pieceSelect.addEventListener("change", () => {
+      idInput.value = "";
+      dateInput.value = "";
+      checklistItems.forEach((item) => {
+        item.input.checked = false;
+      });
+      refresh();
+    });
+    idInput.addEventListener("input", refresh);
+    dateInput.addEventListener("input", () => {
+      dateInput.value = formatBrazilianDateInput(dateInput.value);
+      refresh();
+    });
+    checklistItems.forEach((item) => item.input.addEventListener("change", refresh));
+
+    body.appendChild(typeLabel);
+    body.appendChild(pieceLabel);
+    body.appendChild(fields);
+    body.appendChild(unavailable);
+    body.appendChild(checklistBox);
+    body.appendChild(actions);
+    section.appendChild(summary);
+    section.appendChild(body);
+    refresh();
+    return section;
   }
 
   function createCorrectionFlowSection() {
@@ -5941,7 +6505,7 @@
     const actions = document.createElement("div");
     actions.style.cssText = "display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;";
     actions.appendChild(createButton("Gerar relat\u00f3rio", generateSelectedScreenReport, "primary"));
-    actions.appendChild(createButton("Cadastrar Agravo", startAgravoInstrumentoRegistration, "neutral"));
+    actions.appendChild(createAgravoActionGroup());
 
     const logBox = document.createElement("div");
     logBox.id = "spa-cdsp-deadline-log";
@@ -5978,6 +6542,7 @@
 
     content.appendChild(actions);
     content.appendChild(createCorrectionFlowSection());
+    content.appendChild(createSimpleClosureSection());
     content.appendChild(logBox);
 
     panel.appendChild(header);
@@ -6051,7 +6616,11 @@
     startSuggestClosureFromCorrection,
     continuePendingCorrectionStepAction,
     removerAgravoInstrumentoButtonSolto,
-    continuePendingAgravoAction
+    continuePendingAgravoAction,
+    copyStoredAgravoTable,
+    buildSimpleClosureHtml,
+    buildSimpleClosurePlain,
+    copyStoredSimpleClosureText
   };
 
   startPanelWhenReady();

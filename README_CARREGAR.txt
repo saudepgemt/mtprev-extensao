@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.57
+CDSP Extensao Geral - 1.58
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -28,6 +28,7 @@ Comportamento:
 - O preenchimento do cadastro de Agravo reconhece tanto os campos do modelo estadual quanto os do modelo TRF, com fallback por rotulo do campo.
 - Na tabela copiada do agravo, estadual e federal, o rotulo fica como "Agravado" e o valor da segunda coluna recebe "e Outros" depois do nome.
 - A tabela copiada do agravo, estadual e federal, usa Times New Roman 12, primeira coluna sem preenchimento colorido, colunas de 6,64cm e 12,28cm, texto justificado, sem negrito e sem recuo inicial; o HTML inclui colgroup, largura total de 18,92cm e estilos mso para ajudar o Word/Docs a preservar as medidas ao colar.
+- Ao lado do botao Cadastrar Agravo ha um botao pequeno Copiar, que recopia a ultima tabela de agravo gerada; a memoria e atualizada sempre que um novo cadastro e iniciado.
 - O botao solto/flutuante de Agravo de Instrumento nao e mais criado na tela do SPA.
 - O modulo Redacao e Correcao inclui o bloco compacto "Fluxo de Correcao".
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa de correcao e monta filtros arrastaveis, com a ordem salva na memoria do navegador.
@@ -39,6 +40,8 @@ Comportamento:
 - No Fluxo de Correcao, a abertura da minuta usa o clique nativo do SPA, prepara o historico da aba em duas etapas e ajusta a seta nativa de voltar para retornar a pendencia correta.
 - O Fluxo de Correcao inclui atalhos unicos para "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor", cada um com opcoes "Tela da pendencia" e "Tela da Minuta".
 - "Enviar ao procurador" direciona ao passo 2882, "Sugerir encerramento de tarefa" ao passo 2756 e "Devolver ao assessor" ao passo 2786, confirmando no botao Salvar quando a tela do passo abre.
+- O modulo Redacao e Correcao inclui o fluxo "Simples Encerramento", com selecao progressiva de tipo, peca, ID, data e checklist.
+- No Simples Encerramento, esta parametrizada a combinacao Preclusao Consumativa + Contestacao, que gera e copia automaticamente o texto em HTML formatado em Times New Roman 14, espacamento 1,15 e primeira linha de 1,25cm.
 - A ferramenta de busca nos autos processuais fica carregada como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, mesmo quando outro modulo esta ativo, mas nao aparece nas paginas de caixa/listagem de processos.
 - A checkbox "Abrir minimizado" do painel de Autos define se novas paginas de processo abrem esse painel recolhido.
 - A aba "Andamento PJE" consulta o Worker/MCP institucional e mostra movimentos com expedientes vinculados, ciencia, prazo legal, prazo final, parte, procuradoria e status do expediente.
@@ -88,8 +91,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.57.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.58.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.57.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.58.zip" no painel da Chrome Web Store.
