@@ -3891,6 +3891,13 @@ function applyConferidoMarkerScript(markerText) {
     return token ? String(token.getAttribute("content") || "") : "";
   }
 
+  function markerAreaFromHtml(html) {
+    if (!html) return "";
+    const parsed = new DOMParser().parseFromString(String(html), "text/html");
+    const area = parsed.querySelector("#procedure-show-markers");
+    return area ? String(area.textContent || "") : "";
+  }
+
   function findMarkerButton() {
     const candidates = Array.from(
       document.querySelectorAll(
@@ -3908,6 +3915,24 @@ function applyConferidoMarkerScript(markerText) {
       await sleepLocal(200);
     }
     return null;
+  }
+
+  function dispatchClickLikeUser(element) {
+    if (!element) return;
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch (_) {}
+    ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+      try {
+        element.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+          })
+        );
+      } catch (_) {}
+    });
   }
 
   function activeTabScore(element) {
@@ -4027,6 +4052,89 @@ function applyConferidoMarkerScript(markerText) {
     return { ok: true, markerId: markerId, procedureId: procedureId };
   }
 
+  async function applyMarkerByVisualFlow(row, checkbox) {
+    const target = checkbox
+      ? (checkbox.id ? document.querySelector("label[for='" + checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "']") : null) ||
+        checkbox
+      : row;
+    if (!target) return { ok: false, error: "Elemento clicavel do marcador nao encontrado." };
+
+    dispatchClickLikeUser(target);
+    await sleepLocal(350);
+
+    if (checkbox && !checkbox.checked) {
+      checkbox.checked = true;
+      ["input", "change"].forEach((type) => {
+        try {
+          checkbox.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+        } catch (_) {}
+      });
+    }
+
+    await sleepLocal(1200);
+    return {
+      ok: true,
+      markerId: checkbox ? checkbox.getAttribute("data-marker-id") || checkbox.value || "" : "",
+    };
+  }
+
+  async function closeMarkerModal(modal) {
+    if (!modal) return;
+    try {
+      const rect = modal.getBoundingClientRect();
+      const outsideX = Math.max(8, Math.floor(rect.left / 2));
+      const outsideY = Math.max(8, Math.floor(rect.top / 2));
+      const outside = document.elementFromPoint(outsideX, outsideY) || document.body;
+      dispatchClickLikeUser(outside);
+    } catch (_) {
+      dispatchClickLikeUser(document.body);
+    }
+
+    await sleepLocal(700);
+    if (visibleLocal(modal)) {
+      const close =
+        modal.querySelector("a[href*='reload_markers']") ||
+        modal.querySelector("[data-dismiss='modal']") ||
+        modal.querySelector(".close");
+      if (close) dispatchClickLikeUser(close);
+    }
+    await sleepLocal(900);
+  }
+
+  async function verifyMarkerPersisted(timeoutMs) {
+    const visible = await waitUntil(() => markerAlreadyVisible(), timeoutMs || 5000);
+    if (visible) return { ok: true, source: "page" };
+
+    try {
+      const response = await fetch(window.location.href, {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
+      if (response.ok) {
+        const html = await response.text();
+        const markerText = markerAreaFromHtml(html);
+        if (normalizeLocal(markerText).indexOf(normalizeLocal(wanted)) >= 0) {
+          const currentArea = document.querySelector("#procedure-show-markers");
+          const parsed = new DOMParser().parseFromString(html, "text/html");
+          const freshArea = parsed.querySelector("#procedure-show-markers");
+          if (currentArea && freshArea) currentArea.innerHTML = freshArea.innerHTML;
+          return { ok: true, source: "fresh-page" };
+        }
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error && error.message ? error.message : String(error),
+      };
+    }
+
+    return { ok: false, error: "Marcador Conferido nao apareceu na pendencia apos a selecao." };
+  }
+
   async function run() {
     if (markerAlreadyVisible()) {
       return { ok: true, already: true, message: "Marcador Conferido ja estava no processo." };
@@ -4068,37 +4176,39 @@ function applyConferidoMarkerScript(markerText) {
     }
 
     const checkbox = associatedCheckbox(row);
+    const visualResult = await applyMarkerByVisualFlow(row, checkbox);
+    await closeMarkerModal(modal);
+
+    let verified = await verifyMarkerPersisted(6000);
     let requestResult = null;
-    if (checkbox && !checkbox.checked) {
+    if (!verified.ok && checkbox) {
       requestResult = await applyMarkerByRequest(checkbox);
+      await closeMarkerModal(document.querySelector("#modal-marker, .modal.show, .modal"));
+      verified = await verifyMarkerPersisted(7000);
     }
 
-    if (!requestResult || !requestResult.ok) {
-      if (!checkbox) {
-        row.click();
-      } else if (!checkbox.checked) {
-        const safeId = checkbox.id ? checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
-        const label = safeId ? modal.querySelector("label[for='" + safeId + "']") : null;
-        (label || checkbox).click();
-      }
+    if (!verified.ok) {
+      return {
+        ok: false,
+        error: verified.error || "Marcador Conferido nao foi confirmado na pendencia.",
+        markerId:
+          (requestResult && requestResult.markerId) ||
+          (visualResult && visualResult.markerId) ||
+          "",
+        method: requestResult && requestResult.ok ? "request-fallback" : "visual",
+      };
     }
 
-    await sleepLocal(900);
-
-    const close =
-      modal.querySelector("a[href*='reload_markers']") ||
-      modal.querySelector("[data-dismiss='modal']") ||
-      modal.querySelector(".close");
-    if (close) close.click();
-    else document.body.click();
-
-    await sleepLocal(500);
     return {
       ok: true,
       already: false,
-      message: "Marcador Conferido aplicado.",
-      markerId: requestResult && requestResult.markerId ? requestResult.markerId : "",
-      method: requestResult && requestResult.ok ? "request" : "click",
+      message: "Marcador Conferido aplicado e conferido na pendencia.",
+      markerId:
+        (requestResult && requestResult.markerId) ||
+        (visualResult && visualResult.markerId) ||
+        "",
+      method: requestResult && requestResult.ok ? "request-fallback" : "visual",
+      verifiedBy: verified.source,
     };
   }
 
@@ -4124,6 +4234,7 @@ async function validateDuplicateRecords(message) {
     }
 
     let tab = null;
+    let closeTab = true;
     try {
       tab = await chrome.tabs.create({ url: pendencyUrl, active: false });
       await waitForTabComplete(tab.id, 20000);
@@ -4136,6 +4247,7 @@ async function validateDuplicateRecords(message) {
         args: ["Conferido"]
       });
       const result = scriptResults && scriptResults[0] ? scriptResults[0].result : null;
+      closeTab = Boolean(result && result.ok);
       results.push(Object.assign({
         ok: Boolean(result && result.ok),
         label: record && (record.expedienteId || record.processNumber) ? record.expedienteId || record.processNumber : pendencyUrl,
@@ -4149,7 +4261,15 @@ async function validateDuplicateRecords(message) {
         error: error && error.message ? error.message : String(error)
       });
     } finally {
-      if (tab && tab.id) await removeTabIfOpen(tab.id);
+      if (tab && tab.id) {
+        if (closeTab) {
+          await removeTabIfOpen(tab.id);
+        } else {
+          try {
+            await chrome.tabs.update(tab.id, { active: true });
+          } catch (_) {}
+        }
+      }
     }
 
     if (delayMs) await sleep(delayMs);

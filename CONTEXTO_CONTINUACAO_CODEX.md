@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.59`
-- Ultima tag publicada no repositorio: `v1.59`
+- Versao atual da extensao: `1.60`
+- Ultima tag publicada no repositorio: `v1.60`
 
 ## Como retomar no notebook
 
@@ -76,6 +76,11 @@ Versao `1.59`:
 - No relatorio de duplicados, o botao `Validar` passou a aplicar o marcador `Conferido` por requisicao direta ao endpoint de marcadores do SPA, com fallback pelo clique visual do modal.
 - A busca do marcador no modal agora prioriza o marcador visivel/ativo em `Meus marcadores`, evitando selecionar marcadores homonimos escondidos em outras abas do modal.
 
+Versao `1.60`:
+
+- O `Validar` do relatorio de duplicados passou a seguir o fluxo visual do SPA: abrir marcador, selecionar o checkbox `Conferido`, clicar fora do modal e conferir se o marcador apareceu na pendencia.
+- A validacao agora so retorna sucesso depois de confirmar o marcador na area `#procedure-show-markers` ou em uma releitura fresca da pagina; se falhar, a aba da pendencia permanece aberta para verificacao.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -88,7 +93,7 @@ Versao `1.59`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
-- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido` pelo endpoint de marcadores do SPA, priorizando o marcador visivel em `Meus marcadores` e usando clique visual apenas como fallback.
+- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, com fluxo visual do SPA, fallback por requisicao direta e conferencia obrigatoria na pendencia antes de fechar a aba.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes

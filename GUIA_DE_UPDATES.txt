@@ -48,7 +48,7 @@ Padrao atual:
 - Relatorio de duplicados: preservar a busca da coluna de manifestacao por "manifestation", "Manifestacao Sugerida" e "Manisfestacao Sugerida".
 - Relatorio de duplicados: excluir todos os processos identificados como SES, nao apenas o ultimo andamento "Minutac da SES enviada ao(a) Procurador(a)".
 - Relatorio de duplicados: ocultar processos com marcador "Conferido" somente quando todas as pendencias do processo estiverem marcadas; processos parcialmente marcados continuam exibidos com destaque vermelho nas pendencias marcadas.
-- Relatorio de duplicados: o botao "Validar" deve aplicar o marcador "Conferido" de forma persistente pelo endpoint /marker_procedures do SPA, usando o marcador visivel/ativo em "Meus marcadores" quando houver nomes repetidos e deixando o clique visual do modal apenas como fallback.
+- Relatorio de duplicados: o botao "Validar" deve aplicar o marcador "Conferido" seguindo o fluxo visual do SPA, clicar fora do modal e conferir a area de marcadores da pendencia antes de fechar a aba; se a conferencia falhar, usar fallback por /marker_procedures e manter a aba aberta se ainda assim nao houver confirmacao.
 - Relatorio de duplicados: preservar destaque forte para expedientes com PDF/texto identico ou metadados equivalentes, incluindo badge no grupo e faixa verde na linha.
 - Publicacao Chrome Web Store: nao reintroduzir jsPDF/jsPDF-AutoTable rejeitados como Blue Argon nem qualquer codigo remoto/CDN; relatorios podem usar Excel e impressao nativa do Chrome para salvar em PDF.
 - Triagem/Programada: preservar o passo "Protocolar agravo de instrumento", que usa o card "Realizar peticionamento em massa - Agravo de instrumento", fase "Minuta elaborada", selecao por pagina e o mesmo fluxo de senha/assinatura dos demais protocolos.
@@ -117,7 +117,7 @@ Como atualizar em versoes futuras:
 39. Preservar o seletor da Manifestacao Sugerida com suporte a "manifestation" e "Manisfestacao Sugerida".
 40. Preservar a exclusao de todos os processos identificados como SES no relatorio de duplicados e no atalho de abrir duplicados.
 40-A. Preservar a regra do marcador "Conferido": somente ocultar o processo quando todas as pendencias estiverem marcadas; se apenas parte estiver marcada, exibir o processo normalmente e destacar as pendencias marcadas em vermelho.
-40-B. Preservar o fluxo de validacao do relatorio de duplicados: ao clicar "Validar", abrir a pendencia em segundo plano, localizar o marcador "Conferido" no modal ativo, priorizar "Meus marcadores" quando houver marcadores homonimos e persistir via POST em /marker_procedures com CSRF; o clique no checkbox fica apenas como contingencia.
+40-B. Preservar o fluxo de validacao do relatorio de duplicados: ao clicar "Validar", abrir a pendencia em segundo plano, abrir o modal de marcadores, localizar "Conferido", priorizar "Meus marcadores" quando houver homonimos, selecionar o checkbox, clicar fora do modal e confirmar o marcador em #procedure-show-markers ou por releitura fresca da pagina. Se nao confirmar, tentar POST em /marker_procedures com CSRF e deixar a aba aberta se ainda falhar.
 41. Preservar na Coordenacao os botoes de cobranca apenas dentro do relatorio gerado e preservar a caixa de mensagens prontas com copia individual/geral.
 42. Manter variaveis globais isoladas por namespace ou IIFE.
 43. Remover console.logs de depuracao e permissoes que nao forem necessarias.
