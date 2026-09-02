@@ -3886,6 +3886,11 @@ function applyConferidoMarkerScript(markerText) {
     return Boolean(area && textHasMarker(area));
   }
 
+  function csrfToken() {
+    const token = document.querySelector("meta[name='csrf-token']");
+    return token ? String(token.getAttribute("content") || "") : "";
+  }
+
   function findMarkerButton() {
     const candidates = Array.from(
       document.querySelectorAll(
@@ -3905,13 +3910,54 @@ function applyConferidoMarkerScript(markerText) {
     return null;
   }
 
+  function activeTabScore(element) {
+    if (!element) return 0;
+    const pane = element.closest(".tab-pane");
+    if (pane && /\bactive\b/.test(pane.className)) return 30;
+    if (pane && visibleLocal(pane)) return 20;
+    return visibleLocal(element) ? 10 : 0;
+  }
+
+  function rowScore(row) {
+    if (!row) return 0;
+    let score = activeTabScore(row);
+    if (visibleLocal(row)) score += 30;
+    if (row.querySelector(".btn-edit-marker, a[href*='/markers/']")) score += 10;
+    return score;
+  }
+
   function findMarkerRow(container) {
+    const root = container || document;
+    const wantedNormalized = normalizeLocal(wanted);
+    const markerNames = Array.from(root.querySelectorAll(".text-marker, [id^='marker-item-name-']"));
+    const matches = markerNames
+      .map((element) => {
+        const text = normalizeLocal(element.textContent);
+        const row =
+          element.closest(".listview__item") ||
+          element.closest("label, tr, li, .checkbox, .form-check, .custom-control, .marker-item, [data-marker-id]");
+        return {
+          row: row,
+          exact: text === wantedNormalized,
+          contains: text.indexOf(wantedNormalized) >= 0,
+        };
+      })
+      .filter((item) => item.row && (item.exact || item.contains))
+      .sort((a, b) => {
+        if (a.exact !== b.exact) return a.exact ? -1 : 1;
+        return rowScore(b.row) - rowScore(a.row);
+      });
+
+    if (matches.length) return matches[0].row;
+
     const roots = Array.from(
-      (container || document).querySelectorAll(
+      root.querySelectorAll(
         "label, tr, li, .listview__item, .checkbox, .form-check, .custom-control, .marker-item, [data-marker-id]"
       )
-    );
-    return roots.find((element) => textHasMarker(element)) || null;
+    )
+      .filter((element) => textHasMarker(element))
+      .sort((a, b) => rowScore(b) - rowScore(a));
+    return roots[0] || null;
   }
 
   function associatedCheckbox(row) {
@@ -3930,6 +3976,55 @@ function applyConferidoMarkerScript(markerText) {
     tab.click();
     await sleepLocal(500);
     return true;
+  }
+
+  async function applyMarkerByRequest(checkbox) {
+    if (!checkbox) return { ok: false, error: "Checkbox do marcador nao encontrado." };
+    const markerId = checkbox.getAttribute("data-marker-id") || checkbox.value || "";
+    const procedureId =
+      checkbox.getAttribute("data-procedure-id") ||
+      (document.querySelector("#modal-marker") && document.querySelector("#modal-marker").getAttribute("data-procedure-id")) ||
+      "";
+    const flowId = checkbox.getAttribute("data-flow-id") || "";
+    const url = checkbox.getAttribute("data-url") || "/marker_procedures";
+
+    if (!markerId || !procedureId) {
+      return { ok: false, error: "Dados do marcador incompletos." };
+    }
+
+    const body = new FormData();
+    body.append("utf8", "\u2713");
+    const token = csrfToken();
+    if (token) body.append("authenticity_token", token);
+    body.append("marker_id", markerId);
+    body.append("procedure_id", procedureId);
+    if (flowId) body.append("flow_id", flowId);
+
+    const headers = {
+      "X-Requested-With": "XMLHttpRequest",
+      Accept: "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
+    };
+    if (token) headers["X-CSRF-Token"] = token;
+
+    const response = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: headers,
+      body: body,
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: "SPA respondeu HTTP " + response.status + " ao aplicar marcador." };
+    }
+
+    checkbox.checked = true;
+    ["input", "change"].forEach((type) => {
+      try {
+        checkbox.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+      } catch (_) {}
+    });
+
+    return { ok: true, markerId: markerId, procedureId: procedureId };
   }
 
   async function run() {
@@ -3973,12 +4068,19 @@ function applyConferidoMarkerScript(markerText) {
     }
 
     const checkbox = associatedCheckbox(row);
-    if (!checkbox) {
-      row.click();
-    } else if (!checkbox.checked) {
-      const safeId = checkbox.id ? checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
-      const label = safeId ? modal.querySelector("label[for='" + safeId + "']") : null;
-      (label || checkbox).click();
+    let requestResult = null;
+    if (checkbox && !checkbox.checked) {
+      requestResult = await applyMarkerByRequest(checkbox);
+    }
+
+    if (!requestResult || !requestResult.ok) {
+      if (!checkbox) {
+        row.click();
+      } else if (!checkbox.checked) {
+        const safeId = checkbox.id ? checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+        const label = safeId ? modal.querySelector("label[for='" + safeId + "']") : null;
+        (label || checkbox).click();
+      }
     }
 
     await sleepLocal(900);
@@ -3991,7 +4093,13 @@ function applyConferidoMarkerScript(markerText) {
     else document.body.click();
 
     await sleepLocal(500);
-    return { ok: true, already: false, message: "Marcador Conferido aplicado." };
+    return {
+      ok: true,
+      already: false,
+      message: "Marcador Conferido aplicado.",
+      markerId: requestResult && requestResult.markerId ? requestResult.markerId : "",
+      method: requestResult && requestResult.ok ? "request" : "click",
+    };
   }
 
   return run();
