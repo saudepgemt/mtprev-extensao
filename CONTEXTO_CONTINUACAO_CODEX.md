@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.61`
-- Ultima tag publicada no repositorio: `v1.61`
+- Versao atual da extensao: `1.62`
+- Ultima tag publicada no repositorio: `v1.62`
 
 ## Como retomar no notebook
 
@@ -86,6 +86,11 @@ Versao `1.61`:
 - A rotina do `Validar` foi ajustada para tratar `Conferido` como nome do marcador, nao como nome do checkbox.
 - O script agora localiza a linha do marcador pelo texto `.text-marker` e marca especificamente a checkbox `marker-procedure-check` dessa mesma linha.
 
+Versao `1.62`:
+
+- A selecao da checkbox do marcador `Conferido` passou a usar tentativas nativas sequenciais no SPA: clique no label associado, clique direto no input `marker-procedure-check`, espera do AJAX do SPA e fallback por jQuery/eventos quando disponivel.
+- A rotina deixou de marcar `checked` artificialmente no fluxo visual; a checkbox precisa ser realmente selecionada pelo SPA antes da conferencia da pendencia.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -98,7 +103,7 @@ Versao `1.61`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
-- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, tratando `Conferido` como nome do marcador e marcando a checkbox associada da linha desse marcador, com conferencia obrigatoria na pendencia antes de fechar a aba.
+- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, tratando `Conferido` como nome do marcador e marcando a checkbox associada da linha desse marcador por clique nativo no label/input, com conferencia obrigatoria na pendencia antes de fechar a aba.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes

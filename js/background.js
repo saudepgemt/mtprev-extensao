@@ -3935,6 +3935,48 @@ function applyConferidoMarkerScript(markerText) {
     });
   }
 
+  function nativeClick(element) {
+    if (!element) return false;
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch (_) {}
+    try {
+      element.focus({ preventScroll: true });
+    } catch (_) {
+      try {
+        element.focus();
+      } catch (_) {}
+    }
+    try {
+      element.click();
+      return true;
+    } catch (_) {
+      dispatchClickLikeUser(element);
+      return false;
+    }
+  }
+
+  async function waitForSpaAjaxIdle() {
+    await waitUntil(() => {
+      try {
+        return !(window.jQuery && Number(window.jQuery.active));
+      } catch (_) {
+        return true;
+      }
+    }, 5000);
+    await sleepLocal(250);
+  }
+
+  function triggerJQuery(element, type) {
+    try {
+      if (!window.jQuery || !element) return false;
+      window.jQuery(element).trigger(type);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function activeTabScore(element) {
     if (!element) return 0;
     const pane = element.closest(".tab-pane");
@@ -4004,6 +4046,17 @@ function applyConferidoMarkerScript(markerText) {
     return labelFor ? document.getElementById(labelFor) : null;
   }
 
+  function labelForCheckbox(checkbox) {
+    if (!checkbox || !checkbox.id) return null;
+    try {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return document.querySelector("label[for='" + window.CSS.escape(checkbox.id) + "']");
+      }
+    } catch (_) {}
+    const wantedFor = String(checkbox.id);
+    return Array.from(document.querySelectorAll("label[for]")).find((label) => label.getAttribute("for") === wantedFor) || null;
+  }
+
   async function tryClickMarkerTab(label) {
     const normalized = normalizeLocal(label);
     const tabs = Array.from(document.querySelectorAll("a, button, [role='tab']"));
@@ -4064,28 +4117,88 @@ function applyConferidoMarkerScript(markerText) {
   }
 
   async function applyMarkerByVisualFlow(row, checkbox) {
-    const target = checkbox
-      ? (checkbox.id ? document.querySelector("label[for='" + checkbox.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "']") : null) ||
-        checkbox
-      : row;
-    if (!target) return { ok: false, error: "Elemento clicavel do marcador nao encontrado." };
+    const label = labelForCheckbox(checkbox);
+    const target = label || checkbox || row;
+    if (!target) return { ok: false, error: "Elemento clicavel da linha do marcador nao encontrado." };
 
-    dispatchClickLikeUser(target);
-    await sleepLocal(350);
-
-    if (checkbox && !checkbox.checked) {
-      checkbox.checked = true;
-      ["input", "change"].forEach((type) => {
-        try {
-          checkbox.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
-        } catch (_) {}
-      });
+    if (row) {
+      try {
+        row.scrollIntoView({ block: "center", inline: "center" });
+      } catch (_) {}
     }
 
-    await sleepLocal(1200);
+    if (checkbox && checkbox.checked) {
+      return {
+        ok: true,
+        selected: true,
+        markerId: checkbox.getAttribute("data-marker-id") || checkbox.value || "",
+        method: "already-selected",
+      };
+    }
+
+    const attempts = [
+      { method: "label-click", element: label },
+      { method: "checkbox-click", element: checkbox },
+      { method: "row-click", element: row },
+    ].filter((item) => item.element);
+
+    for (const attempt of attempts) {
+      nativeClick(attempt.element);
+      await waitForSpaAjaxIdle();
+      if (!checkbox || checkbox.checked) {
+        return {
+          ok: true,
+          selected: Boolean(!checkbox || checkbox.checked),
+          markerId: checkbox ? checkbox.getAttribute("data-marker-id") || checkbox.value || "" : "",
+          method: attempt.method,
+        };
+      }
+    }
+
+    if (checkbox) {
+      try {
+        checkbox.focus();
+      } catch (_) {}
+      ["keydown", "keypress", "keyup"].forEach((type) => {
+        try {
+          checkbox.dispatchEvent(
+            new KeyboardEvent(type, {
+              key: " ",
+              code: "Space",
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+        } catch (_) {}
+      });
+      await waitForSpaAjaxIdle();
+      if (checkbox.checked) {
+        return {
+          ok: true,
+          selected: true,
+          markerId: checkbox.getAttribute("data-marker-id") || checkbox.value || "",
+          method: "keyboard-space",
+        };
+      }
+
+      if (triggerJQuery(label || checkbox, "click") || triggerJQuery(checkbox, "change")) {
+        await waitForSpaAjaxIdle();
+        if (checkbox.checked) {
+          return {
+            ok: true,
+            selected: true,
+            markerId: checkbox.getAttribute("data-marker-id") || checkbox.value || "",
+            method: "jquery-trigger",
+          };
+        }
+      }
+    }
+
     return {
-      ok: true,
+      ok: false,
+      error: "A checkbox associada ao marcador Conferido nao foi selecionada pelo fluxo visual.",
       markerId: checkbox ? checkbox.getAttribute("data-marker-id") || checkbox.value || "" : "",
+      method: "visual-clicks",
     };
   }
 
