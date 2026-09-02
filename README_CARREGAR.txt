@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.65
+CDSP Extensao Geral - 1.66
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -86,14 +86,14 @@ Comportamento:
 - A comparacao por PDF usa pdf.js local, offscreen, texto bruto, cache interno e concorrencia baixa, sem CDN e sem biblioteca nova, e recebe destaque visual reforcado quando os expedientes forem iguais.
 - Processos identificados como SES nao aparecem no relatorio de duplicados nem no atalho de abrir duplicados.
 - Processos parcialmente marcados com "Conferido" continuam aparecendo; apenas processos com todas as pendencias marcadas ficam ocultos, e as pendencias marcadas recebem destaque vermelho.
-- No relatorio de duplicados, o botao "Validar" localiza o marcador particular "Conferido" em Meus marcadores e repete primeiro o clique real da checkbox. Ajax e requisicao direta ficam somente como contingencia, sem deixar a checkbox marcada artificialmente quando uma tentativa falhar. A rotina confere o marcador na pendencia e mantem a aba aberta se a confirmacao falhar.
+- No relatorio de duplicados, o botao "Validar" aguarda a linha visivel do marcador particular "Conferido", com sua checkbox pronta em Meus marcadores, antes de clicar. Todo o processo ocorre em aba auxiliar de segundo plano, que e fechada ao final sem transportar a pessoa para fora do relatorio.
 
 Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.65.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.66.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.65.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.66.zip" no painel da Chrome Web Store.

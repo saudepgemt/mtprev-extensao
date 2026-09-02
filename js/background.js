@@ -4068,14 +4068,23 @@ function applyConferidoMarkerScript(markerText) {
     return Array.from(document.querySelectorAll("label[for]")).find((label) => label.getAttribute("for") === wantedFor) || null;
   }
 
-  async function tryClickMarkerTab(label) {
+  async function tryClickMarkerTab(modal, label) {
     const normalized = normalizeLocal(label);
-    const tabs = Array.from(document.querySelectorAll("a, button, [role='tab']"));
+    const root = modal || document;
+    const tabs = Array.from(root.querySelectorAll("a, button, [role='tab']"));
     const tab = tabs.find((element) => visibleLocal(element) && normalizeLocal(element.textContent).indexOf(normalized) >= 0);
     if (!tab) return false;
     tab.click();
-    await sleepLocal(500);
+    await sleepLocal(700);
     return true;
+  }
+
+  async function waitForMarkerRow(modal, timeoutMs) {
+    return waitUntil(() => {
+      const row = findMarkerRow(modal);
+      const checkbox = associatedCheckbox(row);
+      return row && checkbox && visibleLocal(row) && !checkbox.disabled ? row : null;
+    }, timeoutMs || 12000);
   }
 
   async function applyMarkerByRequest(checkbox) {
@@ -4393,23 +4402,15 @@ function applyConferidoMarkerScript(markerText) {
       return { ok: false, error: "Modal de marcadores nao abriu." };
     }
 
-    await waitUntil(() => {
-      const loading = modal.querySelector(".marker-modal-loading");
-      const content = modal.querySelector(".marker-modal-content");
-      return textHasMarker(modal) || (content && normalizeLocal(content.textContent)) || (loading && !visibleLocal(loading));
-    }, 10000);
-
-    let row = findMarkerRow(modal);
+    // O conteudo do modal e criado antes de a requisicao dos marcadores
+    // terminar. Aguarde a linha visivel e a checkbox real, nao apenas texto.
+    let row = await waitForMarkerRow(modal, 12000);
     if (!row) {
-      await tryClickMarkerTab("MEUS MARCADORES");
-      row = findMarkerRow(modal);
+      await tryClickMarkerTab(modal, "MEUS MARCADORES");
+      row = await waitForMarkerRow(modal, 12000);
     }
     if (!row) {
-      await tryClickMarkerTab("MARCADORES");
-      row = findMarkerRow(modal);
-    }
-    if (!row) {
-      return { ok: false, error: "Marcador Conferido nao encontrado no modal." };
+      return { ok: false, error: "O menu de marcadores abriu, mas a linha visivel de Conferido nao ficou pronta a tempo." };
     }
 
     const checkbox = associatedCheckbox(row);
@@ -4477,7 +4478,6 @@ async function validateDuplicateRecords(message) {
     }
 
     let tab = null;
-    let closeTab = true;
     try {
       tab = await chrome.tabs.create({ url: pendencyUrl, active: false });
       await waitForTabComplete(tab.id, 20000);
@@ -4490,7 +4490,6 @@ async function validateDuplicateRecords(message) {
         args: ["Conferido"]
       });
       const result = scriptResults && scriptResults[0] ? scriptResults[0].result : null;
-      closeTab = Boolean(result && result.ok);
       results.push(Object.assign({
         ok: Boolean(result && result.ok),
         label: record && (record.expedienteId || record.processNumber) ? record.expedienteId || record.processNumber : pendencyUrl,
@@ -4505,13 +4504,9 @@ async function validateDuplicateRecords(message) {
       });
     } finally {
       if (tab && tab.id) {
-        if (closeTab) {
-          await removeTabIfOpen(tab.id);
-        } else {
-          try {
-            await chrome.tabs.update(tab.id, { active: true });
-          } catch (_) {}
-        }
+        // A validacao deve permanecer silenciosa para quem esta usando o
+        // relatorio. O erro volta ao log da aba original, sem trocar de aba.
+        await removeTabIfOpen(tab.id);
       }
     }
 
