@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.64`
-- Ultima tag publicada no repositorio: `v1.64`
+- Versao atual da extensao: `1.65`
+- Ultima tag publicada no repositorio: `v1.65`
 
 ## Como retomar no notebook
 
@@ -103,6 +103,12 @@ Versao `1.64`:
 - O fallback direto passou a usar requisicao urlencoded igual ao jQuery do SPA, sem parametros extras, mantendo apenas `marker_procedures[marker_id]` e `marker_procedures[procedure_id]`.
 - O fechamento do modal de marcadores tambem procura o controle visivel `Fechar`, para disparar a recarga nativa dos marcadores antes da conferencia final.
 
+Versao `1.65`:
+
+- O `Validar` voltou a priorizar o mesmo percurso manual do SPA: localizar o marcador particular `Conferido` em `Meus marcadores`, clicar primeiro no `label`/checkbox e fechar o modal para recarregar a pendencia.
+- O Ajax do SPA e a requisicao direta ficaram como contingencias posteriores a conferencia visual. Uma tentativa Ajax que falhe restaura o estado original da checkbox, para que ela nunca bloqueie o clique nativo por parecer selecionada sem ter sido persistida.
+- O fallback direto nao dispara mais um segundo evento `change` depois do POST confirmado, evitando duplicacao da operacao e estado divergente da checkbox.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -115,7 +121,7 @@ Versao `1.64`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
-- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, tratando `Conferido` como nome do marcador e marcando a checkbox associada da linha desse marcador por clique nativo no label/input, handler `change` do SPA ou fallback com `marker_procedures[...]`, com conferencia obrigatoria na pendencia antes de fechar a aba.
+- No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, priorizando o marcador particular ativo em `Meus marcadores` e o clique nativo no label/input antes de qualquer Ajax. Tentativas que falharem devem restaurar a checkbox; usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, sempre com conferencia obrigatoria na pendencia antes de fechar a aba.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes

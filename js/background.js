@@ -4116,12 +4116,9 @@ function applyConferidoMarkerScript(markerText) {
       return { ok: false, error: "SPA respondeu HTTP " + response.status + " ao aplicar marcador." };
     }
 
+    // A requisicao ja foi persistida. Disparar change aqui pode acionar um
+    // segundo POST no SPA e deixar a checkbox em estado divergente.
     checkbox.checked = true;
-    ["input", "change"].forEach((type) => {
-      try {
-        checkbox.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
-      } catch (_) {}
-    });
 
     return { ok: true, markerId: markerId, procedureId: procedureId, method: "request-fallback" };
   }
@@ -4142,12 +4139,8 @@ function applyConferidoMarkerScript(markerText) {
       return { ok: false, error: "Dados do marcador incompletos para o Ajax do SPA." };
     }
 
-    try {
-      window.jQuery(checkbox).prop("checked", true).prop("disabled", true);
-    } catch (_) {
-      checkbox.checked = true;
-      checkbox.disabled = true;
-    }
+    const initiallyChecked = Boolean(checkbox.checked);
+    checkbox.disabled = true;
 
     return new Promise((resolve) => {
       try {
@@ -4162,6 +4155,7 @@ function applyConferidoMarkerScript(markerText) {
             },
           },
           success: function () {
+            checkbox.checked = true;
             resolve({
               ok: true,
               markerId: markerId,
@@ -4170,6 +4164,7 @@ function applyConferidoMarkerScript(markerText) {
             });
           },
           error: function (_xhr, status, error) {
+            checkbox.checked = initiallyChecked;
             resolve({
               ok: false,
               markerId: markerId,
@@ -4179,19 +4174,12 @@ function applyConferidoMarkerScript(markerText) {
             });
           },
           complete: function () {
-            try {
-              window.jQuery(checkbox).prop("disabled", false);
-            } catch (_) {
-              checkbox.disabled = false;
-            }
+            checkbox.disabled = false;
           },
         });
       } catch (error) {
-        try {
-          window.jQuery(checkbox).prop("disabled", false);
-        } catch (_) {
-          checkbox.disabled = false;
-        }
+        checkbox.checked = initiallyChecked;
+        checkbox.disabled = false;
         resolve({
           ok: false,
           markerId: markerId,
@@ -4425,13 +4413,19 @@ function applyConferidoMarkerScript(markerText) {
     }
 
     const checkbox = associatedCheckbox(row);
-    let requestResult = checkbox ? await applyMarkerBySpaAjax(checkbox) : null;
-    const visualResult = requestResult && requestResult.ok ? requestResult : await applyMarkerByVisualFlow(row, checkbox);
+    // Repete primeiro o fluxo que funciona para o usuario: label da checkbox,
+    // fechamento do modal e conferencia da pendencia. Requisicoes sao apenas
+    // contingencia, nunca podem impedir o clique visual.
+    const visualResult = await applyMarkerByVisualFlow(row, checkbox);
     await closeMarkerModal(modal);
 
     let verified = await verifyMarkerPersisted(6000);
+    let requestResult = null;
     if (!verified.ok && checkbox) {
-      requestResult = await applyMarkerByRequest(checkbox);
+      requestResult = await applyMarkerBySpaAjax(checkbox);
+      if (!requestResult.ok) {
+        requestResult = await applyMarkerByRequest(checkbox);
+      }
       await closeMarkerModal(document.querySelector("#modal-marker, .modal.show, .modal"));
       verified = await verifyMarkerPersisted(7000);
     }
