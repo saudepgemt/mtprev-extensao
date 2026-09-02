@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.63`
-- Ultima tag publicada no repositorio: `v1.63`
+- Versao atual da extensao: `1.64`
+- Ultima tag publicada no repositorio: `v1.64`
 
 ## Como retomar no notebook
 
@@ -96,6 +96,12 @@ Versao `1.63`:
 - O fallback de aplicacao do marcador `Conferido` passou a usar o formato de parametros real do SPA: `marker_procedures[marker_id]` e `marker_procedures[procedure_id]`.
 - Quando o clique visual nao seleciona a checkbox, a rotina aciona o proprio handler `change` do SPA via jQuery, marcando a checkbox da linha do marcador e aguardando o AJAX terminar antes da conferencia.
 - Em caso de marcadores homonimos, a busca prioriza o texto exatamente `Conferido` e marcadores particulares/visiveis.
+
+Versao `1.64`:
+
+- O `Validar` do relatorio de duplicados passou a aplicar o marcador `Conferido` acionando diretamente o mesmo Ajax usado pelo SPA na checkbox `marker-procedure-check`: `POST /marker_procedures`, `dataType: "script"` e objeto `marker_procedures` com `marker_id` e `procedure_id`.
+- O fallback direto passou a usar requisicao urlencoded igual ao jQuery do SPA, sem parametros extras, mantendo apenas `marker_procedures[marker_id]` e `marker_procedures[procedure_id]`.
+- O fechamento do modal de marcadores tambem procura o controle visivel `Fechar`, para disparar a recarga nativa dos marcadores antes da conferencia final.
 
 ## Regras permanentes combinadas
 

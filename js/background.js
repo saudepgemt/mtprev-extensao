@@ -4085,24 +4085,23 @@ function applyConferidoMarkerScript(markerText) {
       checkbox.getAttribute("data-procedure-id") ||
       (document.querySelector("#modal-marker") && document.querySelector("#modal-marker").getAttribute("data-procedure-id")) ||
       "";
-    const flowId = checkbox.getAttribute("data-flow-id") || "";
     const url = checkbox.getAttribute("data-url") || "/marker_procedures";
 
     if (!markerId || !procedureId) {
       return { ok: false, error: "Dados do marcador incompletos." };
     }
 
-    const body = new FormData();
-    body.append("utf8", "\u2713");
+    const body = new URLSearchParams();
+    body.set("utf8", "\u2713");
     const token = csrfToken();
-    if (token) body.append("authenticity_token", token);
-    body.append("marker_procedures[marker_id]", markerId);
-    body.append("marker_procedures[procedure_id]", procedureId);
-    if (flowId) body.append("marker_procedures[flow_id]", flowId);
+    if (token) body.set("authenticity_token", token);
+    body.set("marker_procedures[marker_id]", markerId);
+    body.set("marker_procedures[procedure_id]", procedureId);
 
     const headers = {
       "X-Requested-With": "XMLHttpRequest",
       Accept: "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     };
     if (token) headers["X-CSRF-Token"] = token;
 
@@ -4124,7 +4123,84 @@ function applyConferidoMarkerScript(markerText) {
       } catch (_) {}
     });
 
-    return { ok: true, markerId: markerId, procedureId: procedureId };
+    return { ok: true, markerId: markerId, procedureId: procedureId, method: "request-fallback" };
+  }
+
+  async function applyMarkerBySpaAjax(checkbox) {
+    if (!checkbox || !window.jQuery) {
+      return { ok: false, error: "Ajax do SPA indisponivel para aplicar marcador." };
+    }
+
+    const markerId = checkbox.getAttribute("data-marker-id") || checkbox.value || "";
+    const procedureId =
+      checkbox.getAttribute("data-procedure-id") ||
+      (document.querySelector("#modal-marker") && document.querySelector("#modal-marker").getAttribute("data-procedure-id")) ||
+      "";
+    const url = checkbox.getAttribute("data-url") || "/marker_procedures";
+
+    if (!markerId || !procedureId) {
+      return { ok: false, error: "Dados do marcador incompletos para o Ajax do SPA." };
+    }
+
+    try {
+      window.jQuery(checkbox).prop("checked", true).prop("disabled", true);
+    } catch (_) {
+      checkbox.checked = true;
+      checkbox.disabled = true;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        window.jQuery.ajax({
+          type: "POST",
+          dataType: "script",
+          url: url,
+          data: {
+            marker_procedures: {
+              marker_id: markerId,
+              procedure_id: procedureId,
+            },
+          },
+          success: function () {
+            resolve({
+              ok: true,
+              markerId: markerId,
+              procedureId: procedureId,
+              method: "spa-ajax",
+            });
+          },
+          error: function (_xhr, status, error) {
+            resolve({
+              ok: false,
+              markerId: markerId,
+              procedureId: procedureId,
+              method: "spa-ajax",
+              error: error || status || "Ajax do SPA falhou ao aplicar marcador.",
+            });
+          },
+          complete: function () {
+            try {
+              window.jQuery(checkbox).prop("disabled", false);
+            } catch (_) {
+              checkbox.disabled = false;
+            }
+          },
+        });
+      } catch (error) {
+        try {
+          window.jQuery(checkbox).prop("disabled", false);
+        } catch (_) {
+          checkbox.disabled = false;
+        }
+        resolve({
+          ok: false,
+          markerId: markerId,
+          procedureId: procedureId,
+          method: "spa-ajax",
+          error: error && error.message ? error.message : String(error),
+        });
+      }
+    });
   }
 
   async function applyMarkerBySpaChangeHandler(checkbox) {
@@ -4241,6 +4317,19 @@ function applyConferidoMarkerScript(markerText) {
     };
   }
 
+  function findModalCloseControl(modal) {
+    const root = modal || document;
+    const controls = Array.from(root.querySelectorAll("a, button"));
+    const byText = controls.find((element) => visibleLocal(element) && normalizeLocal(element.textContent) === "fechar");
+    if (byText) return byText;
+    return (
+      root.querySelector("a[href*='reload_markers']") ||
+      root.querySelector("[data-dismiss='modal']") ||
+      root.querySelector(".close") ||
+      null
+    );
+  }
+
   async function closeMarkerModal(modal) {
     if (!modal) return;
     try {
@@ -4255,10 +4344,7 @@ function applyConferidoMarkerScript(markerText) {
 
     await sleepLocal(700);
     if (visibleLocal(modal)) {
-      const close =
-        modal.querySelector("a[href*='reload_markers']") ||
-        modal.querySelector("[data-dismiss='modal']") ||
-        modal.querySelector(".close");
+      const close = findModalCloseControl(modal);
       if (close) dispatchClickLikeUser(close);
     }
     await sleepLocal(900);
@@ -4339,11 +4425,11 @@ function applyConferidoMarkerScript(markerText) {
     }
 
     const checkbox = associatedCheckbox(row);
-    const visualResult = await applyMarkerByVisualFlow(row, checkbox);
+    let requestResult = checkbox ? await applyMarkerBySpaAjax(checkbox) : null;
+    const visualResult = requestResult && requestResult.ok ? requestResult : await applyMarkerByVisualFlow(row, checkbox);
     await closeMarkerModal(modal);
 
     let verified = await verifyMarkerPersisted(6000);
-    let requestResult = null;
     if (!verified.ok && checkbox) {
       requestResult = await applyMarkerByRequest(checkbox);
       await closeMarkerModal(document.querySelector("#modal-marker, .modal.show, .modal"));
@@ -4358,7 +4444,7 @@ function applyConferidoMarkerScript(markerText) {
           (requestResult && requestResult.markerId) ||
           (visualResult && visualResult.markerId) ||
           "",
-        method: requestResult && requestResult.ok ? "request-fallback" : "visual",
+        method: requestResult && requestResult.method ? requestResult.method : visualResult && visualResult.method ? visualResult.method : "visual",
       };
     }
 
@@ -4370,7 +4456,7 @@ function applyConferidoMarkerScript(markerText) {
         (requestResult && requestResult.markerId) ||
         (visualResult && visualResult.markerId) ||
         "",
-      method: requestResult && requestResult.ok ? "request-fallback" : "visual",
+      method: requestResult && requestResult.method ? requestResult.method : visualResult && visualResult.method ? visualResult.method : "visual",
       verifiedBy: verified.source,
     };
   }
