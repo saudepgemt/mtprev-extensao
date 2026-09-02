@@ -3957,6 +3957,7 @@ function applyConferidoMarkerScript(markerText) {
   }
 
   async function waitForSpaAjaxIdle() {
+    await sleepLocal(100);
     await waitUntil(() => {
       try {
         return !(window.jQuery && Number(window.jQuery.active));
@@ -3990,6 +3991,8 @@ function applyConferidoMarkerScript(markerText) {
     let score = activeTabScore(row);
     if (visibleLocal(row)) score += 30;
     if (row.querySelector(".btn-edit-marker, a[href*='/markers/']")) score += 10;
+    if (rawMarkerNameText(row) === wanted) score += 25;
+    if (/particular/i.test(String(row.textContent || ""))) score += 15;
     return score;
   }
 
@@ -3997,6 +4000,12 @@ function applyConferidoMarkerScript(markerText) {
     if (!row) return "";
     const name = row.querySelector(".text-marker, [id^='marker-item-name-']");
     return normalizeLocal(name ? name.textContent : "");
+  }
+
+  function rawMarkerNameText(row) {
+    if (!row) return "";
+    const name = row.querySelector(".text-marker, [id^='marker-item-name-']");
+    return String(name ? name.textContent || "" : "").replace(/\s+/g, " ").trim();
   }
 
   function findMarkerRow(container) {
@@ -4013,11 +4022,13 @@ function applyConferidoMarkerScript(markerText) {
           row: row,
           exact: text === wantedNormalized,
           contains: text.indexOf(wantedNormalized) >= 0,
+          caseExact: String(element.textContent || "").replace(/\s+/g, " ").trim() === wanted,
         };
       })
       .filter((item) => item.row && (item.exact || item.contains))
       .sort((a, b) => {
         if (a.exact !== b.exact) return a.exact ? -1 : 1;
+        if (a.caseExact !== b.caseExact) return a.caseExact ? -1 : 1;
         return rowScore(b.row) - rowScore(a.row);
       });
 
@@ -4085,9 +4096,9 @@ function applyConferidoMarkerScript(markerText) {
     body.append("utf8", "\u2713");
     const token = csrfToken();
     if (token) body.append("authenticity_token", token);
-    body.append("marker_id", markerId);
-    body.append("procedure_id", procedureId);
-    if (flowId) body.append("flow_id", flowId);
+    body.append("marker_procedures[marker_id]", markerId);
+    body.append("marker_procedures[procedure_id]", procedureId);
+    if (flowId) body.append("marker_procedures[flow_id]", flowId);
 
     const headers = {
       "X-Requested-With": "XMLHttpRequest",
@@ -4114,6 +4125,31 @@ function applyConferidoMarkerScript(markerText) {
     });
 
     return { ok: true, markerId: markerId, procedureId: procedureId };
+  }
+
+  async function applyMarkerBySpaChangeHandler(checkbox) {
+    if (!checkbox || !window.jQuery) {
+      return { ok: false, error: "Handler jQuery do SPA indisponivel." };
+    }
+
+    const markerId = checkbox.getAttribute("data-marker-id") || checkbox.value || "";
+    try {
+      window.jQuery(checkbox).prop("checked", true).trigger("change");
+      await waitForSpaAjaxIdle();
+      return {
+        ok: Boolean(checkbox.checked),
+        markerId: markerId,
+        method: "spa-change-handler",
+        error: checkbox.checked ? "" : "Handler do SPA nao manteve a checkbox selecionada.",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        markerId: markerId,
+        method: "spa-change-handler",
+        error: error && error.message ? error.message : String(error),
+      };
+    }
   }
 
   async function applyMarkerByVisualFlow(row, checkbox) {
@@ -4192,6 +4228,9 @@ function applyConferidoMarkerScript(markerText) {
           };
         }
       }
+
+      const spaHandlerResult = await applyMarkerBySpaChangeHandler(checkbox);
+      if (spaHandlerResult.ok) return spaHandlerResult;
     }
 
     return {
