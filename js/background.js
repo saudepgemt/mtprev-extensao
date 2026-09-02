@@ -3951,6 +3951,12 @@ function applyConferidoMarkerScript(markerText) {
     return score;
   }
 
+  function markerNameText(row) {
+    if (!row) return "";
+    const name = row.querySelector(".text-marker, [id^='marker-item-name-']");
+    return normalizeLocal(name ? name.textContent : "");
+  }
+
   function findMarkerRow(container) {
     const root = container || document;
     const wantedNormalized = normalizeLocal(wanted);
@@ -3977,17 +3983,22 @@ function applyConferidoMarkerScript(markerText) {
 
     const roots = Array.from(
       root.querySelectorAll(
-        "label, tr, li, .listview__item, .checkbox, .form-check, .custom-control, .marker-item, [data-marker-id]"
+        ".listview__item, .marker-item, [data-marker-id]"
       )
     )
-      .filter((element) => textHasMarker(element))
+      .filter((element) => {
+        const markerName = markerNameText(element);
+        return markerName ? markerName.indexOf(wantedNormalized) >= 0 : textHasMarker(element);
+      })
       .sort((a, b) => rowScore(b) - rowScore(a));
     return roots[0] || null;
   }
 
   function associatedCheckbox(row) {
     if (!row) return null;
-    const direct = row.querySelector("input[type='checkbox']");
+    const direct =
+      row.querySelector("input.marker-procedure-check[type='checkbox']") ||
+      row.querySelector("input[type='checkbox'][data-marker-id]");
     if (direct) return direct;
     const labelFor = row.tagName === "LABEL" ? row.getAttribute("for") : "";
     return labelFor ? document.getElementById(labelFor) : null;
