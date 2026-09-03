@@ -1003,7 +1003,7 @@
 
       #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
         display: grid;
-        grid-template-columns: repeat(5, minmax(108px, 1fr));
+        grid-template-columns: repeat(6, minmax(108px, 1fr));
         align-items: center;
         gap: 6px;
         width: 100%;
@@ -2057,6 +2057,19 @@
       }))
       .filter((entry) => entry.score > 0)
       .sort((a, b) => b.timestamp - a.timestamp || b.score - a.score || a.index - b.index)[0]?.item || null;
+  }
+
+  function findLatestDecisionItem(items) {
+    const decisionPattern = /\b(?:decis|tutela|liminar|desp|senten|monoc|julg|ement|acord)/;
+    return (Array.isArray(items) ? items : [])
+      .map((item, index) => ({
+        item: item,
+        index: index,
+        matches: decisionPattern.test(getExternalDocumentSearchText(item)),
+        timestamp: getExternalDocumentTimestamp(item),
+      }))
+      .filter((entry) => entry.matches)
+      .sort((a, b) => b.timestamp - a.timestamp || a.index - b.index)[0]?.item || null;
   }
 
   function findCurrentProcedureExpedienteItem() {
@@ -4511,6 +4524,7 @@
 
     const quickActionItems = [
       {
+        id: "initial-petition",
         label: "Petição inicial",
         run: async () => {
           const items = await ensureExternalDocumentItemsLoadedForQuickAction();
@@ -4523,6 +4537,7 @@
         },
       },
       {
+        id: "current-expediente",
         label: "Expediente atual",
         run: async () => {
           const item = findCurrentProcedureExpedienteItem();
@@ -4534,6 +4549,7 @@
         },
       },
       {
+        id: "latest-pge-petition",
         label: "Última petição PGE",
         run: async () => {
           const items = await ensureExternalDocumentItemsLoadedForQuickAction();
@@ -4545,6 +4561,23 @@
           await openExternalDocumentQuickItem(item, status, "Ultima peticao da PGE");
         },
       },
+      {
+        id: "latest-decision",
+        label: "Última decisão",
+        run: async () => {
+          if (getActiveSource().key === "movements") {
+            await openLatestDecisionMovement();
+            return;
+          }
+          const items = await ensureExternalDocumentItemsLoadedForQuickAction();
+          const item = findLatestDecisionItem(items);
+          if (!item) {
+            status.textContent = "Nao encontrei decisao no resumo carregado.";
+            return;
+          }
+          await openExternalDocumentQuickItem(item, status, "Ultima decisao");
+        },
+      },
     ];
 
     const quickActionButtons = [];
@@ -4553,6 +4586,7 @@
       const itemButton = document.createElement("button");
       itemButton.type = "button";
       itemButton.className = "spa-cdsp-external-docs-button spa-cdsp-external-docs-quick-direct";
+      itemButton.dataset.quickActionId = action.id;
       itemButton.textContent = action.label;
       itemButton.addEventListener("click", async () => {
         quickActionButtons.forEach((button) => {
@@ -4562,6 +4596,7 @@
         setProcessCompleteButtonsDisabled(true);
         setSelectedDocumentsButtonsDisabled(true);
         setContentOpenAllButtonsDisabled(true);
+        latestDecisionButton.disabled = true;
         itemButton.disabled = true;
         try {
           await action.run();
@@ -4573,6 +4608,7 @@
           setProcessCompleteButtonsDisabled(false);
           setSelectedDocumentsButtonsDisabled(false);
           setContentOpenAllButtonsDisabled(false);
+          latestDecisionButton.disabled = false;
           itemButton.disabled = false;
         }
       });
@@ -4739,6 +4775,11 @@
       });
       latestDecisionButton.style.display = isMovements ? "" : "none";
       pgeStateOption.style.display = isMovements ? "" : "none";
+      openAllWrap.style.display = isMovements ? "none" : "";
+      selectedWrap.style.display = isMovements ? "none" : "";
+      quickActionButtons.forEach((button) => {
+        button.style.display = !isMovements || button.dataset.quickActionId === "latest-decision" ? "" : "none";
+      });
       updateQuickFilterButtonLabel();
     }
 
@@ -5173,17 +5214,8 @@
     }
 
     async function ensureExternalDocumentItemsLoadedForQuickAction() {
-      const activeSource = getActiveSource();
-      const source =
-        activeSource.key === "movements"
-          ? sources.autos && sources.autos.url
-            ? sources.autos
-            : sources.folder
-          : activeSource;
-      if (!source || !source.url) {
-        status.textContent = "Nao encontrei uma fonte de Autos ou Pasta para localizar a peticao.";
-        return [];
-      }
+      const source = getActiveSource();
+      if (source.key === "movements") return [];
       const cache = getSourceCache(source.key);
 
       if (panel.dataset.loading === "1") {
@@ -5192,8 +5224,7 @@
       }
 
       if (!cache.loaded) {
-        status.textContent = "Carregando " + (source.label || "Autos/Pasta") + " para localizar a peticao...";
-        await loadExternalSourceIntoCache(source, { force: false });
+        await loadActiveExternalSource();
       }
 
       return Array.isArray(getSourceCache(source.key).items) ? getSourceCache(source.key).items : [];

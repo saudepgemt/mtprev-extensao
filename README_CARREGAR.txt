@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.67
+CDSP Extensao Geral - 1.68
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -46,7 +46,7 @@ Comportamento:
 - A checkbox "Abrir minimizado" do painel de Autos define se novas paginas de processo abrem esse painel recolhido.
 - A aba "Andamento PJE" consulta o Worker/MCP institucional e mostra movimentos com expedientes vinculados, ciencia, prazo legal, prazo final, parte, procuradoria e status do expediente.
 - O visual da aba "Andamento PJE" foi ampliado, com timeline mais legivel, blocos de expediente maiores e grade clara para ciencia, expedicao e prazos.
-- A acao "Ultima peticao PGE" fica na barra de acoes dos Autos, Pasta e Andamento PJE, sem ficar dentro do menu de filtros; quando acionada pelo Andamento PJE, consulta Autos/Pasta em segundo plano sem trocar a aba visivel.
+- A acao "Ultima decisao" fica na barra de acoes dos Autos, da Pasta e do Andamento PJE. No Andamento PJE, ela usa a mesma rotina dos filtros para localizar a decisao vinculada; os demais comandos rapidos continuam ocultos e o botao tambem permanece dentro do menu de filtros, como na versao 1.66.
 - Cada cartao de "Prazos em aberto do Estado" no Andamento PJE possui o botao "Abrir PDF", que abre o expediente vinculado ao prazo.
 - No painel interno "Autos do processo", o botao "Processo Completo" abre um seletor em duas etapas: primeiro Unificado ou Separado; depois Crescente ou Decrescente.
 - O painel de autos carrega automaticamente; use "Atualizar" apenas para refazer a leitura.
@@ -94,8 +94,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.67.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.68.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.67.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.68.zip" no painel da Chrome Web Store.

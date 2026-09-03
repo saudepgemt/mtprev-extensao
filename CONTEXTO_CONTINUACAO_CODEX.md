@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.67`
-- Ultima tag publicada no repositorio: `v1.67`
+- Versao atual da extensao: `1.68`
+- Ultima tag publicada no repositorio: `v1.68`
 
 ## Como retomar no notebook
 
@@ -119,6 +119,11 @@ Versao `1.67`:
 - A acao `Ultima peticao PGE` foi mantida na barra comum de acoes de `Autos`, `Pasta` e `Andamento PJE`, sem aparecer dentro do menu de filtros. No Andamento PJE, ela consulta o cache de Autos/Pasta em segundo plano para localizar a peca, sem trocar a fonte visivel.
 - Cada cartao de `Prazos em aberto do Estado` no Andamento PJE passou a ter `Abrir PDF`, que resolve e abre o expediente especifico vinculado ao prazo pela mesma rotina ja usada nas movimentacoes.
 
+Versao `1.68`:
+
+- `Ultima decisao` foi adicionada a barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, abre a decisao mais recente identificada pela data dos documentos; no Andamento PJE, chama a mesma rotina existente dos filtros para localizar a decisao vinculada. Os demais comandos rapidos continuam ocultos no Andamento e `Ultima decisao` tambem permanece dentro do menu de filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas nos fluxos de Autos/Pasta, como antes.
+- Os botoes `Abrir PDF` de `Prazos em aberto do Estado` foram mantidos.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -132,7 +137,7 @@ Versao `1.67`:
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
-- Nos Autos processuais, preservar `Ultima peticao PGE` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`, nunca dentro do menu de filtros. `Ultima decisao` continua sendo a acao especifica dos filtros do Andamento PJE. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
+- Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
 
 ## Arquivos importantes
