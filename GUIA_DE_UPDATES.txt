@@ -7,7 +7,7 @@ Padrao atual:
 - Menu geral: Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios no mesmo painel, com titulo geral "CDSP".
 - Manifest/action: preservar o nome publico da extensao como "CDSP - Extensao Geral"; o titulo interno do menu pode permanecer "CDSP".
 - Identidade visual unificada no menu geral: cabecalho CDSP grande antigo da Triagem nos modulos, titulos curtos, paleta escura unica e painel de log padronizado.
-- Menu geral: preservar memoria em CDSP_GENERAL_SHELL_STATE para posicao e modulo ativo; o estado inicial minimizado das novas abas deve ser controlado pela checkbox "Abrir minimizado" em CDSP_GENERAL_SHELL_OPEN_MINIMIZED. A checkbox deve ficar no cabecalho, ao lado de CDSP, e permanecer visivel com o painel aberto ou recolhido.
+- Menu geral: preservar memoria em CDSP_GENERAL_SHELL_STATE para posicao e modulo ativo; o estado inicial minimizado das novas abas deve ser controlado pela checkbox "Abrir minimizado" em CDSP_GENERAL_SHELL_OPEN_MINIMIZED. A checkbox deve ficar no extremo direito do cabecalho, antes do botao de recolher, e permanecer visivel com o painel aberto ou recolhido.
 - Triagem e Protocolo: nao reintroduzir a aba ou os comandos internos de "Encerrar"; preservar somente o botao "Encerrar" do cabecalho do painel da Triagem.
 - Extrator SPA/SIGADOC: no SPA, acoes ficam no modulo Oficios do menu geral; no SIGADOC, usar menu compacto proprio apenas com funcoes do SIGADOC, sem carregar os modulos do SPA.
 - Extrator SIGADOC: selecionar o campo Modelo antes do Texto padrao; usar Oficio para os modelos comuns e Comunicacao Interna para os tipos PERICIA ESTADO e PERICIA JUSTICA GRATUITA.
@@ -130,7 +130,7 @@ Como atualizar em versoes futuras:
 Checklist rapido:
 - O menu minimiza e expande.
 - O menu preserva posicao e modulo ativo, e a checkbox "Abrir minimizado" faz novas abas abrirem com o menu principal recolhido.
-- A checkbox "Abrir minimizado" fica no cabecalho ao lado de CDSP e continua visivel quando o menu esta recolhido.
+- A checkbox "Abrir minimizado" fica no extremo direito do cabecalho, antes do botao de recolher, e continua visivel quando o menu esta recolhido.
 - O menu alterna entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios no mesmo painel.
 - Triagem e Protocolo nao exibe aba interna "Encerrar"; o encerramento fica somente no botao do cabecalho.
 - Os modulos exibem a marca CDSP no mesmo padrao visual dentro do menu geral.

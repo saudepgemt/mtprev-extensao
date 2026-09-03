@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.71`
-- Ultima tag publicada no repositorio: `v1.71`
+- Versao atual da extensao: `1.72`
+- Ultima tag publicada no repositorio: `v1.72`
 
 ## Como retomar no notebook
 
@@ -139,6 +139,10 @@ Versao `1.71`:
 - A aba interna `Encerrar` foi removida do modulo Triagem e Protocolo. O encerramento do fluxo permanece disponivel somente pelo botao `Encerrar` no cabecalho do painel da Triagem.
 - A checkbox `Abrir minimizado` do menu geral foi movida para o cabecalho, ao lado de `CDSP`, e permanece visivel tanto com o painel aberto quanto recolhido.
 
+Versao `1.72`:
+
+- A checkbox `Abrir minimizado` foi reposicionada no extremo direito do cabecalho do menu geral, antes do botao de recolher, para permanecer visualmente separada do titulo `CDSP` nos estados aberto e recolhido.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -147,7 +151,7 @@ Versao `1.71`:
 - No SPA, as funcoes do Extrator ficam integradas no modulo `Oficios` do menu geral.
 - No SIGADOC, carregar apenas o menu compacto proprio do Extrator/SIGADOC, sem menu geral do SPA e sem botoes soltos.
 - O menu geral deve ser compacto, movel e com memoria opcional de minimizacao/posicao.
-- No modulo Triagem e Protocolo, nao reintroduzir a aba ou comandos internos de `Encerrar`; preservar somente o botao `Encerrar` do cabecalho. A checkbox `Abrir minimizado` do menu geral deve ficar no cabecalho ao lado de `CDSP` e permanecer visivel quando o painel estiver recolhido.
+- No modulo Triagem e Protocolo, nao reintroduzir a aba ou comandos internos de `Encerrar`; preservar somente o botao `Encerrar` do cabecalho. A checkbox `Abrir minimizado` do menu geral deve ficar no extremo direito do cabecalho, antes do botao de recolher, e permanecer visivel quando o painel estiver recolhido.
 - A ferramenta de busca nos autos nao deve aparecer em paginas de caixa/listagem de processos.
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.

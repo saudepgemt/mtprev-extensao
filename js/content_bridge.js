@@ -622,8 +622,8 @@
     memory.appendChild(memoryText);
 
     header.appendChild(title);
-    header.appendChild(memory);
     header.appendChild(status);
+    header.appendChild(memory);
     header.appendChild(collapse);
     shell.appendChild(header);
 
