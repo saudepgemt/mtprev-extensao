@@ -6030,7 +6030,7 @@
         log(
           "Ainda aguardando o carregamento da tabela (" +
             Math.round(elapsed / 1000) +
-            "s). Use Encerrar Fluxo se quiser parar."
+            "s). Use Encerrar se quiser parar."
         );
         nextProgressLog += CONFIG.processingProgressLogMs;
       }
@@ -11993,15 +11993,6 @@
     pecasPage.appendChild(pecasButtons);
     pecasPage.appendChild(pecasHint);
 
-    const encerramentoPage = document.createElement("div");
-    const encerramentoButtons = createButtonGrid();
-    appendFullWidthButton(
-      encerramentoButtons,
-      createButton("Encerrar Marcados", () => closeMarkedAllPages(currentActionLimit()), "red")
-    );
-    appendFullWidthButton(encerramentoButtons, createButton("Encerrar Fluxo", stop, "gray"));
-    encerramentoPage.appendChild(encerramentoButtons);
-
     const filtrosPage = document.createElement("div");
     filtrosPage.appendChild(createPageBatchControls());
     filtrosPage.appendChild(createJurisdictionControls());
@@ -12018,7 +12009,6 @@
       { id: "triagem", label: "Triagem", page: triagemPage },
       { id: "duplicados", label: "Duplicados", page: duplicadosPage },
       { id: "pecas", label: "Peças", page: pecasPage },
-      { id: "encerrar", label: "Encerrar", page: encerramentoPage },
       { id: "filtros", label: "Filtros", page: filtrosPage },
       { id: "programada", label: "Programada", page: programadaPage },
       { id: "registro", label: "Registro", page: registroPage },

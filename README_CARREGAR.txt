@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.70
+CDSP Extensao Geral - 1.71
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -16,7 +16,8 @@ Comportamento:
 - O nome publico da extensao no Chrome e "CDSP - Extensao Geral"; o menu interno permanece compacto como "CDSP".
 - O menu geral e pequeno, movimentavel e parecido com o painel da Triagem.
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
-- O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado" define se novas abas do SPA abrem com o menu principal recolhido.
+- O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no cabecalho ao lado de CDSP, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.
+- Em Triagem e Protocolo, o encerramento do fluxo fica somente no botao "Encerrar" do cabecalho; nao ha mais aba interna de encerramento.
 - O SPA tem o modulo Oficios dentro do menu geral, reunindo as acoes do Extrator de forma organizada.
 - Na caixa do SPA, o botao SIG abre a pagina do processo em segundo plano e extrai os dados completos pelo mesmo fluxo do botao interno.
 - Se a aba temporaria nao responder, o modulo tenta uma leitura direta da pagina do processo como contingencia.
@@ -96,8 +97,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.70.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.71.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.70.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.71.zip" no painel da Chrome Web Store.

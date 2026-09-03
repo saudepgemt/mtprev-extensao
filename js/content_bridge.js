@@ -184,7 +184,13 @@
 
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
-      if (event.target && event.target.closest && event.target.closest("button,input,select,textarea,a")) return;
+      if (
+        event.target &&
+        event.target.closest &&
+        event.target.closest("button,input,select,textarea,a,.cdsp-general-shell__memory")
+      ) {
+        return;
+      }
       const rect = shell.getBoundingClientRect();
       drag = {
         pointerId: event.pointerId,
@@ -601,16 +607,6 @@
     collapse.textContent = "-";
     collapse.title = "Recolher ou expandir";
 
-    header.appendChild(title);
-    header.appendChild(status);
-    header.appendChild(collapse);
-    shell.appendChild(header);
-
-    const nav = document.createElement("div");
-    nav.className = "cdsp-general-shell__modules";
-    MODULES.forEach((module) => nav.appendChild(createModuleButton(module)));
-    shell.appendChild(nav);
-
     const memory = document.createElement("label");
     memory.className = "cdsp-general-shell__memory";
     memory.title = "Quando marcado, novas abas do SPA abrem o menu CDSP minimizado.";
@@ -624,7 +620,17 @@
 
     memory.appendChild(memoryInput);
     memory.appendChild(memoryText);
-    shell.appendChild(memory);
+
+    header.appendChild(title);
+    header.appendChild(memory);
+    header.appendChild(status);
+    header.appendChild(collapse);
+    shell.appendChild(header);
+
+    const nav = document.createElement("div");
+    nav.className = "cdsp-general-shell__modules";
+    MODULES.forEach((module) => nav.appendChild(createModuleButton(module)));
+    shell.appendChild(nav);
 
     const body = document.createElement("div");
     body.className = "cdsp-general-shell__body";

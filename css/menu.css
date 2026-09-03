@@ -35,7 +35,7 @@
 .cdsp-general-shell__header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 9px 10px;
   background: #1f2d3a;
   cursor: grab;
@@ -48,7 +48,7 @@
 }
 
 .cdsp-general-shell__title {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
   color: #fff;
@@ -128,18 +128,20 @@
 }
 
 .cdsp-general-shell__memory {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 28px;
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 24px;
+  padding: 0;
+  border: 0;
   color: #cfd8dc;
-  background: #101820;
+  background: transparent;
   cursor: pointer;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1.2;
+  white-space: nowrap;
   user-select: none;
 }
 
@@ -174,12 +176,11 @@
 }
 
 .cdsp-general-shell--collapsed {
-  width: 205px;
+  width: 238px;
 }
 
 .cdsp-general-shell--collapsed .cdsp-general-shell__modules,
 .cdsp-general-shell--collapsed .cdsp-general-shell__body,
-.cdsp-general-shell--collapsed .cdsp-general-shell__memory,
 .cdsp-general-shell--collapsed .cdsp-general-shell__status {
   display: none;
 }
