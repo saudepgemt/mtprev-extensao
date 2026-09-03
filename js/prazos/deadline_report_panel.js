@@ -4032,10 +4032,13 @@
   function isViewEditMinuteLink(element, procedureId) {
     const href = elementUrl(element);
     const text = candidateActionText(element);
+    const progress = element.closest(".timeline-progress, .timeline-item, li");
+    const progressText = progress ? candidateActionText(progress) : "";
 
     if (!href || href.indexOf("/procedures/" + procedureId + "/new_progress/") < 0) return false;
     if (href.indexOf("edited_progress_id=") < 0) return false;
-    return text.indexOf("visualizar") >= 0 && text.indexOf("editar") >= 0 && text.indexOf("minuta") >= 0;
+    if (text.indexOf("visualizar") >= 0 && text.indexOf("editar") >= 0 && text.indexOf("minuta") >= 0) return true;
+    return text.indexOf("editar") >= 0 && progressText.indexOf("minuta elaborada") >= 0;
   }
 
   function findViewEditMinuteLink(procedureId) {
@@ -4047,12 +4050,29 @@
 
   async function waitForViewEditMinuteLink(procedureId) {
     const started = Date.now();
-    while (Date.now() - started < 15000) {
+    while (Date.now() - started < 30000) {
       const link = findViewEditMinuteLink(procedureId);
       if (link) return link;
       await sleep(300);
     }
     return null;
+  }
+
+  function isCurrentCorrectionMinuteUrl(href) {
+    const targetUrl = resolveSpaUrl(href);
+    if (!targetUrl) return false;
+
+    try {
+      const current = new URL(window.location.href);
+      const target = new URL(targetUrl);
+      if (current.pathname !== target.pathname || !currentProgressStepIdFromPath()) return false;
+
+      const targetProgressId = target.searchParams.get("edited_progress_id");
+      const currentProgressId = current.searchParams.get("edited_progress_id");
+      return !targetProgressId || !currentProgressId || targetProgressId === currentProgressId;
+    } catch (_error) {
+      return false;
+    }
   }
 
   function isSendToProcuradorControl(element, procedureId) {
@@ -5208,25 +5228,23 @@
       currentUrl: beforeClickUrl,
       pendencyUrl: beforeClickUrl
     });
-    removeCorrectionOpenQueueItem(procedureId);
-
     if (link.scrollIntoView) {
       link.scrollIntoView({ block: "center", inline: "nearest" });
     }
 
-    try {
-      link.click();
-    } catch (_error) {
+    const clicked = clickElement(link);
+    if (!clicked) {
       if (href) window.location.assign(href);
       return;
     }
 
     if (href) {
       window.setTimeout(() => {
-        if (window.location.href === beforeClickUrl && !currentProgressStepIdFromPath()) {
+        if (!isCurrentCorrectionMinuteUrl(href)) {
+          log("Clique da minuta nao navegou; aplicando abertura direta para o processo " + (item.processNumber || procedureId) + ".", "warn");
           window.location.assign(href);
         }
-      }, 1200);
+      }, 1500);
     }
   }
 

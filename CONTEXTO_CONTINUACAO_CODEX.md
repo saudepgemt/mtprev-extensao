@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.68`
-- Ultima tag publicada no repositorio: `v1.68`
+- Versao atual da extensao: `1.69`
+- Ultima tag publicada no repositorio: `v1.69`
 
 ## Como retomar no notebook
 
@@ -124,6 +124,11 @@ Versao `1.68`:
 - `Ultima decisao` foi adicionada a barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, abre a decisao mais recente identificada pela data dos documentos; no Andamento PJE, chama a mesma rotina existente dos filtros para localizar a decisao vinculada. Os demais comandos rapidos continuam ocultos no Andamento e `Ultima decisao` tambem permanece dentro do menu de filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas nos fluxos de Autos/Pasta, como antes.
 - Os botoes `Abrir PDF` de `Prazos em aberto do Estado` foram mantidos.
 
+Versao `1.69`:
+
+- O Fluxo de Correcao passou a reconhecer tambem o link `Editar passo` quando ele estiver dentro de uma etapa `Minuta elaborada`, alem do texto completo `Visualizar e editar minuta`.
+- A busca do link da minuta passou a aguardar ate 30 segundos. A fila local nao e mais removida antes da navegacao: apos o clique nativo, a extensao confirma a URL do editor e, se o SPA nao navegar, abre diretamente a URL da minuta como contingencia.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -134,6 +139,7 @@ Versao `1.68`:
 - O menu geral deve ser compacto, movel e com memoria opcional de minimizacao/posicao.
 - A ferramenta de busca nos autos nao deve aparecer em paginas de caixa/listagem de processos.
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
+- No Fluxo de Correcao, preservar a abertura confiavel da minuta: reconhecer `Visualizar e editar minuta` e o fallback `Editar passo` em etapa `Minuta elaborada`, aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
