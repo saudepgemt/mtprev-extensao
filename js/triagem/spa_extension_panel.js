@@ -3805,6 +3805,7 @@
 
     const list = document.createElement("div");
     list.className = "spa-cdsp-movement-open-deadlines-list";
+    const panel = parent.closest("#spa-cdsp-external-docs-panel");
     deadlines.slice(0, 12).forEach(({ movement, expediente }) => {
       const item = document.createElement("div");
       item.className = "spa-cdsp-movement-open-deadline-item";
@@ -3818,6 +3819,17 @@
         '<span>Tempo restante: ' +
         escapeHtml(expediente.remainingText || "Nao informado") +
         "</span>";
+
+      if (panel && typeof panel._openMovementLinkedDocument === "function") {
+        const openDocument = createMovementActionButton(
+          "Abrir PDF",
+          "Abrir o expediente vinculado a este prazo em aberto."
+        );
+        openDocument.addEventListener("click", () => {
+          panel._openMovementLinkedDocument(createMovementExpedienteLinkItem(expediente), "document");
+        });
+        item.appendChild(openDocument);
+      }
       list.appendChild(item);
     });
     box.appendChild(list);
@@ -5075,7 +5087,7 @@
         source.key === "movements"
           ? "Pesquisar por movimento, número, data ou texto... Use ; para vários termos."
           : "Filtrar por tipo, ID, descrição ou data... Use ; para vários termos.";
-      quickActionsBar.style.display = source.key === "movements" ? "none" : "";
+      quickActionsBar.style.display = "";
       updateQuickFilterAvailability(source);
       filterMenu.hidden = true;
     }
@@ -5133,7 +5145,7 @@
       panel._externalDocumentItems = [];
       search.value = "";
       search.style.display = "";
-      searchRow.style.display = source.key === "movements" ? "none" : "";
+      searchRow.style.display = "";
       contentSearch.style.display = "none";
       contentSearchResults.style.display = "none";
       contentSearchResults.textContent = "";
@@ -5161,8 +5173,17 @@
     }
 
     async function ensureExternalDocumentItemsLoadedForQuickAction() {
-      const source = getActiveSource();
-      if (source.key === "movements") return [];
+      const activeSource = getActiveSource();
+      const source =
+        activeSource.key === "movements"
+          ? sources.autos && sources.autos.url
+            ? sources.autos
+            : sources.folder
+          : activeSource;
+      if (!source || !source.url) {
+        status.textContent = "Nao encontrei uma fonte de Autos ou Pasta para localizar a peticao.";
+        return [];
+      }
       const cache = getSourceCache(source.key);
 
       if (panel.dataset.loading === "1") {
@@ -5171,7 +5192,8 @@
       }
 
       if (!cache.loaded) {
-        await loadActiveExternalSource();
+        status.textContent = "Carregando " + (source.label || "Autos/Pasta") + " para localizar a peticao...";
+        await loadExternalSourceIntoCache(source, { force: false });
       }
 
       return Array.isArray(getSourceCache(source.key).items) ? getSourceCache(source.key).items : [];
@@ -5368,7 +5390,7 @@
       viewer.textContent = "";
       search.style.display = "none";
       searchRow.style.display = "none";
-      quickActionsBar.style.display = isMovements ? "none" : "";
+      quickActionsBar.style.display = "";
       contentSearch.style.display = "none";
       contentSearchResults.style.display = "none";
       contentSearchResults.textContent = "";
