@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.69
+CDSP Extensao Geral - 1.70
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -39,6 +39,7 @@ Comportamento:
 - O botao "Abrir" abre as pendencias filtradas e, em cada aba, aciona automaticamente "Visualizar e editar minuta".
 - No Fluxo de Correcao, a abertura da minuta usa o clique nativo do SPA, prepara o historico da aba em duas etapas e ajusta a seta nativa de voltar para retornar a pendencia correta.
 - Se o SPA ignorar o clique da minuta, o Fluxo de Correcao confirma a navegacao pela URL do editor e usa abertura direta como contingencia; a fila so e removida depois que a minuta realmente abre.
+- O Fluxo de Correcao aciona exclusivamente o link "Visualizar e editar minuta"; outros botoes de etapa nao fazem parte desse fluxo.
 - O Fluxo de Correcao inclui atalhos unicos para "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor", cada um com opcoes "Tela da pendencia" e "Tela da Minuta".
 - "Enviar ao procurador" direciona ao passo 2882, "Sugerir encerramento de tarefa" ao passo 2756 e "Devolver ao assessor" ao passo 2786, confirmando no botao Salvar quando a tela do passo abre.
 - O modulo Redacao e Correcao inclui o fluxo "Simples Encerramento", com selecao progressiva de tipo, peca, ID, data e checklist.
@@ -95,8 +96,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.69.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.70.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.69.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.70.zip" no painel da Chrome Web Store.

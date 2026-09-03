@@ -4032,13 +4032,10 @@
   function isViewEditMinuteLink(element, procedureId) {
     const href = elementUrl(element);
     const text = candidateActionText(element);
-    const progress = element.closest(".timeline-progress, .timeline-item, li");
-    const progressText = progress ? candidateActionText(progress) : "";
 
     if (!href || href.indexOf("/procedures/" + procedureId + "/new_progress/") < 0) return false;
     if (href.indexOf("edited_progress_id=") < 0) return false;
-    if (text.indexOf("visualizar") >= 0 && text.indexOf("editar") >= 0 && text.indexOf("minuta") >= 0) return true;
-    return text.indexOf("editar") >= 0 && progressText.indexOf("minuta elaborada") >= 0;
+    return text.indexOf("visualizar") >= 0 && text.indexOf("editar") >= 0 && text.indexOf("minuta") >= 0;
   }
 
   function findViewEditMinuteLink(procedureId) {
