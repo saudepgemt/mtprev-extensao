@@ -5558,6 +5558,7 @@
     const text = candidateActionText(element);
     if (!href && element.tagName !== "BUTTON") return false;
     if (target.folderOnly && href.indexOf("/manage_documents/list_document_type/") < 0) return false;
+    if (target.exactText && text !== normalizeKey(target.exactText)) return false;
 
     if (target.documentTypeId && href.indexOf("/manage_documents/list_document_type/" + target.documentTypeId) >= 0) {
       return true;
@@ -5805,7 +5806,7 @@
       { documentTypeId: "63", tokens: ["modelos", "publicos"], folderOnly: true },
       { documentTypeId: "78", tokens: ["sgj", "subprocuradoria"], folderOnly: true },
       { documentTypeId: "787", tokens: ["nsus", "nucleo", "saude"], folderOnly: true },
-      { tokens: ["procedimentos"], folderOnly: true },
+      { exactText: "Procedimentos", folderOnly: true },
       { documentTypeId: "1204", tokens: ["2", "simples", "encerramento"], folderOnly: true },
       target.folder
     ];
