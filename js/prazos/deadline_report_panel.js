@@ -5895,14 +5895,8 @@
     log("Modelo aberto e texto do Simples Encerramento inserido na minuta.", "ok");
   }
 
-  async function startSimpleClosureDocumentAction(closureTypeKey, payload, permissionResult) {
+  async function startSimpleClosureDocumentAction(closureTypeKey, payload) {
     if (!payload || !SIMPLE_CLOSURE_MODEL_TARGETS[closureTypeKey]) return;
-    if (!permissionResult || !permissionResult.ok) {
-      const detail = permissionResult && permissionResult.error ? permissionResult.error : "Permissao nao concedida.";
-      log("Texto gerado, mas a automacao da minuta nao foi iniciada: " + detail, "error");
-      window.alert("O texto foi gerado e copiado, mas a permissao do Google Docs nao foi concedida.\n\n" + detail);
-      return;
-    }
 
     const procedureId = currentProcedureIdFromPath();
     if (!procedureId) {
@@ -6823,8 +6817,6 @@
     const generateButton = createButton("Gerar Simples Encerramento", async () => {
       const model = selectedModel();
       if (!model || !canGenerate(model)) return;
-      // A solicitacao ocorre no clique para o Chrome reconhecer a acao do usuario.
-      const permissionRequest = sendSimpleClosureBridgeMessage("SPA_CDSP_SIMPLE_CLOSURE_REQUEST_DOCS_PERMISSION");
       const outputValues = simpleClosureValuesForOutput(model, state.values, pieceSelect.value);
       const items = model.lines
         .map((line) => ({ text: interpolateSimpleClosureText(line, outputValues), level: 0 }))
@@ -6839,9 +6831,8 @@
         piece: pieceSelect.value,
         items
       });
-      const permissionResult = await permissionRequest;
       try {
-        await startSimpleClosureDocumentAction(typeSelect.value, payload, permissionResult);
+        await startSimpleClosureDocumentAction(typeSelect.value, payload);
       } catch (error) {
         window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
         const detail = error && error.message ? error.message : String(error);

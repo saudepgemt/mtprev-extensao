@@ -1,3 +1,4 @@
 clipboardWrite: copia textos e dados extraidos pelo usuario.
 downloads: exporta PDFs, Excel e documentos gerados pelo usuario.
 unlimitedStorage: guarda arquivos temporarios e cache local das rotinas.
+https://docs.google.com/*: usado exclusivamente no fluxo Simples Encerramento para inserir, na minuta criada pelo usuario no SPA, o texto que a propria extensao acabou de gerar. Nao coleta, transmite ou usa dados de documentos fora dessa substituicao solicitada pelo usuario.

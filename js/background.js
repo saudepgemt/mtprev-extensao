@@ -4755,19 +4755,6 @@ async function injectDeadlinePanel(sender) {
   }
 }
 
-async function requestSimpleClosureGoogleDocsPermission() {
-  const permissions = { origins: [SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN] };
-  const alreadyGranted = await chrome.permissions.contains(permissions);
-  if (alreadyGranted) return { ok: true, granted: true, alreadyGranted: true };
-
-  const granted = await chrome.permissions.request(permissions);
-  return {
-    ok: granted,
-    granted,
-    error: granted ? "" : "A permissao para preencher o Google Docs nao foi concedida."
-  };
-}
-
 async function insertSimpleClosureIntoGoogleDoc(payload) {
   if (location.hostname !== "docs.google.com") return { skipped: true };
 
@@ -4851,7 +4838,7 @@ async function insertSimpleClosureIntoCurrentDocument(sender, payload) {
 
   const permissions = { origins: [SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN] };
   if (!(await chrome.permissions.contains(permissions))) {
-    return { ok: false, error: "A permissao do Google Docs ainda nao foi concedida." };
+    return { ok: false, error: "A permissao do Google Docs nao esta ativa. Recarregue a extensao e aceite a atualizacao." };
   }
 
   let lastError = "Editor do Google Docs nao encontrado.";
@@ -4921,16 +4908,6 @@ async function injectPanel(sender) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
-
-  if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_REQUEST_DOCS_PERMISSION") {
-    requestSimpleClosureGoogleDocsPermission()
-      .then(sendResponse)
-      .catch((error) => {
-        sendResponse({ ok: false, error: error && error.message ? error.message : String(error) });
-      });
-
-    return true;
-  }
 
   if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT") {
     insertSimpleClosureIntoCurrentDocument(_sender, message.payload)
