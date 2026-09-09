@@ -316,50 +316,421 @@
     preclusao_temporal: {
       label: "Preclus\u00e3o Temporal",
       pieces: [
-        "Agravo de Instrumento/Interno",
+        "Contesta\u00e7\u00e3o / Contrarraz\u00f5es / Contraminuta",
+        "Apela\u00e7\u00e3o",
+        "Recurso Inominado",
+        "Agravo de Instrumento",
         "Embargos de Declara\u00e7\u00e3o",
-        "Apela\u00e7\u00e3o/Recurso Inominado",
-        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"
+        "Agravo Interno",
+        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+        "Recurso Especial / Recurso Extraordin\u00e1rio"
       ]
     },
     conteudo_irrecorrivel: {
       label: "Conte\u00fado ao qual n\u00e3o cabe Recorrer/Manifestar",
       pieces: [
+        "Contesta\u00e7\u00e3o",
+        "Contraminuta / Contrarraz\u00f5es",
+        "Agravo de Instrumento",
+        "Embargos de Declara\u00e7\u00e3o",
+        "Agravo Interno",
         "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
         "Manifesta\u00e7\u00e3o",
-        "Agravo de Instrumento",
-        "Embargos de Declara\u00e7\u00e3o em Ac\u00f3rd\u00e3o",
-        "Embargos de Declara\u00e7\u00e3o em Senten\u00e7a",
-        "Agravo Interno"
+        "Senten\u00e7a/Ac\u00f3rd\u00e3o: Extin\u00e7\u00e3o sem Resolu\u00e7\u00e3o de M\u00e9rito",
+        "Senten\u00e7a/Ac\u00f3rd\u00e3o: Extin\u00e7\u00e3o com Resolu\u00e7\u00e3o de M\u00e9rito"
       ]
     },
     demais_situacoes: {
       label: "Demais Situa\u00e7\u00f5es",
-      pieces: ["Pauta de Julgamento", "Retorno dos Autos", "Decl\u00ednio de Compet\u00eancia"]
+      pieces: ["Pauta de Julgamento", "Retorno dos Autos", "Decl\u00ednio de Compet\u00eancia", "Outras Situa\u00e7\u00f5es"]
     },
     preclusao_consumativa: {
       label: "Preclus\u00e3o Consumativa",
       pieces: [
-        "Agravo de Instrumento",
-        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
         "Contesta\u00e7\u00e3o",
         "Apela\u00e7\u00e3o",
+        "Recurso Inominado",
+        "Contrarraz\u00f5es",
+        "Agravo de Instrumento",
+        "Contraminuta",
         "Embargos de Declara\u00e7\u00e3o",
-        "Contrarraz\u00f5es"
+        "Agravo Interno",
+        "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+        "Manifesta\u00e7\u00e3o",
+        "Recurso Especial / Recurso Extraordin\u00e1rio"
       ]
     }
   };
-  const SIMPLE_CLOSURE_PARAMETERIZED_KEY = "preclusao_consumativa|Contesta\u00e7\u00e3o";
-  const SIMPLE_CLOSURE_CHECKLIST = [
-    "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o",
-    "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar"
-  ];
   const SIMPLE_CLOSURE_FORMAT = {
     fontFamily: "'Times New Roman', Times, serif",
     fontSize: "14pt",
     lineHeight: "115%",
     textIndent: "1.25cm"
   };
+
+  function createSimpleClosureModels() {
+    const models = Object.create(null);
+    const field = (key, label, type, options) => Object.assign({ key, label, type: type || "text", required: true }, options || {});
+    const choice = (key, label, options, when) => field(key, label, "choice", { options, when });
+    const check = (key, text, options) => Object.assign({ key, text, required: true, level: 0 }, options || {});
+    const add = (typeKey, piece, fields, lines, checks, options) => {
+      models[typeKey + "|" + piece] = Object.assign({ fields, lines, checks: checks || [] }, options || {});
+    };
+    const protocolDate = field("protocolDate", "Data", "date");
+    const pgeDate = field("pgeDate", "Data da intima\u00e7\u00e3o da PGE", "date");
+    const protocolId = field("protocolId", "ID", "text");
+    const id = (key, label, options) => field(key, label || "ID", "text", options);
+    const processNumber = field("processNumber", "Processo origin\u00e1rio", "cnj");
+    const pgeLine = "A intima\u00e7\u00e3o da PGE se deu em {pgeDate}, conforme consta na aba \"Expedientes\" do PJE.";
+    const standardChecks = [
+      check("fine", "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", { level: 1 }),
+      check(
+        "movement",
+        "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.",
+        { level: 1 }
+      )
+    ];
+    const noFurtherResource = check(
+      "noFurtherResource",
+      "N\u00e3o h\u00e1 recurso posterior que necessite de manifesta\u00e7\u00e3o processual (contrarraz\u00f5es ou manifesta\u00e7\u00f5es).",
+      { level: 1 }
+    );
+    const noFineAndMovement = [
+      check("fine", "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", { level: 1 }),
+      check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+    ];
+
+    add(
+      "preclusao_consumativa",
+      "Contesta\u00e7\u00e3o",
+      [id("protocolId", "ID"), protocolDate],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "A contesta\u00e7\u00e3o do Estado foi protocolada em {protocolDate} sob Id. {protocolId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      standardChecks
+    );
+    add(
+      "preclusao_consumativa",
+      "Apela\u00e7\u00e3o",
+      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "A apela\u00e7\u00e3o foi protocolada em {protocolDate} sob Id. {protocolId}.",
+        "A senten\u00e7a que gerou a Apela\u00e7\u00e3o est\u00e1 na Id. {sentenceId}.",
+        "Verifiquei que:"
+      ],
+      [
+        check("triage", "N\u00e3o h\u00e1 observa\u00e7\u00e3o feita pela triagem explicando a feitura da manifesta\u00e7\u00e3o sugerida.", { level: 1 }),
+        check("changedSentence", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o da parte contr\u00e1ria que tenha modificado a senten\u00e7a anterior, objeto de apela\u00e7\u00e3o pelo Estado, de modo prejudicial ao Estado.", { level: 1 }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"apela\u00e7\u00e3o\".", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." }),
+        check("otherAppeal", "N\u00e3o houve interposi\u00e7\u00e3o de apela\u00e7\u00e3o por outra parte em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 }),
+        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+      ]
+    );
+    add(
+      "preclusao_consumativa",
+      "Recurso Inominado",
+      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "O Recurso Inominado foi protocolado em {protocolDate} sob Id. {protocolId}.",
+        "A senten\u00e7a que gerou o Recurso Inominado est\u00e1 na Id. {sentenceId}.",
+        "Verifiquei que:"
+      ],
+      [
+        check("changedSentence", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o da parte contr\u00e1ria que tenha modificado a senten\u00e7a anterior, objeto de apela\u00e7\u00e3o pelo Estado, de modo prejudicial ao Estado.", { level: 1 }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"apela\u00e7\u00e3o\".", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." }),
+        check("otherAppeal", "N\u00e3o houve interposi\u00e7\u00e3o de apela\u00e7\u00e3o por outra parte em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 }),
+        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+      ]
+    );
+    add(
+      "preclusao_consumativa",
+      "Contrarraz\u00f5es",
+      [protocolDate, protocolId, id("resourceId", "ID do recurso")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "As Contrarraz\u00f5es do Estado foram protocoladas em {protocolDate} sob Id. {protocolId}.",
+        "O recurso que gerou as Contrarraz\u00f5es est\u00e1 na Id. {resourceId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      noFineAndMovement
+    );
+    add(
+      "preclusao_consumativa",
+      "Agravo de Instrumento",
+      [protocolDate, protocolId, processNumber, id("decisionId", "ID da decis\u00e3o que gerou o Agravo")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "O Agravo de Instrumento foi protocolado em {protocolDate} sob Id. {protocolId}.",
+        "O processo origin\u00e1rio \u00e9 o n\u00ba {processNumber}.",
+        "A decis\u00e3o que gerou o Agravo de Instrumento est\u00e1 na Id. {decisionId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      [noFurtherResource]
+    );
+    add(
+      "preclusao_consumativa",
+      "Contraminuta",
+      [protocolDate, protocolId, id("appealId", "ID do Agravo"), processNumber],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "A Contraminuta do Estado foi protocolada em {protocolDate} sob Id. {protocolId}.",
+        "O Agravo que gerou a Contraminuta est\u00e1 na Id. {appealId}.",
+        "O processo origin\u00e1rio \u00e9 o n\u00ba {processNumber}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      noFineAndMovement
+    );
+    add(
+      "preclusao_consumativa",
+      "Embargos de Declara\u00e7\u00e3o",
+      [protocolDate, protocolId, id("decisionId", "ID da decis\u00e3o/senten\u00e7a")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "Os Embargos de Declara\u00e7\u00e3o foram protocolados em {protocolDate} sob Id. {protocolId}.",
+        "A decis\u00e3o/senten\u00e7a que gerou os Embargos de Declara\u00e7\u00e3o est\u00e1 na Id. {decisionId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      [noFurtherResource]
+    );
+    add(
+      "preclusao_consumativa",
+      "Agravo Interno",
+      [id("decisionId", "ID da decis\u00e3o que gerou o Agravo"), protocolDate, protocolId],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "A decis\u00e3o que gerou o Agravo Interno est\u00e1 na Id. {decisionId}.",
+        "O Agravo Interno foi protocolado em {protocolDate} sob Id. {protocolId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      [noFurtherResource]
+    );
+    add(
+      "preclusao_consumativa",
+      "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a"), id("complianceId", "ID do Cumprimento de Senten\u00e7a")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "A Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a foi protocolada em {protocolDate} sob Id. {protocolId}.",
+        "A senten\u00e7a que gerou o Cumprimento de Senten\u00e7a est\u00e1 na Id. {sentenceId}.",
+        "O Cumprimento de Senten\u00e7a que gerou a Impugna\u00e7\u00e3o est\u00e1 na Id. {complianceId}.",
+        "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
+      ],
+      noFineAndMovement
+    );
+    add(
+      "preclusao_consumativa",
+      "Recurso Especial / Recurso Extraordin\u00e1rio",
+      [protocolDate, protocolId, id("judgmentId", "ID do Ac\u00f3rd\u00e3o")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        "O Recurso Especial / Recurso Extraordin\u00e1rio foi protocolado em {protocolDate} sob Id. {protocolId}.",
+        "O Ac\u00f3rd\u00e3o que gerou o recurso est\u00e1 na Id. {judgmentId}.",
+        "Eu verifiquei que:"
+      ],
+      [
+        check("changedJudgment", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o que tenha modificado o Ac\u00f3rd\u00e3o, de modo prejudicial ao Estado.", { level: 1 }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de Recurso Especial ou Recurso Extraordin\u00e1rio.", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." }),
+        check("otherResource", "N\u00e3o houve interposi\u00e7\u00e3o de outro Recurso Especial ou Recurso Extraordin\u00e1rio em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 })
+      ]
+    );
+    add(
+      "preclusao_consumativa",
+      "Manifesta\u00e7\u00e3o",
+      [pgeDate, id("decisionId", "ID da decis\u00e3o"), field("reason", "Motivo", "textarea")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        pgeLine,
+        "A decis\u00e3o que gerou a poss\u00edvel manifesta\u00e7\u00e3o est\u00e1 na Id. {decisionId}.",
+        "N\u00e3o \u00e9 necess\u00e1ria a manifesta\u00e7\u00e3o, pois: {reason}"
+      ],
+      []
+    );
+
+    add(
+      "preclusao_temporal",
+      "Contesta\u00e7\u00e3o / Contrarraz\u00f5es / Contraminuta",
+      [pgeDate, id("initialId", "ID da peti\u00e7\u00e3o inicial"), id("terminativeDecisionId", "ID da decis\u00e3o terminativa")],
+      [
+        "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+        pgeLine,
+        "A peti\u00e7\u00e3o inicial est\u00e1 na Id. {initialId}.",
+        "A pe\u00e7a do Estado n\u00e3o foi protocolada por haver decis\u00e3o terminativa (Id. {terminativeDecisionId}) posterior \u00e0 intima\u00e7\u00e3o. Por\u00e9m, considerando tal decis\u00e3o, eu verifiquei que:"
+      ],
+      [
+        check("noFine", "N\u00e3o houve deferimento multa em liminar;", { level: 1 }),
+        check("noMovement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior que demande manifesta\u00e7\u00e3o do Estado;", { level: 1 }),
+        check("noSuppression", "O prazo para apresentar a pe\u00e7a n\u00e3o foi suprimido pela decis\u00e3o terminativa.", { level: 1 })
+      ]
+    );
+    const temporalModels = [
+      ["Apela\u00e7\u00e3o", "sentenceId", "ID da senten\u00e7a", [
+        ["common", "Justi\u00e7a Comum", 30, true], ["child", "Crian\u00e7a", 10, false]
+      ]],
+      ["Recurso Inominado", "sentenceId", "ID da senten\u00e7a", [
+        ["smallClaims", "Juizado", 10, true], ["child", "Crian\u00e7a", 10, false]
+      ]],
+      ["Agravo de Instrumento", "decisionId", "ID da decis\u00e3o", [
+        ["smallClaims", "Juizado", 10, true], ["common", "Justi\u00e7a Comum", 30, true], ["child", "Crian\u00e7a", 10, false]
+      ]],
+      ["Embargos de Declara\u00e7\u00e3o", "decisionId", "ID da decis\u00e3o/senten\u00e7a", [
+        ["smallClaims", "Juizado", 5, true], ["common", "Justi\u00e7a Comum", 10, true], ["child", "Crian\u00e7a", 5, false]
+      ]],
+      ["Agravo Interno", "decisionId", "ID da decis\u00e3o", [
+        ["smallClaims", "Juizado", 10, true], ["common", "Justi\u00e7a Comum", 30, true], ["child", "Crian\u00e7a", 10, false]
+      ]]
+    ];
+    temporalModels.forEach((entry) => {
+      const piece = entry[0];
+      const idKey = entry[1];
+      const options = entry[3].map((option) => ({ value: option[0], label: option[1], days: option[2], businessDays: option[3] }));
+      const fields = [pgeDate, id(idKey, entry[2])];
+      if (piece === "Agravo de Instrumento" || piece === "Agravo Interno") fields.unshift(processNumber);
+      fields.push(choice("court", "Rito", options));
+      add(
+        "preclusao_temporal",
+        piece,
+        fields,
+        [
+          "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
+          pgeLine,
+          (piece === "Agravo de Instrumento" || piece === "Agravo Interno") ? "O processo origin\u00e1rio \u00e9 o n\u00ba {processNumber}." : "",
+          "A decis\u00e3o/senten\u00e7a pertinente est\u00e1 na Id. {" + idKey + "}.",
+          "Considerando que est\u00e1 em {courtLabel}, o prazo de {deadlineDescription} se encerraria em {deadline}, eu verifiquei:"
+        ].filter(Boolean),
+        [
+          check("courtRecord", "Na aba do PJE, conferi o rito processual informado.", { level: 1 }),
+          check("noRiteChange", "Na decis\u00e3o/senten\u00e7a, n\u00e3o houve altera\u00e7\u00e3o do rito processual.", { level: 1 }),
+          check("holidays", "Conferi poss\u00edveis feriados e pontos facultativos na Justi\u00e7a estadual e na federal.", { level: 1 }),
+          check("embargos", "Conferi a possibilidade de Embargos de Declara\u00e7\u00e3o terem sido opostos, interrompendo o prazo.", { level: 1 }),
+          check("childWarning", "", { level: 1, required: false, uiOnly: true, warning: "Em \u00faltima possibilidade, confira se n\u00e3o h\u00e1 tempo de utilizar a tempestividade em causa envolvendo menor de idade que poderia ampliar o prazo para 20 dias \u00fateis.", when: (values) => values.court === "child" })
+        ]
+      );
+    });
+    add(
+      "preclusao_temporal",
+      "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+      [pgeDate, id("sentenceId", "ID da senten\u00e7a"), id("complianceId", "ID do Cumprimento de Senten\u00e7a")],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "A senten\u00e7a est\u00e1 na Id. {sentenceId}.", "O Cumprimento de Senten\u00e7a est\u00e1 na Id. {complianceId}.", "Considerando que o prazo de 30 dias \u00fateis se encerraria em {deadline}, eu verifiquei:"],
+      [check("holidays", "Conferi poss\u00edveis feriados e pontos facultativos na Justi\u00e7a estadual e na federal.", { level: 1 })],
+      { deadline: { days: 30, businessDays: true } }
+    );
+    add(
+      "preclusao_temporal",
+      "Recurso Especial / Recurso Extraordin\u00e1rio",
+      [pgeDate, id("judgmentId", "ID do Ac\u00f3rd\u00e3o")],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "O Ac\u00f3rd\u00e3o est\u00e1 na Id. {judgmentId}.", "Considerando que o prazo de 30 dias \u00fateis se encerraria em {deadline}, eu verifiquei:"],
+      [check("holidays", "Conferi poss\u00edveis feriados e pontos facultativos na Justi\u00e7a estadual e na federal.", { level: 1 }), check("embargos", "Conferi a possibilidade de Embargos de Declara\u00e7\u00e3o terem sido opostos, interrompendo o prazo.", { level: 1 })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Contesta\u00e7\u00e3o",
+      [id("sentenceId", "ID da senten\u00e7a")],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", "A Contesta\u00e7\u00e3o do Estado n\u00e3o foi protocolada por haver senten\u00e7a (Id. {sentenceId}) posterior \u00e0 intima\u00e7\u00e3o. Por\u00e9m, considerando tal senten\u00e7a, eu verifiquei que:"],
+      [check("notUnfavorable", "Ela n\u00e3o \u00e9 desfavor\u00e1vel ao Estado;", { level: 1 }), check("noFine", "N\u00e3o houve deferimento multa em liminar.", { level: 1 })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Contraminuta / Contrarraz\u00f5es",
+      [id("resourceId", "ID do recurso"), pgeDate, choice("defenseReason", "Motivo", [{ value: "favorable", label: "O recurso \u00e9 favor\u00e1vel ao Estado" }, { value: "notInterested", label: "O Estado n\u00e3o \u00e9 o interessado/objeto do recurso" }])],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", "O recurso que gerou esta pend\u00eancia est\u00e1 na Id. {resourceId}.", pgeLine, "N\u00e3o h\u00e1 necessidade de defesa do Estado, pois: {defenseReasonLabel}.", "Por\u00e9m, considerando tal recurso, eu verifiquei que:"],
+      [check("noFine", "N\u00e3o houve deferimento multa em liminar.", { level: 1 })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Agravo de Instrumento",
+      [
+        id("intimationId", "ID da intima\u00e7\u00e3o"), pgeDate,
+        choice("agravoReason", "Motivo", [{ value: "notInterlocutory", label: "A decis\u00e3o n\u00e3o \u00e9 interlocut\u00f3ria" }, { value: "urgentDenied", label: "A tutela de urg\u00eancia foi indeferida" }, { value: "municipality", label: "O exame/consulta foi direcionado exclusivamente para o Munic\u00edpio" }]),
+        choice("fineStatus", "Multa", [{ value: "noFine", label: "N\u00e3o foi fixada multa" }, { value: "fine", label: "Foi fixada multa" }]),
+        choice("fineOutcome", "Situa\u00e7\u00e3o da multa", [{ value: "complied", label: "Cumprimos integralmente no prazo estipulado pelo juiz, devidamente comprovado nos autos" }, { value: "revoked", label: "A multa foi revogada por decis\u00e3o posterior" }], (values) => values.fineStatus === "fine")
+      ],
+      ["O conte\u00fado da intima\u00e7\u00e3o que gerou a pend\u00eancia est\u00e1 na Id. {intimationId}.", pgeLine, "{agravoReasonLabel}.", "Verifiquei que:", "{fineStatusLabel}.", "{fineOutcomeLabel}"],
+      [
+        check("municipality", "N\u00e3o houve exclus\u00e3o do Munic\u00edpio do polo passivo;", { level: 1 }),
+        check("noPrison", "Se deferida a tutela de urg\u00eancia, n\u00e3o foi determinada a pris\u00e3o ou o afastamento do Governador, Secret\u00e1rio, Procurador ou agente p\u00fablico.", { level: 1 }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"Agravo de Instrumento\".", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." })
+      ]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Embargos de Declara\u00e7\u00e3o",
+      [
+        pgeDate,
+        choice("origin", "Foi gerado por", [{ value: "decision", label: "Despacho / Liminar / Decis\u00e3o Monocr\u00e1tica" }, { value: "sentence", label: "Senten\u00e7a" }, { value: "judgment", label: "Ac\u00f3rd\u00e3o" }]),
+        id("originId", "ID da decis\u00e3o/senten\u00e7a/ac\u00f3rd\u00e3o"),
+        choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }], (values) => values.origin === "sentence"),
+        id("revocationId", "ID da revoga\u00e7\u00e3o", (values) => values.origin === "sentence")
+      ],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "Foi gerado por: {originLabel}.", "A {originLabel} est\u00e1 no Id. {originId}.", "{embargoHeading}"],
+      [
+        check("materialError", "N\u00e3o houve erro material, obscuridade, contradi\u00e7\u00e3o ou omiss\u00e3o;", { level: 1, when: (values) => values.origin !== "sentence" }),
+        check("decisionCompetence", "A decis\u00e3o n\u00e3o imputa ao Estado de Mato Grosso mat\u00e9ria que deveria ser de compet\u00eancia municipal ou federal.", { level: 1, when: (values) => values.origin === "decision" }),
+        check("decisionFine", "N\u00e3o foi fixada multa.", { level: 1, when: (values) => values.origin === "decision" }),
+        check("decisionOther", "N\u00e3o possui qualquer outra mat\u00e9ria que deveria ser agravada.", { level: 1, when: (values) => values.origin === "decision" }),
+        check("commonLimit", "O valor da causa ou bloqueio ultrapassam o teto do Juizado.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
+        check("smallClaimsRite", "Conferi na senten\u00e7a que n\u00e3o houve altera\u00e7\u00e3o do rito processual.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "smallClaims" }),
+        check("sentenceCompetence", "O procedimento \u00e9 de responsabilidade do Estado.", { level: 1, when: (values) => values.origin === "sentence" }),
+        check("noFine", "N\u00e3o foi fixada multa em liminar, ou ela foi revogada posteriormente (Id. {revocationId}).", { level: 1, when: (values) => values.origin === "sentence" }),
+        check("fees", "Os honor\u00e1rios foram definidos por equidade ou n\u00e3o ultrapassaram R$ 5.000,00 para advogado particular ou Defensoria.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
+        check("publicProsecutor", "N\u00e3o foram deferidos honor\u00e1rios ao Minist\u00e9rio P\u00fablico.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
+        check("equalFees", "Os honor\u00e1rios foram direcionados ao Estado e ao Munic\u00edpio de forma igualit\u00e1ria.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
+        check("noOther", "N\u00e3o h\u00e1 qualquer outra mat\u00e9ria para ser apelada/embargada.", { level: 1, when: (values) => values.origin === "sentence" }),
+        check("sentenceFine", "N\u00e3o foi fixada multa em senten\u00e7a.", { level: 1, when: (values) => values.origin === "sentence" }),
+        check("judgmentCompetence", "O procedimento \u00e9 de responsabilidade do Estado.", { level: 1, when: (values) => values.origin === "judgment" }),
+        check("judgmentFees", "Os honor\u00e1rios foram definidos por equidade ou n\u00e3o ultrapassaram R$ 5.000,00 para advogado particular ou Defensoria.", { level: 1, when: (values) => values.origin === "judgment" }),
+        check("judgmentEqualFees", "Os honor\u00e1rios foram direcionados ao Estado e ao Munic\u00edpio de forma igualit\u00e1ria.", { level: 1, when: (values) => values.origin === "judgment" }),
+        check("judgmentFine", "N\u00e3o foi fixada multa.", { level: 1, when: (values) => values.origin === "judgment" }),
+        check("noCosts", "N\u00e3o houve fixa\u00e7\u00e3o de custas.", { level: 1, when: (values) => values.origin !== "decision" })
+      ]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Agravo Interno",
+      [pgeDate, id("decisionId", "ID da decis\u00e3o monocr\u00e1tica"), choice("fineStatus", "Multa", [{ value: "noFine", label: "N\u00e3o foi fixada multa" }, { value: "fine", label: "A multa foi fixada" }]), choice("fineThreshold", "Patamar da multa", [{ value: "daily", label: "O valor da multa di\u00e1ria foi igual ou inferior a R$ 2.000,00" }, { value: "cap", label: "Foi fixado teto de incid\u00eancia de at\u00e9 R$ 30.000,00" }], (values) => values.fineStatus === "fine")],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "A decis\u00e3o monocr\u00e1tica est\u00e1 no Id. {decisionId}.", "Considerando, eu verifiquei que:", "{fineStatusLabel}.", "{fineThresholdLabel}"],
+      [check("notMonocratic", "A decis\u00e3o n\u00e3o \u00e9 monocr\u00e1tica;", { level: 1 }), check("responsibility", "Trata-se de direcionamento de responsabilidade;", { level: 1 }), check("noUrgent", "N\u00e3o foi concedida tutela de urg\u00eancia.", { level: 1 })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
+      [protocolDate, protocolId, pgeDate, id("sentenceId", "ID da senten\u00e7a"), choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }])],
+      ["O Cumprimento de Senten\u00e7a foi protocolado em {protocolDate} sob Id. {protocolId}.", pgeLine, "A senten\u00e7a est\u00e1 na Id. {sentenceId}.", "Considerando que est\u00e1 em {riteLabel}, eu verifiquei:"],
+      [check("noExcess", "N\u00e3o houve excesso de execu\u00e7\u00e3o;", { level: 1 }), check("noFine", "N\u00e3o foi pedida multa no Cumprimento de Senten\u00e7a;", { level: 1 }), check("noPrison", "N\u00e3o foi pedida pris\u00e3o ou afastamento de agente p\u00fablico;", { level: 1 }), check("noCosts", "N\u00e3o houve fixa\u00e7\u00e3o de custas;", { level: 1 }), check("procedure", "Conferi o procedimento no SISREG e no SIGADOC.", { level: 1 }), check("noFees", "N\u00e3o foram pedidos honor\u00e1rios.", { level: 1, when: (values) => values.rite === "smallClaims" })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Manifesta\u00e7\u00e3o",
+      [pgeDate, id("decisionId", "ID da decis\u00e3o"), field("reason", "Motivo", "textarea")],
+      ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "A decis\u00e3o que gerou a poss\u00edvel manifesta\u00e7\u00e3o est\u00e1 na Id. {decisionId}.", "N\u00e3o \u00e9 necess\u00e1ria a manifesta\u00e7\u00e3o, pois: {reason}"],
+      []
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Senten\u00e7a/Ac\u00f3rd\u00e3o: Extin\u00e7\u00e3o sem Resolu\u00e7\u00e3o de M\u00e9rito",
+      [id("judgmentId", "ID da Senten\u00e7a/Ac\u00f3rd\u00e3o"), pgeDate],
+      ["O expediente que est\u00e1 comigo \u00e9 o seguinte: Senten\u00e7a/Ac\u00f3rd\u00e3o.", "A Senten\u00e7a/Ac\u00f3rd\u00e3o est\u00e1 na Id. {judgmentId}.", pgeLine, "Considerando, eu verifiquei que:"],
+      [check("noFees", "N\u00e3o fomos condenados em honor\u00e1rios;", { level: 1 }), check("noCosts", "N\u00e3o fomos condenados em custas processuais;", { level: 1 }), check("noFine", "N\u00e3o h\u00e1 multa fixada;", { level: 1 }), check("noBlock", "N\u00e3o h\u00e1 bloqueio deferido.", { level: 1 })]
+    );
+    add(
+      "conteudo_irrecorrivel",
+      "Senten\u00e7a/Ac\u00f3rd\u00e3o: Extin\u00e7\u00e3o com Resolu\u00e7\u00e3o de M\u00e9rito",
+      [id("judgmentId", "ID da Senten\u00e7a/Ac\u00f3rd\u00e3o"), pgeDate, choice("fees", "Honor\u00e1rios", [{ value: "noFees", label: "N\u00e3o fomos condenados em honor\u00e1rios" }, { value: "reasonable", label: "Os honor\u00e1rios est\u00e3o em patamar aceit\u00e1vel" }]), choice("fine", "Multa", [{ value: "noFine", label: "N\u00e3o h\u00e1 multa fixada" }, { value: "reasonable", label: "A multa est\u00e1 em patamar aceit\u00e1vel" }]), choice("fineThreshold", "Patamar da multa", [{ value: "daily", label: "O valor da multa di\u00e1ria \u00e9 igual ou inferior a R$ 2.000,00" }, { value: "cap", label: "H\u00e1 teto de incid\u00eancia de at\u00e9 R$ 30.000,00" }], (values) => values.fine === "reasonable")],
+      ["O expediente que est\u00e1 comigo \u00e9 o seguinte: Senten\u00e7a/Ac\u00f3rd\u00e3o.", "A Senten\u00e7a/Ac\u00f3rd\u00e3o est\u00e1 na Id. {judgmentId}.", pgeLine, "Considerando, eu verifiquei que:", "{feesLabel}.", "{fineLabel}.", "{fineThresholdLabel}"],
+      [check("responsibility", "O procedimento \u00e9 realmente de responsabilidade estadual;", { level: 1 }), check("feeAmount", "Em favor de advogado ou da Defensoria, os honor\u00e1rios n\u00e3o ultrapassam R$ 5.000,00 em valor fixo.", { level: 1, when: (values) => values.fees === "reasonable" }), check("noCosts", "N\u00e3o fomos condenados em custas processuais;", { level: 1 }), check("noEmbargos", "N\u00e3o h\u00e1 mat\u00e9ria a ser discutida em Embargos de Declara\u00e7\u00e3o.", { level: 1 })]
+    );
+
+    add("demais_situacoes", "Pauta de Julgamento", [pgeDate], ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "Eu verifiquei que:"], [check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual que demande manifesta\u00e7\u00e3o do Estado, tais como: produ\u00e7\u00e3o de provas, aditamento da inicial, anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.", { level: 1 })]);
+    add("demais_situacoes", "Retorno dos Autos", [pgeDate], ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "Eu verifiquei que:"], [check("returned", "Houve intima\u00e7\u00e3o do Estado em rela\u00e7\u00e3o ao recurso julgado que est\u00e1 sendo devolvido \u00e0 1\u00aa inst\u00e2ncia.", { level: 1 }), check("noBenefit", "N\u00e3o h\u00e1 decis\u00e3o favor\u00e1vel ao Estado, pass\u00edvel de cumprimento, tal como execu\u00e7\u00e3o de honor\u00e1rios advocat\u00edcios em favor da PGE, levantamento de valores bloqueados ainda n\u00e3o liberados, liquida\u00e7\u00e3o e execu\u00e7\u00e3o de valores usados pela parte autora que devam ser devolvidos ao Estado em caso de decis\u00e3o final de improced\u00eancia etc.", { level: 2 })]);
+    add("demais_situacoes", "Decl\u00ednio de Compet\u00eancia", [pgeDate], ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "Eu verifiquei que:"], [check("notHarmful", "O decl\u00ednio de compet\u00eancia relativo ao expediente n\u00e3o apresenta motivos para serem questionados, pois n\u00e3o \u00e9 mal\u00e9fico ao Estado;", { level: 1 }), check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual que demande manifesta\u00e7\u00e3o do Estado, tais como: produ\u00e7\u00e3o de provas, aditamento da inicial, anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.", { level: 1 })]);
+    add("demais_situacoes", "Outras Situa\u00e7\u00f5es", [field("intimation", "Intima\u00e7\u00e3o", "textarea"), pgeDate, field("reason", "Motivo", "textarea")], ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {intimation}", pgeLine, "N\u00e3o \u00e9 necess\u00e1ria a manifesta\u00e7\u00e3o processual, pois: {reason}"], []);
+    return models;
+  }
+
+  const SIMPLE_CLOSURE_MODELS = createSimpleClosureModels();
   const DEADLINE_STYLE_PRESETS = {
     long: {
       label: "Azul",
@@ -3642,8 +4013,8 @@
     return String(typeKey || "") + "|" + String(pieceLabel || "");
   }
 
-  function isSimpleClosureParameterized(typeKey, pieceLabel) {
-    return simpleClosureComboKey(typeKey, pieceLabel) === SIMPLE_CLOSURE_PARAMETERIZED_KEY;
+  function simpleClosureModel(typeKey, pieceLabel) {
+    return SIMPLE_CLOSURE_MODELS[simpleClosureComboKey(typeKey, pieceLabel)] || null;
   }
 
   function simpleClosurePieceOptions(typeKey) {
@@ -3671,8 +4042,153 @@
     return digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
   }
 
-  function simpleClosureParagraph(text) {
+  function formatSimpleClosureProcessNumber(value) {
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 20);
+    if (digits.length <= 7) return digits;
+    if (digits.length <= 9) return digits.slice(0, 7) + "-" + digits.slice(7);
+    if (digits.length <= 13) return digits.slice(0, 7) + "-" + digits.slice(7, 9) + "." + digits.slice(9);
+    if (digits.length <= 14) return digits.slice(0, 7) + "-" + digits.slice(7, 9) + "." + digits.slice(9, 13) + "." + digits.slice(13);
+    if (digits.length <= 16) return digits.slice(0, 7) + "-" + digits.slice(7, 9) + "." + digits.slice(9, 13) + "." + digits.slice(13, 14) + "." + digits.slice(14);
+    return digits.slice(0, 7) + "-" + digits.slice(7, 9) + "." + digits.slice(9, 13) + "." + digits.slice(13, 14) + "." + digits.slice(14, 16) + "." + digits.slice(16);
+  }
+
+  function isValidSimpleClosureProcessNumber(value) {
+    return String(value || "").replace(/\D/g, "").length === 20;
+  }
+
+  function simpleClosureDateFromValue(value) {
+    if (!isValidBrazilianDate(value)) return null;
+    const parts = String(value).split("/").map(Number);
+    return new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0, 0);
+  }
+
+  function formatSimpleClosureDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    return String(date.getDate()).padStart(2, "0") + "/" + String(date.getMonth() + 1).padStart(2, "0") + "/" + date.getFullYear();
+  }
+
+  function simpleClosureEasterDate(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month, day, 12, 0, 0, 0);
+  }
+
+  function simpleClosureHolidayKeys(year) {
+    const fixed = ["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"];
+    const easter = simpleClosureEasterDate(year);
+    const dateKey = (date) => formatSimpleClosureDate(date);
+    const keys = new Set();
+    fixed.forEach((monthDay) => {
+      const parts = monthDay.split("-");
+      keys.add(parts[1] + "/" + parts[0] + "/" + year);
+    });
+    [-48, -47, -46, -2, 0, 60].forEach((offset) => {
+      const date = new Date(easter);
+      date.setDate(date.getDate() + offset);
+      keys.add(dateKey(date));
+    });
+    const tjmt2026 = ["16/02/2026", "17/02/2026", "18/02/2026", "02/04/2026", "20/04/2026", "04/06/2026", "05/06/2026", "10/08/2026", "11/08/2026", "28/10/2026", "07/12/2026", "08/12/2026", "24/12/2026", "31/12/2026"];
+    if (year === 2026) tjmt2026.forEach((date) => keys.add(date));
+    return keys;
+  }
+
+  function calculateSimpleClosureDeadline(value, days, businessDays) {
+    const date = simpleClosureDateFromValue(value);
+    const total = Number(days);
+    if (!date || !Number.isFinite(total) || total < 1) return "";
+    let counted = 0;
+    const result = new Date(date);
+    while (counted < total) {
+      result.setDate(result.getDate() + 1);
+      if (businessDays) {
+        const day = result.getDay();
+        if (day === 0 || day === 6 || simpleClosureHolidayKeys(result.getFullYear()).has(formatSimpleClosureDate(result))) continue;
+      }
+      counted += 1;
+    }
+    return formatSimpleClosureDate(result);
+  }
+
+  function simpleClosureFieldIsComplete(field, values) {
+    if (!field || (typeof field.when === "function" && !field.when(values))) return true;
+    const value = String(values[field.key] || "").trim();
+    if (!value) return false;
+    if (field.type === "date") return isValidBrazilianDate(value);
+    if (field.type === "cnj") return isValidSimpleClosureProcessNumber(value);
+    return true;
+  }
+
+  function simpleClosureChoiceLabel(field, values) {
+    if (!field || field.type !== "choice") return "";
+    const option = (field.options || []).find((candidate) => candidate.value === values[field.key]);
+    return option ? option.label : "";
+  }
+
+  function simpleClosureValuesForOutput(model, values, piece) {
+    const output = Object.assign({}, values, { piece });
+    (model && model.fields ? model.fields : []).forEach((field) => {
+      if (field.type === "choice") output[field.key + "Label"] = simpleClosureChoiceLabel(field, values);
+    });
+    const courtField = (model && model.fields ? model.fields : []).find((field) => field.key === "court");
+    const courtOption = courtField && (courtField.options || []).find((option) => option.value === values.court);
+    if (courtOption) {
+      output.deadline = calculateSimpleClosureDeadline(values.pgeDate, courtOption.days, courtOption.businessDays);
+      output.deadlineDescription = String(courtOption.days) + " dias " + (courtOption.businessDays ? "\u00fateis" : "corridos");
+    }
+    if (!output.deadline && model && model.deadline) {
+      output.deadline = calculateSimpleClosureDeadline(values.pgeDate, model.deadline.days, model.deadline.businessDays);
+      output.deadlineDescription = String(model.deadline.days) + " dias " + (model.deadline.businessDays ? "\u00fateis" : "corridos");
+    }
+    const origin = values.origin;
+    output.embargoHeading = origin === "decision" ? "Em Despacho / Liminar / Decis\u00e3o Monocr\u00e1tica eu verifiquei que:" : origin === "sentence" ? "Em Senten\u00e7a eu verifiquei que:" : "Em Ac\u00f3rd\u00e3o eu verifiquei que:";
+    return output;
+  }
+
+  function interpolateSimpleClosureText(text, values) {
+    let missingValue = false;
+    const output = String(text || "")
+      .replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (_match, key) => {
+        const value = String(values[key] || "").trim();
+        if (!value) missingValue = true;
+        return value;
+      })
+      .replace(/\s+\./g, ".")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return missingValue ? "" : output;
+  }
+
+  function buildSimpleClosureItems(data) {
+    if (data && Array.isArray(data.items) && data.items.length) return data.items;
+    const piece = data && data.piece ? data.piece : "";
+    const protocolDate = data && data.protocolDate ? data.protocolDate : "";
+    const protocolId = data && data.protocolId ? data.protocolId : "";
+    return [
+      { text: "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece + ".", level: 0 },
+      { text: "A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".", level: 0 },
+      { text: "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:", level: 0 },
+      { text: "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", level: 1 },
+      { text: "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.", level: 1 }
+    ];
+  }
+
+  function simpleClosureParagraph(item) {
     const format = SIMPLE_CLOSURE_FORMAT;
+    const level = Math.max(0, Number(item && item.level) || 0);
+    const bullet = level > 0 ? (level > 1 ? "&#9702; " : "&bull; ") : "";
+    const text = item && item.text ? item.text : "";
     return (
       '<p style="font-family:' +
       format.fontFamily +
@@ -3682,23 +4198,17 @@
       format.lineHeight +
       ";text-indent:" +
       format.textIndent +
-      ';margin:0 0 8pt 0;mso-line-height-rule:auto;white-space:pre-wrap;">' +
+      ";margin:0 0 8pt " +
+      (level ? String(level * 0.75) + "cm" : "0") +
+      ';mso-line-height-rule:auto;white-space:pre-wrap;">' +
+      bullet +
       escapeHtml(text) +
       "</p>"
     );
   }
 
   function buildSimpleClosureHtml(data) {
-    const piece = data && data.piece ? data.piece : "";
-    const protocolDate = data && data.protocolDate ? data.protocolDate : "";
-    const protocolId = data && data.protocolId ? data.protocolId : "";
-    const lines = [
-      "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece,
-      "- A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".",
-      "- Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:",
-      "  - N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;",
-      "  - N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc."
-    ];
+    const items = buildSimpleClosureItems(data);
 
     return (
       '<div style="font-family:' +
@@ -3708,23 +4218,18 @@
       ";line-height:" +
       SIMPLE_CLOSURE_FORMAT.lineHeight +
       ';color:#111;background:#fff;">' +
-      lines.map(simpleClosureParagraph).join("") +
+      items.map(simpleClosureParagraph).join("") +
       "</div>"
     );
   }
 
   function buildSimpleClosurePlain(data) {
-    const piece = data && data.piece ? data.piece : "";
-    const protocolDate = data && data.protocolDate ? data.protocolDate : "";
-    const protocolId = data && data.protocolId ? data.protocolId : "";
-    return [
-      "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece,
-      "",
-      "- A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".",
-      "- Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:",
-      "  - N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;",
-      "  - N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc."
-    ].join("\n");
+    return buildSimpleClosureItems(data)
+      .map((item) => {
+        const level = Math.max(0, Number(item && item.level) || 0);
+        return (level > 0 ? "  ".repeat(level - 1) + (level > 1 ? "o " : "- ") : "") + String(item && item.text ? item.text : "");
+      })
+      .join("\n");
   }
 
   function storeLastSimpleClosureClipboard(data) {
@@ -6043,6 +6548,7 @@
 
     const body = document.createElement("div");
     body.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;padding:8px;";
+    const state = { values: Object.create(null), checks: Object.create(null) };
 
     const typeLabel = document.createElement("label");
     typeLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
@@ -6052,10 +6558,7 @@
     fillSimpleClosureSelect(
       typeSelect,
       "Selecione...",
-      Object.keys(SIMPLE_CLOSURE_TYPES).map((key) => ({
-        value: key,
-        label: SIMPLE_CLOSURE_TYPES[key].label
-      }))
+      Object.keys(SIMPLE_CLOSURE_TYPES).map((key) => ({ value: key, label: SIMPLE_CLOSURE_TYPES[key].label }))
     );
     typeLabel.appendChild(typeTitle);
     typeLabel.appendChild(typeSelect);
@@ -6070,19 +6573,9 @@
 
     const fields = document.createElement("div");
     fields.style.cssText = "display:none;grid-template-columns:1fr;gap:6px;";
-
-    const idInput = document.createElement("input");
-    idInput.type = "text";
-    idInput.placeholder = "ID";
-    idInput.autocomplete = "off";
-    const dateInput = document.createElement("input");
-    dateInput.type = "text";
-    dateInput.placeholder = "dd/mm/aaaa";
-    dateInput.inputMode = "numeric";
-    dateInput.maxLength = 10;
-    dateInput.autocomplete = "off";
-    fields.appendChild(createSimpleClosureLabeledField("ID", idInput));
-    fields.appendChild(createSimpleClosureLabeledField("Data", dateInput));
+    const deadlineHint = document.createElement("div");
+    deadlineHint.style.cssText =
+      "display:none;padding:7px 8px;border:1px solid #2f766e;border-radius:5px;background:#0d2526;color:#d8f1ed;font-size:11px;font-weight:800;line-height:1.3;";
 
     const checklistBox = document.createElement("div");
     checklistBox.style.cssText = "display:none;grid-template-columns:1fr;gap:6px;";
@@ -6091,33 +6584,174 @@
     checklistTitle.style.cssText =
       "padding:7px 8px;border:1px solid #344253;border-radius:5px;background:#1f2d3a;color:#e8f0f7;" +
       "font-size:12px;font-weight:800;text-align:center;";
-    checklistBox.appendChild(checklistTitle);
-
-    const checklistItems = SIMPLE_CLOSURE_CHECKLIST.map(createSimpleClosureCheckbox);
-    checklistItems.forEach((item) => checklistBox.appendChild(item.label));
-
-    const unavailable = document.createElement("div");
-    unavailable.textContent = "Modelo ainda nao parametrizado.";
-    unavailable.style.cssText =
-      "display:none;padding:7px 8px;border:1px solid #344253;border-radius:5px;background:#0c1219;" +
-      "color:#b8c6d1;font-size:11px;font-weight:700;text-align:center;";
 
     const actions = document.createElement("div");
     actions.style.cssText = "display:none;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;";
-    const generateButton = createButton(
-      "Gerar Simples Encerramento",
-      () =>
-        generateSimpleClosureText({
-          closureType: SIMPLE_CLOSURE_TYPES[typeSelect.value].label,
-          piece: pieceSelect.value,
-          protocolId: idInput.value.replace(/\s+/g, " ").trim(),
-          protocolDate: dateInput.value.replace(/\s+/g, " ").trim()
-        }),
-      "primary"
-    );
+    const generateButton = createButton("Gerar Simples Encerramento", () => {
+      const model = selectedModel();
+      if (!model || !canGenerate(model)) return;
+      const outputValues = simpleClosureValuesForOutput(model, state.values, pieceSelect.value);
+      const items = model.lines
+        .map((line) => ({ text: interpolateSimpleClosureText(line, outputValues), level: 0 }))
+        .filter((item) => item.text);
+      activeChecks(model).forEach((item) => {
+        if (state.checks[item.key] && !item.uiOnly) {
+          items.push({ text: interpolateSimpleClosureText(item.text, outputValues), level: item.level || 1 });
+        }
+      });
+      generateSimpleClosureText({
+        closureType: SIMPLE_CLOSURE_TYPES[typeSelect.value].label,
+        piece: pieceSelect.value,
+        items
+      });
+    }, "primary");
     const copyButton = createSmallUtilityButton("Copiar", "Copiar novamente o ultimo Simples Encerramento", copyStoredSimpleClosureText);
     actions.appendChild(generateButton);
     actions.appendChild(copyButton);
+
+    function selectedModel() {
+      return simpleClosureModel(typeSelect.value, pieceSelect.value);
+    }
+
+    function activeFields(model) {
+      return (model && model.fields ? model.fields : []).filter((field) => !field.when || field.when(state.values));
+    }
+
+    function activeChecks(model) {
+      return (model && model.checks ? model.checks : []).filter((item) => !item.when || item.when(state.values));
+    }
+
+    function fieldsComplete(model) {
+      return activeFields(model).every((field) => simpleClosureFieldIsComplete(field, state.values));
+    }
+
+    function canGenerate(model) {
+      return fieldsComplete(model) && activeChecks(model).every((item) => !item.required || state.checks[item.key]);
+    }
+
+    function createFieldControl(field) {
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;";
+      const label = document.createElement("div");
+      label.textContent = field.label;
+      label.style.cssText = "color:#b8c6d1;font-size:10px;font-weight:800;";
+      wrapper.appendChild(label);
+
+      if (field.type === "choice") {
+        const choices = document.createElement("div");
+        choices.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;";
+        (field.options || []).forEach((option) => {
+          const optionLabel = document.createElement("label");
+          const input = document.createElement("input");
+          const text = document.createElement("span");
+          input.type = "radio";
+          input.name = "spa-cdsp-simple-closure-" + field.key;
+          input.value = option.value;
+          input.checked = state.values[field.key] === option.value;
+          input.style.margin = "1px 0 0";
+          text.textContent = option.label;
+          optionLabel.style.cssText =
+            "display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:start;border:1px solid #344253;" +
+            "border-radius:5px;background:#0d131a;color:#e8f0f7;font-size:11px;font-weight:700;line-height:1.25;padding:7px 8px;cursor:pointer;";
+          optionLabel.appendChild(input);
+          optionLabel.appendChild(text);
+          input.addEventListener("change", () => {
+            state.values[field.key] = option.value;
+            refresh();
+          });
+          choices.appendChild(optionLabel);
+        });
+        wrapper.appendChild(choices);
+        return wrapper;
+      }
+
+      const input = document.createElement(field.type === "textarea" ? "textarea" : "input");
+      if (field.type !== "textarea") input.type = "text";
+      input.dataset.simpleClosureField = field.key;
+      input.value = state.values[field.key] || "";
+      input.autocomplete = "off";
+      input.placeholder = field.type === "date" ? "dd/mm/aaaa" : field.type === "cnj" ? "0000000-00.0000.0.00.0000" : field.label;
+      if (field.type === "date") {
+        input.inputMode = "numeric";
+        input.maxLength = 10;
+      }
+      if (field.type === "cnj") {
+        input.inputMode = "numeric";
+        input.maxLength = 25;
+      }
+      if (field.type === "textarea") input.rows = 3;
+      input.style.cssText =
+        "width:100%;box-sizing:border-box;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;" +
+        "font-size:12px;font-weight:700;padding:7px 8px;outline:none;min-height:" + (field.type === "textarea" ? "72px" : "34px") + ";resize:vertical;";
+      input.addEventListener("input", () => {
+        let value = input.value;
+        if (field.type === "date") value = formatBrazilianDateInput(value);
+        if (field.type === "cnj") value = formatSimpleClosureProcessNumber(value);
+        if (input.value !== value) input.value = value;
+        state.values[field.key] = value;
+        refresh();
+      });
+      wrapper.appendChild(input);
+      return wrapper;
+    }
+
+    function renderFields(model) {
+      fields.innerHTML = "";
+      const modelFields = activeFields(model);
+      let showNext = true;
+      modelFields.forEach((field) => {
+        if (!showNext) return;
+        fields.appendChild(createFieldControl(field));
+        showNext = simpleClosureFieldIsComplete(field, state.values);
+      });
+      fields.style.display = model ? "grid" : "none";
+
+      const outputValues = model ? simpleClosureValuesForOutput(model, state.values, pieceSelect.value) : {};
+      deadlineHint.style.display = outputValues.deadline ? "block" : "none";
+      deadlineHint.textContent = outputValues.deadline ? "Prazo calculado: " + outputValues.deadline + ". A contagem inicia no dia seguinte \u00e0 intima\u00e7\u00e3o." : "";
+    }
+
+    function renderChecklist(model) {
+      checklistBox.innerHTML = "";
+      const complete = fieldsComplete(model);
+      const checks = activeChecks(model);
+      checklistBox.style.display = model && complete && checks.length ? "grid" : "none";
+      if (!model || !complete || !checks.length) return;
+      checklistBox.appendChild(checklistTitle);
+      checks.forEach((item) => {
+        if (item.uiOnly) {
+          const warning = document.createElement("div");
+          warning.textContent = item.warning || item.text;
+          warning.style.cssText =
+            "margin-left:" + String((item.level || 1) * 12) + "px;color:#ff8f8f;font-size:11px;font-weight:800;line-height:1.3;";
+          checklistBox.appendChild(warning);
+          return;
+        }
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        const text = document.createElement("span");
+        input.type = "checkbox";
+        input.checked = Boolean(state.checks[item.key]);
+        input.style.margin = "1px 0 0";
+        text.textContent = item.text;
+        label.style.cssText =
+          "display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:start;margin-left:" + String(Math.max(0, (item.level || 1) - 1) * 12) + "px;" +
+          "border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;font-size:11px;font-weight:700;line-height:1.25;padding:7px 8px;cursor:pointer;";
+        label.appendChild(input);
+        label.appendChild(text);
+        input.addEventListener("change", () => {
+          state.checks[item.key] = input.checked;
+          refresh();
+        });
+        checklistBox.appendChild(label);
+        if (item.warning) {
+          const warning = document.createElement("div");
+          warning.textContent = item.warning;
+          warning.style.cssText = "margin-left:12px;color:#ff8f8f;font-size:11px;font-weight:800;line-height:1.3;";
+          checklistBox.appendChild(warning);
+        }
+      });
+    }
 
     function setGenerateEnabled(enabled) {
       generateButton.disabled = !enabled;
@@ -6125,61 +6759,63 @@
       generateButton.style.cursor = enabled ? "pointer" : "not-allowed";
     }
 
+    function clearInactiveValues(model) {
+      const activeKeys = new Set(activeFields(model).map((field) => field.key));
+      Object.keys(state.values).forEach((key) => {
+        if (!activeKeys.has(key)) delete state.values[key];
+      });
+      const activeCheckKeys = new Set(activeChecks(model).map((item) => item.key));
+      Object.keys(state.checks).forEach((key) => {
+        if (!activeCheckKeys.has(key)) delete state.checks[key];
+      });
+    }
+
     function refresh() {
+      const focused = document.activeElement;
+      const focusedKey = focused && focused.dataset ? focused.dataset.simpleClosureField : "";
+      const focusedStart = focused && typeof focused.selectionStart === "number" ? focused.selectionStart : null;
+      const focusedEnd = focused && typeof focused.selectionEnd === "number" ? focused.selectionEnd : null;
       const typeKey = typeSelect.value;
-      const pieceValue = pieceSelect.value;
-      const hasType = Boolean(typeKey);
-      const pieceOptions = simpleClosurePieceOptions(typeKey);
-      const parameterized = isSimpleClosureParameterized(typeKey, pieceValue);
-      const hasId = Boolean(idInput.value.replace(/\s+/g, " ").trim());
-      const hasValidDate = isValidBrazilianDate(dateInput.value);
-      const readyForChecklist = parameterized && hasId && hasValidDate;
-      const checklistComplete = checklistItems.every((item) => item.input.checked);
-
-      pieceLabel.style.display = hasType ? "grid" : "none";
-      unavailable.style.display = hasType && pieceValue && !parameterized ? "block" : "none";
-      fields.style.display = parameterized ? "grid" : "none";
-      checklistBox.style.display = readyForChecklist ? "grid" : "none";
-      actions.style.display = parameterized ? "grid" : "none";
-      setGenerateEnabled(readyForChecklist && checklistComplete);
-
-      if (hasType) {
-        fillSimpleClosureSelect(
-          pieceSelect,
-          "Selecione...",
-          pieceOptions.map((label) => ({ value: label, label }))
-        );
+      const model = selectedModel();
+      pieceLabel.style.display = typeKey ? "grid" : "none";
+      clearInactiveValues(model);
+      renderFields(model);
+      renderChecklist(model);
+      actions.style.display = model ? "grid" : "none";
+      setGenerateEnabled(Boolean(model) && canGenerate(model));
+      if (focusedKey) {
+        const replacement = fields.querySelector('[data-simple-closure-field="' + focusedKey + '"]');
+        if (replacement) {
+          replacement.focus();
+          if (focusedStart !== null && typeof replacement.setSelectionRange === "function") {
+            const end = focusedEnd === null ? focusedStart : focusedEnd;
+            replacement.setSelectionRange(Math.min(focusedStart, replacement.value.length), Math.min(end, replacement.value.length));
+          }
+        }
       }
     }
 
     typeSelect.addEventListener("change", () => {
+      state.values = Object.create(null);
+      state.checks = Object.create(null);
       pieceSelect.value = "";
-      idInput.value = "";
-      dateInput.value = "";
-      checklistItems.forEach((item) => {
-        item.input.checked = false;
-      });
+      fillSimpleClosureSelect(
+        pieceSelect,
+        "Selecione...",
+        simpleClosurePieceOptions(typeSelect.value).map((label) => ({ value: label, label }))
+      );
       refresh();
     });
     pieceSelect.addEventListener("change", () => {
-      idInput.value = "";
-      dateInput.value = "";
-      checklistItems.forEach((item) => {
-        item.input.checked = false;
-      });
+      state.values = Object.create(null);
+      state.checks = Object.create(null);
       refresh();
     });
-    idInput.addEventListener("input", refresh);
-    dateInput.addEventListener("input", () => {
-      dateInput.value = formatBrazilianDateInput(dateInput.value);
-      refresh();
-    });
-    checklistItems.forEach((item) => item.input.addEventListener("change", refresh));
 
     body.appendChild(typeLabel);
     body.appendChild(pieceLabel);
     body.appendChild(fields);
-    body.appendChild(unavailable);
+    body.appendChild(deadlineHint);
     body.appendChild(checklistBox);
     body.appendChild(actions);
     section.appendChild(summary);

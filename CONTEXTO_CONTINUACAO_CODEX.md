@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.72`
-- Ultima tag publicada no repositorio: `v1.72`
+- Versao atual da extensao: `1.73`
+- Ultima tag publicada no repositorio: `v1.73`
 
 ## Como retomar no notebook
 
@@ -143,6 +143,13 @@ Versao `1.72`:
 
 - A checkbox `Abrir minimizado` foi reposicionada no extremo direito do cabecalho do menu geral, antes do botao de recolher, para permanecer visualmente separada do titulo `CDSP` nos estados aberto e recolhido.
 
+Versao `1.73`:
+
+- O fluxo `Simples Encerramento` passou a ter os 32 modelos previstos nos quatro grupos: Preclusao Consumativa, Preclusao Temporal, Conteudo ao qual nao cabe Recorrer/Manifestar e Demais Situacoes.
+- Os modelos exibem campos progressivos, escolhas mutuamente exclusivas e checklist obrigatorio; `Retorno dos Autos` preserva a hierarquia visual entre os itens.
+- Datas usam `dd/mm/aaaa`; numeros CNJ sao formatados e validados. Os prazos passam a contar no dia seguinte, com calendario geral do TJMT de 2026, fins de semana e feriados nacionais como base de continuidade.
+- O texto gerado continua em Times New Roman 14, espacamento 1,15 e recuo de primeira linha de 1,25 cm. Avisos operacionais ficam em vermelho na interface e nao entram no texto copiado.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -156,7 +163,7 @@ Versao `1.72`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
-- Preservar o fluxo `Simples Encerramento`; por enquanto somente `Preclusao Consumativa` + `Contestacao` esta parametrizado, e os demais tipos/pecas devem permanecer preparados para parametrizacao futura.
+- Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
 - Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
