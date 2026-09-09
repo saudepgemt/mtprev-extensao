@@ -35,7 +35,9 @@
     "SPA_CDSP_SCHEDULE_GET",
     "SPA_CDSP_SCHEDULE_SAVE",
     "SPA_CDSP_SCHEDULE_RUN_NOW",
-    "SPA_CDSP_SCHEDULE_PASSWORD_SET"
+    "SPA_CDSP_SCHEDULE_PASSWORD_SET",
+    "SPA_CDSP_SIMPLE_CLOSURE_REQUEST_DOCS_PERMISSION",
+    "SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT"
   ];
 
   const loadedModules = Object.create(null);
@@ -717,7 +719,8 @@
         tribunal: data.tribunal || "",
         query: data.query || "",
         exact: data.exact === true,
-        delayMs: data.delayMs
+        delayMs: data.delayMs,
+        payload: data.payload || null
       },
       (response) => {
         const lastError = safeLastError();

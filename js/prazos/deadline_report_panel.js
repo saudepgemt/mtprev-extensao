@@ -129,6 +129,28 @@
 
   const PETITION_ACTION_KEY = "SPA_CDSP_DEADLINE_PETITION_ACTION";
   const PETITION_ACTION_MAX_AGE_MS = 10 * 60 * 1000;
+  const SIMPLE_CLOSURE_ACTION_KEY = "SPA_CDSP_SIMPLE_CLOSURE_ACTION";
+  const SIMPLE_CLOSURE_ACTION_MAX_AGE_MS = 15 * 60 * 1000;
+  const SIMPLE_CLOSURE_BRIDGE_SOURCE = "SPA_CDSP_PAGE";
+  const SIMPLE_CLOSURE_BRIDGE_RESPONSE_SOURCE = "SPA_CDSP_EXTENSION_BRIDGE";
+  const SIMPLE_CLOSURE_MODEL_TARGETS = {
+    preclusao_temporal: {
+      folder: { documentTypeId: "1263", tokens: ["preclusao", "temporal"], folderOnly: true },
+      template: { tokens: ["simples", "encerramento", "preclusao", "temporal", "cdsp", "proced"] }
+    },
+    conteudo_irrecorrivel: {
+      folder: { documentTypeId: "1264", tokens: ["conteudo", "recorrer", "manifestar"], folderOnly: true },
+      template: { tokens: ["simples", "encerramento", "nao", "recorrer", "cdsp", "proced"] }
+    },
+    demais_situacoes: {
+      folder: { documentTypeId: "1265", tokens: ["demais", "situacoes"], folderOnly: true },
+      template: { tokens: ["simples", "encerramento", "demais", "situacoes", "cdsp", "proced"] }
+    },
+    preclusao_consumativa: {
+      folder: { documentTypeId: "1262", tokens: ["preclusao", "consumativa"], folderOnly: true },
+      template: { tokens: ["simples", "encerramento", "preclusao", "consumativa", "cdsp", "proced"] }
+    }
+  };
   const CORRECTION_OPEN_QUEUE_KEY = "SPA_CDSP_CORRECTION_OPEN_QUEUE";
   const CORRECTION_OPEN_QUEUE_MAX_AGE_MS = 15 * 60 * 1000;
   const CORRECTION_BACK_HISTORY_KEY = "SPA_CDSP_CORRECTION_BACK_HISTORY";
@@ -2716,6 +2738,42 @@
         }
         resolve(response || {});
       });
+    });
+  }
+
+  function sendSimpleClosureBridgeMessage(type, payload) {
+    return new Promise((resolve) => {
+      const requestId = "simple-closure-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      const timeout = window.setTimeout(() => {
+        window.removeEventListener("message", onMessage);
+        resolve({ ok: false, error: "A extensao nao respondeu a solicitacao de Simples Encerramento." });
+      }, 30000);
+
+      function onMessage(event) {
+        if (event.source !== window || event.origin !== window.location.origin) return;
+        const data = event.data || {};
+        if (
+          data.source !== SIMPLE_CLOSURE_BRIDGE_RESPONSE_SOURCE ||
+          data.type !== "SPA_CDSP_OPEN_BACKGROUND_RESULT" ||
+          data.requestId !== requestId
+        ) {
+          return;
+        }
+        window.clearTimeout(timeout);
+        window.removeEventListener("message", onMessage);
+        resolve(data.error ? { ok: false, error: data.error } : data.response || { ok: false, error: "Sem resposta." });
+      }
+
+      window.addEventListener("message", onMessage);
+      window.postMessage(
+        {
+          source: SIMPLE_CLOSURE_BRIDGE_SOURCE,
+          type,
+          requestId,
+          payload: payload || null
+        },
+        window.location.origin
+      );
     });
   }
 
@@ -5690,6 +5748,181 @@
     link.click();
   }
 
+  function pendingSimpleClosureAction() {
+    let action = null;
+    try {
+      action = JSON.parse(window.localStorage.getItem(SIMPLE_CLOSURE_ACTION_KEY) || "null");
+    } catch (_error) {
+      window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+      return null;
+    }
+
+    if (!action || action.type !== "simple_closure_template" || !action.procedureId || !action.payload) return null;
+    if (Date.now() - Number(action.createdAt || 0) > SIMPLE_CLOSURE_ACTION_MAX_AGE_MS) {
+      window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+      return null;
+    }
+    return action;
+  }
+
+  function saveSimpleClosureAction(action, phase) {
+    if (!action) return;
+    action.phase = phase || action.phase || "abrir_elaboracao";
+    action.updatedAt = Date.now();
+    window.localStorage.setItem(SIMPLE_CLOSURE_ACTION_KEY, JSON.stringify(action));
+  }
+
+  function simpleClosureProgressLink(procedureId) {
+    const tribunal = normalizeKey(procedureDetailValue(["Tribunal"]));
+    const preferredDegree = tribunal.indexOf("2") >= 0 && tribunal.indexOf("grau") >= 0 ? "2" : "1";
+    const candidates = Array.from(document.querySelectorAll("a[href*='/new_progress/']")).filter((element) => {
+      const href = elementUrl(element);
+      const text = candidateActionText(element);
+      return (
+        href.indexOf("/procedures/" + procedureId + "/new_progress/") >= 0 &&
+        text.indexOf("elaborar") >= 0 &&
+        text.indexOf("peti") >= 0 &&
+        text.indexOf("tj") >= 0 &&
+        text.indexOf("grau") >= 0
+      );
+    });
+    const preferred = candidates.filter((element) => candidateActionText(element).indexOf(preferredDegree) >= 0);
+    return sortElementsByScreenPosition(preferred.length ? preferred : candidates)[0] || null;
+  }
+
+  function waitForSimpleClosureProgressLink(procedureId) {
+    return waitForValue(() => simpleClosureProgressLink(procedureId), 18000, 300);
+  }
+
+  async function selectSimpleClosureDocumentTemplate(action) {
+    const target = SIMPLE_CLOSURE_MODEL_TARGETS[action.closureTypeKey];
+    if (!target) throw new Error("Tipo de Simples Encerramento sem modelo configurado.");
+
+    const modal = await openDocumentModelsModal();
+    if (!modal) throw new Error("Janela de Modelos de documentos nao encontrada.");
+
+    const path = [
+      { documentTypeId: "63", tokens: ["modelos", "publicos"], folderOnly: true },
+      { documentTypeId: "78", tokens: ["sgj", "subprocuradoria"], folderOnly: true },
+      { documentTypeId: "787", tokens: ["nsus", "nucleo", "saude"], folderOnly: true },
+      { tokens: ["procedimentos"], folderOnly: true },
+      { documentTypeId: "1204", tokens: ["2", "simples", "encerramento"], folderOnly: true },
+      target.folder
+    ];
+
+    for (let index = 0; index < path.length; index += 1) {
+      const current = path[index];
+      const next = path[index + 1] || target.template;
+      const nextAlreadyVisible = findDocumentModelLink(modal, next, { allowHidden: false });
+      if (nextAlreadyVisible) continue;
+
+      const link = findDocumentModelLink(modal, current, { allowHidden: false }) ||
+        (await waitForDocumentModelLink(modal, current, 18000));
+      if (!link || !clickElement(link)) {
+        throw new Error("Pasta nao encontrada: " + (current.tokens || []).join(" ") + ".");
+      }
+      if (!(await waitForDocumentModelLink(modal, next, 18000))) {
+        throw new Error("A pasta nao carregou: " + (next.tokens || []).join(" ") + ".");
+      }
+    }
+
+    const template = findDocumentModelLink(modal, target.template, { allowHidden: false }) ||
+      (await waitForDocumentModelLink(modal, target.template, 18000));
+    if (!template || !clickElement(template)) {
+      throw new Error("Modelo de Simples Encerramento nao encontrado.");
+    }
+  }
+
+  async function continuePendingSimpleClosureAction() {
+    const action = pendingSimpleClosureAction();
+    const procedureId = currentProcedureIdFromPath();
+    if (!action || !procedureId || String(action.procedureId) !== String(procedureId)) return;
+
+    if (!currentProgressStepIdFromPath()) {
+      const link = await waitForSimpleClosureProgressLink(procedureId);
+      if (!link) throw new Error("Botao Elaborar peticao - TJ nao encontrado.");
+      saveSimpleClosureAction(action, "selecionar_modelo");
+      setStatus("Abrindo elaboracao...");
+      log("Abrindo Elaborar peticao - TJ para o Simples Encerramento.", "ok");
+      const href = elementUrl(link);
+      clickElement(link);
+      await sleep(1200);
+      if (!currentProgressStepIdFromPath() && href) window.location.assign(href);
+      return;
+    }
+
+    if (action.phase === "abrir_elaboracao") saveSimpleClosureAction(action, "selecionar_modelo");
+    if (action.phase !== "selecionar_modelo") return;
+    saveSimpleClosureAction(action, "abrindo_modelo");
+    setStatus("Selecionando modelo...");
+    log("Selecionando o modelo de Simples Encerramento nos Modelos Publicos.");
+
+    try {
+      await selectSimpleClosureDocumentTemplate(action);
+      saveSimpleClosureAction(action, "inserindo_texto");
+    } catch (error) {
+      window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+      throw error;
+    }
+
+    const editorFrame = await waitForValue(
+      () => document.querySelector("iframe.google-docs-editor[src*='docs.google.com']"),
+      45000,
+      500
+    );
+    if (!editorFrame) throw new Error("Editor do Google Docs nao carregou apos selecionar o modelo.");
+
+    setStatus("Inserindo texto...");
+    const result = await sendSimpleClosureBridgeMessage("SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT", {
+      html: action.payload.html,
+      plain: action.payload.plain
+    });
+    window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+
+    if (!result || !result.ok) {
+      const detail = result && result.error ? result.error : "Falha sem retorno do editor.";
+      setStatus("Cole o texto copiado");
+      log("Modelo aberto, mas a insercao automatica falhou: " + detail, "error");
+      window.alert(
+        "O modelo foi aberto, mas o Google Docs nao confirmou a insercao automatica.\n\n" +
+          "O texto continua copiado. Use Ctrl+V no lugar de 'INSERIR O TEXTO DO SIMPLES ENCERRAMENTO'.\n\n" +
+          detail
+      );
+      return;
+    }
+
+    setStatus("Texto inserido");
+    log("Modelo aberto e texto do Simples Encerramento inserido na minuta.", "ok");
+  }
+
+  async function startSimpleClosureDocumentAction(closureTypeKey, payload, permissionResult) {
+    if (!payload || !SIMPLE_CLOSURE_MODEL_TARGETS[closureTypeKey]) return;
+    if (!permissionResult || !permissionResult.ok) {
+      const detail = permissionResult && permissionResult.error ? permissionResult.error : "Permissao nao concedida.";
+      log("Texto gerado, mas a automacao da minuta nao foi iniciada: " + detail, "error");
+      window.alert("O texto foi gerado e copiado, mas a permissao do Google Docs nao foi concedida.\n\n" + detail);
+      return;
+    }
+
+    const procedureId = currentProcedureIdFromPath();
+    if (!procedureId) {
+      window.alert("Abra a pendencia do processo antes de gerar o Simples Encerramento.");
+      return;
+    }
+
+    saveSimpleClosureAction(
+      {
+        type: "simple_closure_template",
+        procedureId,
+        closureTypeKey,
+        payload,
+        createdAt: Date.now()
+      },
+      "abrir_elaboracao"
+    );
+    await continuePendingSimpleClosureAction();
+  }
+
   async function continuePendingCorrectionOpenAction() {
     const item = currentCorrectionQueueItem();
     const procedureId = currentProcedureIdFromPath();
@@ -6587,9 +6820,11 @@
 
     const actions = document.createElement("div");
     actions.style.cssText = "display:none;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;";
-    const generateButton = createButton("Gerar Simples Encerramento", () => {
+    const generateButton = createButton("Gerar Simples Encerramento", async () => {
       const model = selectedModel();
       if (!model || !canGenerate(model)) return;
+      // A solicitacao ocorre no clique para o Chrome reconhecer a acao do usuario.
+      const permissionRequest = sendSimpleClosureBridgeMessage("SPA_CDSP_SIMPLE_CLOSURE_REQUEST_DOCS_PERMISSION");
       const outputValues = simpleClosureValuesForOutput(model, state.values, pieceSelect.value);
       const items = model.lines
         .map((line) => ({ text: interpolateSimpleClosureText(line, outputValues), level: 0 }))
@@ -6599,11 +6834,21 @@
           items.push({ text: interpolateSimpleClosureText(item.text, outputValues), level: item.level || 1 });
         }
       });
-      generateSimpleClosureText({
+      const payload = await generateSimpleClosureText({
         closureType: SIMPLE_CLOSURE_TYPES[typeSelect.value].label,
         piece: pieceSelect.value,
         items
       });
+      const permissionResult = await permissionRequest;
+      try {
+        await startSimpleClosureDocumentAction(typeSelect.value, payload, permissionResult);
+      } catch (error) {
+        window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+        const detail = error && error.message ? error.message : String(error);
+        setStatus("Simples Encerramento falhou");
+        log("Erro ao abrir minuta de Simples Encerramento: " + detail, "error");
+        window.alert("Nao foi possivel concluir a abertura da minuta de Simples Encerramento.\n\n" + detail);
+      }
     }, "primary");
     const copyButton = createSmallUtilityButton("Copiar", "Copiar novamente o ultimo Simples Encerramento", copyStoredSimpleClosureText);
     actions.appendChild(generateButton);
@@ -7223,6 +7468,12 @@
       continuePendingPetitionAction().catch((error) => {
         log("Erro ao continuar elaboracao de peticao: " + (error.message || String(error)), "error");
       });
+      continuePendingSimpleClosureAction().catch((error) => {
+        window.localStorage.removeItem(SIMPLE_CLOSURE_ACTION_KEY);
+        setStatus("Simples Encerramento falhou");
+        log("Erro ao abrir minuta de Simples Encerramento: " + (error.message || String(error)), "error");
+        window.alert("Nao foi possivel concluir a abertura da minuta de Simples Encerramento.\n\n" + (error.message || String(error)));
+      });
       continuePendingCorrectionOpenAction().catch((error) => {
         log("Erro ao continuar fluxo de correcao: " + (error.message || String(error)), "error");
       });
@@ -7254,6 +7505,8 @@
     generateExcel,
     findPetitionProgressLink,
     continuePendingPetitionAction,
+    continuePendingSimpleClosureAction,
+    startSimpleClosureDocumentAction,
     refreshCorrectionFlowRecords,
     collectCorrectionRecords,
     filteredCorrectionRecords,

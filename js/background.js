@@ -45,6 +45,8 @@ const CDSP_GENERAL_MANAGEMENT_PANEL_FILE = "js/gestao/management_report_panel.js
 const CDSP_GENERAL_DEADLINE_PANEL_FILE = "js/prazos/deadline_report_panel.js";
 const CDSP_GENERAL_TRIAGEM_PANEL_FILE = "js/triagem/spa_extension_panel.js";
 const CDSP_GENERAL_TEAM_DATABASE_FILE = "data/equipe.xlsx";
+const SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN = "https://docs.google.com/*";
+const SIMPLE_CLOSURE_PLACEHOLDER = "INSERIR O TEXTO DO SIMPLES ENCERRAMENTO";
 const SCHEDULE_DEFAULT_INBOX_URL = "https://spa.pge.mt.gov.br/procedures";
 const MNI_PJE_INSTANCES = {
   pje1: {
@@ -4753,6 +4755,126 @@ async function injectDeadlinePanel(sender) {
   }
 }
 
+async function requestSimpleClosureGoogleDocsPermission() {
+  const permissions = { origins: [SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN] };
+  const alreadyGranted = await chrome.permissions.contains(permissions);
+  if (alreadyGranted) return { ok: true, granted: true, alreadyGranted: true };
+
+  const granted = await chrome.permissions.request(permissions);
+  return {
+    ok: granted,
+    granted,
+    error: granted ? "" : "A permissao para preencher o Google Docs nao foi concedida."
+  };
+}
+
+async function insertSimpleClosureIntoGoogleDoc(payload) {
+  if (location.hostname !== "docs.google.com") return { skipped: true };
+
+  const text = payload && payload.plain ? String(payload.plain) : "";
+  const html = payload && payload.html ? String(payload.html) : "";
+  const placeholder = String((payload && payload.placeholder) || "INSERIR O TEXTO DO SIMPLES ENCERRAMENTO");
+  if (!text || !placeholder) return { ok: false, error: "Texto ou marcador da minuta ausente." };
+
+  const editor = document.querySelector(".kix-appview-editor");
+  const inputFrame = document.querySelector("iframe.docs-texteventtarget-iframe");
+  let inputTarget = null;
+  try {
+    const inputDocument = inputFrame && inputFrame.contentDocument;
+    inputTarget = inputDocument && (inputDocument.querySelector("textarea") || inputDocument.body);
+  } catch (_error) {
+    inputTarget = null;
+  }
+
+  if (!editor || !inputTarget || typeof window.find !== "function") {
+    return { ok: false, error: "Editor do Google Docs ainda nao esta pronto." };
+  }
+
+  try {
+    editor.focus({ preventScroll: true });
+  } catch (_error) {
+    // O editor continua utilizavel mesmo quando nao aceita foco programatico.
+  }
+
+  const found = window.find(placeholder, false, false, true, false, false, false);
+  if (!found) return { ok: false, error: "Marcador do Simples Encerramento nao encontrado na minuta." };
+
+  try {
+    inputTarget.focus({ preventScroll: true });
+  } catch (_error) {
+    // O iframe de eventos pode apenas aceitar o foco padrao.
+  }
+
+  let handledPaste = false;
+  try {
+    const transfer = new DataTransfer();
+    transfer.setData("text/plain", text);
+    if (html) transfer.setData("text/html", html);
+    const pasteEvent = new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: transfer
+    });
+    handledPaste = !inputTarget.dispatchEvent(pasteEvent);
+  } catch (_error) {
+    handledPaste = false;
+  }
+
+  if (!handledPaste) {
+    try {
+      document.execCommand("insertText", false, text);
+    } catch (_error) {
+      return { ok: false, error: "O Google Docs recusou a insercao automatica do texto." };
+    }
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const placeholderStillExists = window.find(placeholder, false, false, true, false, false, false);
+  if (placeholderStillExists) {
+    return {
+      ok: false,
+      attempted: true,
+      error: "O Google Docs nao confirmou a substituicao do marcador na minuta."
+    };
+  }
+
+  return {
+    ok: true,
+    inserted: true,
+    method: handledPaste ? "paste" : "insertText"
+  };
+}
+
+async function insertSimpleClosureIntoCurrentDocument(sender, payload) {
+  const tabId = cdspGeneralTabId(sender);
+  if (!tabId) return { ok: false, error: "Aba do SPA nao identificada." };
+
+  const permissions = { origins: [SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN] };
+  if (!(await chrome.permissions.contains(permissions))) {
+    return { ok: false, error: "A permissao do Google Docs ainda nao foi concedida." };
+  }
+
+  let lastError = "Editor do Google Docs nao encontrado.";
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: insertSimpleClosureIntoGoogleDoc,
+        args: [Object.assign({}, payload || {}, { placeholder: SIMPLE_CLOSURE_PLACEHOLDER })]
+      });
+      const result = (results || []).map((item) => item.result).find((item) => item && !item.skipped);
+      if (result && result.ok) return result;
+      if (result && result.error) lastError = result.error;
+      if (result && result.attempted) return result;
+    } catch (error) {
+      lastError = error && error.message ? error.message : String(error);
+    }
+    await sleep(700);
+  }
+
+  return { ok: false, error: lastError };
+}
+
 async function injectPanel(sender) {
   const tabId = sender && sender.tab ? sender.tab.id : null;
   if (!tabId) {
@@ -4799,6 +4921,26 @@ async function injectPanel(sender) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
+
+  if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_REQUEST_DOCS_PERMISSION") {
+    requestSimpleClosureGoogleDocsPermission()
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : String(error) });
+      });
+
+    return true;
+  }
+
+  if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT") {
+    insertSimpleClosureIntoCurrentDocument(_sender, message.payload)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : String(error) });
+      });
+
+    return true;
+  }
 
   if (message.type === "CDSP_OFICIOS_EXTRACT_PROCESS_TAB") {
     cdspOficiosExtrairProcessoEmAba(message)

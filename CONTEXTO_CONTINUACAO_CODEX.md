@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.73`
-- Ultima tag publicada no repositorio: `v1.73`
+- Versao atual da extensao: `1.74`
+- Ultima tag publicada no repositorio: `v1.74`
 
 ## Como retomar no notebook
 
@@ -150,6 +150,12 @@ Versao `1.73`:
 - Datas usam `dd/mm/aaaa`; numeros CNJ sao formatados e validados. Os prazos passam a contar no dia seguinte, com calendario geral do TJMT de 2026, fins de semana e feriados nacionais como base de continuidade.
 - O texto gerado continua em Times New Roman 14, espacamento 1,15 e recuo de primeira linha de 1,25 cm. Avisos operacionais ficam em vermelho na interface e nao entram no texto copiado.
 
+Versao `1.74`:
+
+- Ao gerar um Simples Encerramento, a extensao mantem a copia do texto e abre automaticamente o fluxo de elaboracao de peticao do TJ correspondente ao grau do processo.
+- O fluxo percorre Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento e escolhe a pasta/modelo correspondente a Preclusao Temporal, Conteudo ao qual nao cabe Recorrer/Manifestar, Demais Situacoes ou Preclusao Consumativa.
+- A extensao solicita acesso opcional e limitado a `docs.google.com` somente no clique de gerar e tenta substituir o marcador `INSERIR O TEXTO DO SIMPLES ENCERRAMENTO` na minuta. Se o editor nao confirmar a substituicao, o texto continua copiado para colagem manual.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -164,9 +170,10 @@ Versao `1.73`:
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado.
+- No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A permissao de `docs.google.com` deve continuar opcional e restrita a esse fluxo.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
-- Preservar o fluxo do GitHub: cada entrega importante deve gerar commit, tag e zip/pasta de output.
+- Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
 
 ## Arquivos importantes
 
