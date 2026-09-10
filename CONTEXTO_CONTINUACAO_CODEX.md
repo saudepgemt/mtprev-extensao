@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.77`
-- Ultima tag publicada no repositorio: `v1.77`
+- Versao atual da extensao: `1.78`
+- Ultima tag publicada no repositorio: `v1.78`
 
 ## Como retomar no notebook
 
@@ -173,6 +173,13 @@ Versao `1.77`:
 - Em Preclusao Temporal, Recurso Inominado ficou restrito ao Juizado, com prazo de 10 dias uteis. Os demais prazos foram preservados conforme rito e a contagem continua no dia seguinte a intimacao.
 - Nas opcoes de rito Crianca de Apelacao, Agravo de Instrumento, Embargos de Declaracao e Agravo Interno, a verificacao final de Tempestividade passou a ser checkbox obrigatoria e integra o texto gerado. Os demais avisos operacionais continuam somente na interface.
 
+Versao `1.78`:
+
+- Foi criado o `Fluxo de Triagem`, dentro da aba Triagem e acima de `Filtro de expediente`, para complementar a classificacao do processo a partir da pendencia.
+- O fluxo oferece Informacoes adicionais opcionais, Manifestacao Sugerida pesquisavel sem opcoes duplicadas, Designar ao assessor(a), escolha exclusiva de Tera Oficio e Observacao condicionada.
+- Ao classificar, a extensao abre o passo `Complementar classificacao do processo`, preenche os campos do SPA e somente salva apos confirmar cada selecao. Caso o assessor nao seja localizado, interrompe o salvamento e orienta o preenchimento manual.
+- Quando Tera Oficio for `Sim`, cria a Nova Tarefa com tipo Oficio, usuario Enzo Luiz Sawiski Lamin, prazo de 1 dia util, vencimento no proximo dia util considerando fins de semana e feriados nacionais, e a mesma observacao da classificacao.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -187,6 +194,7 @@ Versao `1.77`:
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado.
+- Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587, ATR007588 e ATR007594, confirmar as selecoes Select2 e interromper antes de salvar quando o assessor nao for localizado. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 = Enzo Luiz Sawiski Lamin, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa.
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
