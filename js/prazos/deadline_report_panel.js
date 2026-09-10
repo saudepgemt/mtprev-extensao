@@ -398,14 +398,14 @@
     const add = (typeKey, piece, fields, lines, checks, options) => {
       models[typeKey + "|" + piece] = Object.assign({ fields, lines, checks: checks || [] }, options || {});
     };
+    const id = (key, label, options) => field(key, label || "ID", "text", options);
     const protocolDate = field("protocolDate", "Data", "date");
     const pgeDate = field("pgeDate", "Data da intima\u00e7\u00e3o da PGE", "date");
-    const protocolId = field("protocolId", "ID", "text");
-    const id = (key, label, options) => field(key, label || "ID", "text", options);
+    const protocolId = (label) => id("protocolId", label || "ID da pe\u00e7a protocolada");
     const processNumber = field("processNumber", "Processo origin\u00e1rio", "cnj");
     const pgeLine = "A intima\u00e7\u00e3o da PGE se deu em {pgeDate}, conforme consta na aba \"Expedientes\" do PJE.";
     const standardChecks = [
-      check("fine", "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", { level: 1 }),
+      check("fine", "N\u00e3o houve deferimento de multa posterior ao protocolo da contesta\u00e7\u00e3o;", { level: 1 }),
       check(
         "movement",
         "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.",
@@ -414,18 +414,18 @@
     ];
     const noFurtherResource = check(
       "noFurtherResource",
-      "N\u00e3o h\u00e1 recurso posterior que necessite de manifesta\u00e7\u00e3o processual (contrarraz\u00f5es ou manifesta\u00e7\u00f5es).",
+      "N\u00e3o h\u00e1 recurso posterior que necessite de manifesta\u00e7\u00e3o processual (contrarraz\u00f5es, agravo interno ou manifesta\u00e7\u00f5es).",
       { level: 1 }
     );
-    const noFineAndMovement = [
-      check("fine", "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", { level: 1 }),
-      check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+    const noFineAndMovementFor = (protocolReference, movementReference) => [
+      check("fine", "N\u00e3o houve deferimento de multa posterior ao protocolo " + protocolReference + ";", { level: 1 }),
+      check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior " + movementReference + " que convenha ao Estado se manifestar.", { level: 1 })
     ];
 
     add(
       "preclusao_consumativa",
       "Contesta\u00e7\u00e3o",
-      [id("protocolId", "ID"), protocolDate],
+      [protocolId("ID da Contesta\u00e7\u00e3o"), protocolDate],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "A contesta\u00e7\u00e3o do Estado foi protocolada em {protocolDate} sob Id. {protocolId}.",
@@ -436,7 +436,7 @@
     add(
       "preclusao_consumativa",
       "Apela\u00e7\u00e3o",
-      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a")],
+      [protocolId("ID da Apela\u00e7\u00e3o"), protocolDate, id("sentenceId", "ID da senten\u00e7a")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "A apela\u00e7\u00e3o foi protocolada em {protocolDate} sob Id. {protocolId}.",
@@ -446,15 +446,15 @@
       [
         check("triage", "N\u00e3o h\u00e1 observa\u00e7\u00e3o feita pela triagem explicando a feitura da manifesta\u00e7\u00e3o sugerida.", { level: 1 }),
         check("changedSentence", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o da parte contr\u00e1ria que tenha modificado a senten\u00e7a anterior, objeto de apela\u00e7\u00e3o pelo Estado, de modo prejudicial ao Estado.", { level: 1 }),
-        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"apela\u00e7\u00e3o\".", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"apela\u00e7\u00e3o\".", { level: 1 }),
         check("otherAppeal", "N\u00e3o houve interposi\u00e7\u00e3o de apela\u00e7\u00e3o por outra parte em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 }),
-        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 senten\u00e7a que convenha ao Estado se manifestar.", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." })
       ]
     );
     add(
       "preclusao_consumativa",
       "Recurso Inominado",
-      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a")],
+      [protocolId("ID do Recurso Inominado"), protocolDate, id("sentenceId", "ID da senten\u00e7a")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "O Recurso Inominado foi protocolado em {protocolDate} sob Id. {protocolId}.",
@@ -462,28 +462,28 @@
         "Verifiquei que:"
       ],
       [
-        check("changedSentence", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o da parte contr\u00e1ria que tenha modificado a senten\u00e7a anterior, objeto de apela\u00e7\u00e3o pelo Estado, de modo prejudicial ao Estado.", { level: 1 }),
-        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"apela\u00e7\u00e3o\".", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." }),
-        check("otherAppeal", "N\u00e3o houve interposi\u00e7\u00e3o de apela\u00e7\u00e3o por outra parte em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 }),
-        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar.", { level: 1 })
+        check("changedSentence", "N\u00e3o h\u00e1 decis\u00e3o posterior julgando embargos de declara\u00e7\u00e3o da parte contr\u00e1ria que tenha modificado a senten\u00e7a anterior, objeto de recurso inominado pelo Estado, de modo prejudicial ao Estado.", { level: 1 }),
+        check("wrongDistribution", "N\u00e3o \u00e9 caso de distribui\u00e7\u00e3o de pend\u00eancia com o nome equivocado de \"recurso inominado\".", { level: 1 }),
+        check("otherAppeal", "N\u00e3o houve interposi\u00e7\u00e3o de recurso inominado por outra parte em que o Estado ainda n\u00e3o apresentou contrarraz\u00f5es.", { level: 1 }),
+        check("movement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 senten\u00e7a que convenha ao Estado se manifestar.", { level: 1, warning: "Aten\u00e7\u00e3o: pode ser pend\u00eancia de contrarraz\u00f5es." })
       ]
     );
     add(
       "preclusao_consumativa",
       "Contrarraz\u00f5es",
-      [protocolDate, protocolId, id("resourceId", "ID do recurso")],
+      [protocolId("ID das Contrarraz\u00f5es"), protocolDate, id("resourceId", "ID do recurso")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "As Contrarraz\u00f5es do Estado foram protocoladas em {protocolDate} sob Id. {protocolId}.",
         "O recurso que gerou as Contrarraz\u00f5es est\u00e1 na Id. {resourceId}.",
         "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
       ],
-      noFineAndMovement
+      noFineAndMovementFor("das contrarraz\u00f5es", "\u00e0s contrarraz\u00f5es")
     );
     add(
       "preclusao_consumativa",
       "Agravo de Instrumento",
-      [protocolDate, protocolId, processNumber, id("decisionId", "ID da decis\u00e3o que gerou o Agravo")],
+      [protocolId("ID do Agravo de Instrumento"), protocolDate, processNumber, id("decisionId", "ID da decis\u00e3o que gerou o Agravo")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "O Agravo de Instrumento foi protocolado em {protocolDate} sob Id. {protocolId}.",
@@ -496,7 +496,7 @@
     add(
       "preclusao_consumativa",
       "Contraminuta",
-      [protocolDate, protocolId, id("appealId", "ID do Agravo"), processNumber],
+      [protocolId("ID da Contraminuta"), protocolDate, id("appealId", "ID do Agravo"), processNumber],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "A Contraminuta do Estado foi protocolada em {protocolDate} sob Id. {protocolId}.",
@@ -504,12 +504,12 @@
         "O processo origin\u00e1rio \u00e9 o n\u00ba {processNumber}.",
         "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
       ],
-      noFineAndMovement
+      noFineAndMovementFor("da contraminuta", "\u00e0 contraminuta")
     );
     add(
       "preclusao_consumativa",
       "Embargos de Declara\u00e7\u00e3o",
-      [protocolDate, protocolId, id("decisionId", "ID da decis\u00e3o/senten\u00e7a")],
+      [protocolId("ID dos Embargos de Declara\u00e7\u00e3o"), protocolDate, id("decisionId", "ID da decis\u00e3o/senten\u00e7a")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "Os Embargos de Declara\u00e7\u00e3o foram protocolados em {protocolDate} sob Id. {protocolId}.",
@@ -521,7 +521,7 @@
     add(
       "preclusao_consumativa",
       "Agravo Interno",
-      [id("decisionId", "ID da decis\u00e3o que gerou o Agravo"), protocolDate, protocolId],
+      [id("decisionId", "ID da decis\u00e3o que gerou o Agravo"), protocolDate, protocolId("ID do Agravo Interno")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "A decis\u00e3o que gerou o Agravo Interno est\u00e1 na Id. {decisionId}.",
@@ -533,7 +533,7 @@
     add(
       "preclusao_consumativa",
       "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
-      [protocolDate, protocolId, id("sentenceId", "ID da senten\u00e7a"), id("complianceId", "ID do Cumprimento de Senten\u00e7a")],
+      [protocolId("ID da Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"), protocolDate, id("sentenceId", "ID da senten\u00e7a"), id("complianceId", "ID do Cumprimento de Senten\u00e7a")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "A Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a foi protocolada em {protocolDate} sob Id. {protocolId}.",
@@ -541,12 +541,12 @@
         "O Cumprimento de Senten\u00e7a que gerou a Impugna\u00e7\u00e3o est\u00e1 na Id. {complianceId}.",
         "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:"
       ],
-      noFineAndMovement
+      noFineAndMovementFor("da impugna\u00e7\u00e3o ao cumprimento de senten\u00e7a", "\u00e0 impugna\u00e7\u00e3o ao cumprimento de senten\u00e7a")
     );
     add(
       "preclusao_consumativa",
       "Recurso Especial / Recurso Extraordin\u00e1rio",
-      [protocolDate, protocolId, id("judgmentId", "ID do Ac\u00f3rd\u00e3o")],
+      [protocolId("ID do Recurso Especial / Recurso Extraordin\u00e1rio"), protocolDate, id("judgmentId", "ID do Ac\u00f3rd\u00e3o")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         "O Recurso Especial / Recurso Extraordin\u00e1rio foi protocolado em {protocolDate} sob Id. {protocolId}.",
@@ -562,7 +562,7 @@
     add(
       "preclusao_consumativa",
       "Manifesta\u00e7\u00e3o",
-      [pgeDate, id("decisionId", "ID da decis\u00e3o"), field("reason", "Motivo", "textarea")],
+      [id("decisionId", "ID da decis\u00e3o"), pgeDate, field("reason", "Motivo", "textarea")],
       [
         "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.",
         pgeLine,
@@ -583,7 +583,7 @@
         "A pe\u00e7a do Estado n\u00e3o foi protocolada por haver decis\u00e3o terminativa (Id. {terminativeDecisionId}) posterior \u00e0 intima\u00e7\u00e3o. Por\u00e9m, considerando tal decis\u00e3o, eu verifiquei que:"
       ],
       [
-        check("noFine", "N\u00e3o houve deferimento multa em liminar;", { level: 1 }),
+        check("noFine", "N\u00e3o houve deferimento de multa em liminar;", { level: 1 }),
         check("noMovement", "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior que demande manifesta\u00e7\u00e3o do Estado;", { level: 1 }),
         check("noSuppression", "O prazo para apresentar a pe\u00e7a n\u00e3o foi suprimido pela decis\u00e3o terminativa.", { level: 1 })
       ]
@@ -593,7 +593,7 @@
         ["common", "Justi\u00e7a Comum", 30, true], ["child", "Crian\u00e7a", 10, false]
       ]],
       ["Recurso Inominado", "sentenceId", "ID da senten\u00e7a", [
-        ["smallClaims", "Juizado", 10, true], ["child", "Crian\u00e7a", 10, false]
+        ["smallClaims", "Juizado", 10, true]
       ]],
       ["Agravo de Instrumento", "decisionId", "ID da decis\u00e3o", [
         ["smallClaims", "Juizado", 10, true], ["common", "Justi\u00e7a Comum", 30, true], ["child", "Crian\u00e7a", 10, false]
@@ -610,6 +610,16 @@
       const idKey = entry[1];
       const options = entry[3].map((option) => ({ value: option[0], label: option[1], days: option[2], businessDays: option[3] }));
       const fields = [pgeDate, id(idKey, entry[2])];
+      const childDeadline = entry[3].find((option) => option[0] === "child");
+      const childTempestivityDeadline = {
+        "Apela\u00e7\u00e3o": 30,
+        "Agravo de Instrumento": 30,
+        "Embargos de Declara\u00e7\u00e3o": 10,
+        "Agravo Interno": 30
+      }[piece];
+      const childTempestivityText = childDeadline
+        ? "Em \u00faltima possibilidade, conferi que n\u00e3o h\u00e1 tempo de se utilizar o t\u00f3pico de Tempestividade em causas envolvendo menor de idade que poderia aumentar meu prazo para " + childTempestivityDeadline + " dias \u00fateis."
+        : "";
       if (piece === "Agravo de Instrumento" || piece === "Agravo Interno") fields.unshift(processNumber);
       fields.push(choice("court", "Rito", options));
       add(
@@ -627,9 +637,10 @@
           check("courtRecord", "Na aba do PJE, conferi o rito processual informado.", { level: 1 }),
           check("noRiteChange", "Na decis\u00e3o/senten\u00e7a, n\u00e3o houve altera\u00e7\u00e3o do rito processual.", { level: 1 }),
           check("holidays", "Conferi poss\u00edveis feriados e pontos facultativos na Justi\u00e7a estadual e na federal.", { level: 1 }),
-          check("embargos", "Conferi a possibilidade de Embargos de Declara\u00e7\u00e3o terem sido opostos, interrompendo o prazo.", { level: 1 }),
-          check("childWarning", "", { level: 1, required: false, uiOnly: true, warning: "Em \u00faltima possibilidade, confira se n\u00e3o h\u00e1 tempo de utilizar a tempestividade em causa envolvendo menor de idade que poderia ampliar o prazo para 20 dias \u00fateis.", when: (values) => values.court === "child" })
-        ]
+          check("embargos", "Conferi a possibilidade de Embargos de Declara\u00e7\u00e3o terem sido opostos, interrompendo o prazo.", { level: 1 })
+        ].concat(childTempestivityText
+          ? [check("childTempestivity", childTempestivityText, { level: 1, when: (values) => values.court === "child" })]
+          : [])
       );
     });
     add(
@@ -652,14 +663,14 @@
       "Contesta\u00e7\u00e3o",
       [id("sentenceId", "ID da senten\u00e7a")],
       ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", "A Contesta\u00e7\u00e3o do Estado n\u00e3o foi protocolada por haver senten\u00e7a (Id. {sentenceId}) posterior \u00e0 intima\u00e7\u00e3o. Por\u00e9m, considerando tal senten\u00e7a, eu verifiquei que:"],
-      [check("notUnfavorable", "Ela n\u00e3o \u00e9 desfavor\u00e1vel ao Estado;", { level: 1 }), check("noFine", "N\u00e3o houve deferimento multa em liminar.", { level: 1 })]
+      [check("notUnfavorable", "Ela n\u00e3o \u00e9 desfavor\u00e1vel ao Estado;", { level: 1 }), check("noFine", "N\u00e3o houve deferimento de multa em liminar.", { level: 1 })]
     );
     add(
       "conteudo_irrecorrivel",
       "Contraminuta / Contrarraz\u00f5es",
       [id("resourceId", "ID do recurso"), pgeDate, choice("defenseReason", "Motivo", [{ value: "favorable", label: "O recurso \u00e9 favor\u00e1vel ao Estado" }, { value: "notInterested", label: "O Estado n\u00e3o \u00e9 o interessado/objeto do recurso" }])],
       ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", "O recurso que gerou esta pend\u00eancia est\u00e1 na Id. {resourceId}.", pgeLine, "N\u00e3o h\u00e1 necessidade de defesa do Estado, pois: {defenseReasonLabel}.", "Por\u00e9m, considerando tal recurso, eu verifiquei que:"],
-      [check("noFine", "N\u00e3o houve deferimento multa em liminar.", { level: 1 })]
+      [check("noFine", "N\u00e3o houve deferimento de multa em liminar.", { level: 1 })]
     );
     add(
       "conteudo_irrecorrivel",
@@ -719,7 +730,7 @@
     add(
       "conteudo_irrecorrivel",
       "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
-      [protocolDate, protocolId, pgeDate, id("sentenceId", "ID da senten\u00e7a"), choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }])],
+      [protocolDate, protocolId("ID da Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"), pgeDate, id("sentenceId", "ID da senten\u00e7a"), choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }])],
       ["O Cumprimento de Senten\u00e7a foi protocolado em {protocolDate} sob Id. {protocolId}.", pgeLine, "A senten\u00e7a est\u00e1 na Id. {sentenceId}.", "Considerando que est\u00e1 em {riteLabel}, eu verifiquei:"],
       [check("noExcess", "N\u00e3o houve excesso de execu\u00e7\u00e3o;", { level: 1 }), check("noFine", "N\u00e3o foi pedida multa no Cumprimento de Senten\u00e7a;", { level: 1 }), check("noPrison", "N\u00e3o foi pedida pris\u00e3o ou afastamento de agente p\u00fablico;", { level: 1 }), check("noCosts", "N\u00e3o houve fixa\u00e7\u00e3o de custas;", { level: 1 }), check("procedure", "Conferi o procedimento no SISREG e no SIGADOC.", { level: 1 }), check("noFees", "N\u00e3o foram pedidos honor\u00e1rios.", { level: 1, when: (values) => values.rite === "smallClaims" })]
     );
@@ -4237,7 +4248,7 @@
       { text: "A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: " + piece + ".", level: 0 },
       { text: "A contesta\u00e7\u00e3o do Estado foi protocolada em " + protocolDate + " sob Id. " + protocolId + ".", level: 0 },
       { text: "Considerando que est\u00e1 em Procedimento Comum ou Juizado, eu verifiquei que:", level: 0 },
-      { text: "N\u00e3o houve deferimento multa posterior ao protocolo da contesta\u00e7\u00e3o;", level: 1 },
+      { text: "N\u00e3o houve deferimento de multa posterior ao protocolo da contesta\u00e7\u00e3o;", level: 1 },
       { text: "N\u00e3o houve movimenta\u00e7\u00e3o processual posterior \u00e0 contesta\u00e7\u00e3o que convenha ao Estado se manifestar, tais como: Emenda ou aditamento \u00e0 peti\u00e7\u00e3o inicial ou formula\u00e7\u00e3o de pedidos novos; Produ\u00e7\u00e3o de provas; Anu\u00eancia com extin\u00e7\u00e3o/desist\u00eancia etc.", level: 1 }
     ];
   }
