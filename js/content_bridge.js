@@ -14,6 +14,8 @@
   const PAGE_BRIDGE_SOURCE = "SPA_CDSP_EXTENSION_BRIDGE";
   const MANAGEMENT_PAGE_SOURCE = "SPA_CDSP_MANAGEMENT_PANEL";
   const MANAGEMENT_BRIDGE_SOURCE = "SPA_CDSP_MANAGEMENT_BRIDGE";
+  const TEAM_DATABASE_PAGE_SOURCE = "SPA_CDSP_TEAM_DATABASE_PANEL";
+  const TEAM_DATABASE_BRIDGE_SOURCE = "SPA_CDSP_TEAM_DATABASE_BRIDGE";
 
   const MODULES = [
     { key: "triagem", title: "Triagem e Protocolo", messageType: "CDSP_GENERAL_INJECT_TRIAGEM" },
@@ -703,6 +705,23 @@
     });
   }
 
+  function forwardTeamDatabaseMessage(data) {
+    safeSendMessage({ type: "SPA_CDSP_MANAGEMENT_FETCH_TEAM_DB" }, (response) => {
+      const lastError = safeLastError();
+      window.postMessage(
+        {
+          source: TEAM_DATABASE_BRIDGE_SOURCE,
+          type: "FETCH_TEAM_DB_RESPONSE",
+          requestId: data.requestId,
+          response: lastError
+            ? { ok: false, error: contextInvalidatedMessage(lastError) }
+            : response || { ok: false, error: "sem resposta" }
+        },
+        "*"
+      );
+    });
+  }
+
   function forwardTriagemMessage(data) {
     safeSendMessage(
       {
@@ -744,6 +763,11 @@
     const data = event.data || {};
     if (data.source === MANAGEMENT_PAGE_SOURCE && data.type === "FETCH_TEAM_DB") {
       forwardManagementMessage(data);
+      return;
+    }
+
+    if (data.source === TEAM_DATABASE_PAGE_SOURCE && data.type === "FETCH_TEAM_DB") {
+      forwardTeamDatabaseMessage(data);
       return;
     }
 

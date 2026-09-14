@@ -44,6 +44,7 @@ const CDSP_GENERAL_PDF_LIB_FILE = "js/libs/pdf-lib.min.js";
 const CDSP_GENERAL_MANAGEMENT_PANEL_FILE = "js/gestao/management_report_panel.js";
 const CDSP_GENERAL_DEADLINE_PANEL_FILE = "js/prazos/deadline_report_panel.js";
 const CDSP_GENERAL_TRIAGEM_PANEL_FILE = "js/triagem/spa_extension_panel.js";
+const CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE = "js/shared/active_team_database.js";
 const CDSP_GENERAL_TEAM_DATABASE_FILE = "data/equipe.xlsx";
 const SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN = "https://docs.google.com/*";
 const SIMPLE_CLOSURE_PLACEHOLDER = "INSERIR O TEXTO DO SIMPLES ENCERRAMENTO";
@@ -4742,7 +4743,7 @@ async function injectDeadlinePanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [CDSP_GENERAL_DEADLINE_PANEL_FILE],
+      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, CDSP_GENERAL_DEADLINE_PANEL_FILE],
       world: "MAIN"
     });
 
@@ -4891,9 +4892,10 @@ async function injectPanel(sender) {
       ]
     });
 
+    await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
 

@@ -164,6 +164,7 @@
   const CORRECTION_RETURN_STEP_ID = "2786";
   const CORRECTION_CLOSE_STEP_ID = "2756";
   const CORRECTION_RETURN_ASSESSOR_FIELD_ID = "progress_form_data_ATR007572";
+  const CORRECTION_RETURN_OBSERVATION_FIELD_ID = "progress_form_data_ATR007573";
   const CORRECTION_FILTER_ORDER_KEY = "SPA_CDSP_CORRECTION_FILTER_ORDER";
   const CORRECTION_FILTER_DEFAULT_ORDER = ["assessors", "judgingBodies", "manifestations", "activePoles", "receivedPeriods"];
   const CORRECTION_FILTER_DEFINITIONS = {
@@ -198,65 +199,6 @@
       stateKey: "receivedPeriods"
     }
   };
-  const CORRECTION_TEAM_NAMES = [
-    "Mateus Araújo Molina",
-    "João Virgílio do Nascimento Sobrinho",
-    "Francisco de Assis dos Santos",
-    "Mônica Garcia de Souza",
-    "Alexandre Emilio de Oliveira",
-    "Elvira Campos Barros",
-    "Altino Carmelito Duque",
-    "Rivadavia Borges Neto",
-    "Irque Figueira Silva",
-    "Thays de Oliveira Nunes Rondon Novais",
-    "Marina Sigarini Nogueira",
-    "Janaína Ramos da Costa",
-    "Igor Diego Braga Rodrigues de Campos",
-    "Thainá Aquino Felix",
-    "Jeniffer Naftali Ramalho Palmeira",
-    "Maria Letícia Mendonça e Silva",
-    "Luciana de Azevedo Néspoli",
-    "Gilson de Mello Boaventura",
-    "Yasmim Carlota Rocha Alves",
-    "Fransquislaine de Jesus Anicézio",
-    "José Carlos Barranqueiro Junior",
-    "Isabelly Toledo Pizza Cruz",
-    "Giulia Piovezan Poletini",
-    "Maria Eduarda Araújo Viana",
-    "Aline Cristina de Souza",
-    "Bruno Alves Mazetto",
-    "João Víctor Silva dos Santos de Oliveira",
-    "Roberto Cardoso do Espírito Santo Júnior",
-    "Bruna Lopes de Melo",
-    "Celine Lorraine de Souza Pinheiro",
-    "Karina Amorim Rondon",
-    "Luan Victor Cardoso de Souza",
-    "Joyce Mylena Gonçalves de Araujo",
-    "Rayssa Luana Ferreira Velasco",
-    "Amanda Lourenço",
-    "Victor Hugo da Silva Pereira Filho",
-    "Maria Fernanda Heliodoro Marques",
-    "Paulo César Leal Magalhães",
-    "Jullie Letícia Marques Huçalo",
-    "Danilo Militão Vicente da Silva",
-    "Maria Fernanda Xavier Gaíva",
-    "Victor Hugo Demarchi Bolonhese Chaves",
-    "João Guilherme Ferreira Gomes dos Santos",
-    "Vitória Mazeto Correa da Costa",
-    "Otávio Leite da Luz Junior",
-    "Felipe Rodrigues Toebe",
-    "Heloísa Saul Guimarães",
-    "Gabrielle Rodrigues Silva Espindola",
-    "Enzo Luiz Sawiski lamin",
-    "Matheus Augusto Ferreira Brandão",
-    "Tácita Vitória Pereira Gomes",
-    "Jonatan Pereira da Silva",
-    "Beatriz Vitoria Miranda Silva Cerqueira",
-    "João Gabriel Arruda Barbosa",
-    "Kerolynn Cristinny Almeida da Silva",
-    "Akauan Matheus Barros",
-    "Emanuel Aquiles Arruda de Souza"
-  ];
   const PANEL_POSITION_KEY = "SPA_CDSP_DEADLINE_PANEL_POSITION";
   const AGRAVO_ACTION_KEY = "SPA_CDSP_AGRAVO_INSTRUMENTO_ACTION";
   const AGRAVO_ACTION_MAX_AGE_MS = 10 * 60 * 1000;
@@ -833,7 +775,12 @@
       manifestations: [],
       receivedPeriods: []
     },
-    correctionFilterOrder: readStoredCorrectionFilterOrder()
+    correctionFilterOrder: readStoredCorrectionFilterOrder(),
+    activeTeamNames: [],
+    activeTeamLoaded: false,
+    activeTeamLoading: false,
+    activeTeamError: "",
+    activeTeamPromise: null
   };
 
   function sleep(ms) {
@@ -2756,6 +2703,47 @@
         resolve(response || {});
       });
     });
+  }
+
+  function activeTeamDatabase() {
+    const database = window.SPA_CDSP_TEAM_DATABASE;
+    return database && typeof database.loadActiveNames === "function" ? database : null;
+  }
+
+  function loadCorrectionActiveTeam() {
+    if (state.activeTeamLoaded) return Promise.resolve(state.activeTeamNames);
+    if (state.activeTeamLoading && state.activeTeamPromise) return state.activeTeamPromise;
+
+    const database = activeTeamDatabase();
+    if (!database) {
+      state.activeTeamError = "Leitor da lista interna da equipe nao foi carregado.";
+      return Promise.reject(new Error(state.activeTeamError));
+    }
+
+    state.activeTeamLoading = true;
+    state.activeTeamPromise = database
+      .loadActiveNames()
+      .then((names) => {
+        state.activeTeamNames = uniqueSorted(names);
+        state.activeTeamLoaded = true;
+        state.activeTeamError = "";
+        log("Lista interna carregada com " + state.activeTeamNames.length + " assessor(es) ativo(s).", "ok");
+        return state.activeTeamNames;
+      })
+      .catch((error) => {
+        state.activeTeamNames = [];
+        state.activeTeamLoaded = false;
+        state.activeTeamError = error && error.message ? error.message : String(error);
+        log("Lista interna da equipe nao carregou: " + state.activeTeamError, "error");
+        throw error;
+      })
+      .finally(() => {
+        state.activeTeamLoading = false;
+        state.activeTeamPromise = null;
+        refreshCorrectionFlowControls();
+      });
+
+    return state.activeTeamPromise;
   }
 
   function sendSimpleClosureBridgeMessage(type, payload) {
@@ -4976,8 +4964,23 @@
     throw new Error("Nao encontrei o assessor '" + assessorName + "' na lista do SPA.");
   }
 
-  async function startReturnToAssessor(assessorName, source) {
+  async function fillReturnObservation(observation) {
+    const text = String(observation || "").trim();
+    if (!text) return;
+
+    const field = await waitForValue(
+      () => document.querySelector("#" + CORRECTION_RETURN_OBSERVATION_FIELD_ID),
+      20000,
+      300
+    );
+    if (!field || !setInputValue(field, text)) {
+      throw new Error("Campo Observacao nao encontrado no passo Devolver ao assessor.");
+    }
+  }
+
+  async function startReturnToAssessor(assessorName, source, observation) {
     const cleanName = normalizeText(assessorName);
+    const cleanObservation = String(observation || "").trim();
     if (!cleanName) {
       window.alert("Selecione um assessor para devolver o processo.");
       return;
@@ -4990,6 +4993,7 @@
       storeCorrectionStepAction("devolver_assessor", {
         stepId: CORRECTION_RETURN_STEP_ID,
         assessorName: cleanName,
+        observation: cleanObservation,
         source: context.source
       });
       await continuePendingCorrectionStepAction();
@@ -5016,6 +5020,7 @@
     storeCorrectionStepAction("devolver_assessor", {
       stepId: CORRECTION_RETURN_STEP_ID,
       assessorName: cleanName,
+      observation: cleanObservation,
       source: context.source
     });
     setStatus("Abrindo devolucao...");
@@ -6031,6 +6036,7 @@
       if (action.type === "devolver_assessor") {
         setStatus("Selecionando assessor...");
         await fillReturnAssessor(action.assessorName);
+        await fillReturnObservation(action.observation);
       } else if (action.type === "sugerir_encerramento") {
         setStatus("Salvando encerramento...");
       } else {
@@ -6514,13 +6520,26 @@
 
       const previousKeys = order.slice(0, index);
       const availableRecords = recordsMatchingCorrectionFilterKeys(records, previousKeys);
+      const isAssessorFilter = key === "assessors";
+      const values = isAssessorFilter
+        ? state.activeTeamNames
+        : availableRecords.map((record) => record[definition.recordKey]);
+      const placeholder = isAssessorFilter && state.activeTeamLoading
+        ? "Carregando equipe..."
+        : isAssessorFilter && state.activeTeamError
+          ? "Lista da equipe indisponivel"
+          : records.length
+            ? definition.placeholder
+            : isAssessorFilter
+              ? "Assessor(a) ativo(a)"
+              : "Atualize os filtros";
       filters[definition.stateKey] = fillSelectOptions(
         select,
-        availableRecords.map((record) => record[definition.recordKey]),
-        records.length ? definition.placeholder : "Atualize os filtros",
+        values,
+        placeholder,
         filters[definition.stateKey]
       );
-      setCorrectionSelectDisabled(select, !records.length);
+      setCorrectionSelectDisabled(select, isAssessorFilter ? !state.activeTeamLoaded : !records.length);
     });
 
     const filtered = filteredCorrectionRecords();
@@ -7197,15 +7216,24 @@
     returnSelect.title = "Selecione a pessoa que recebera a devolucao.";
     const runReturnButton = createButton(
       "Salvar devolução",
-      () => startReturnToAssessor(returnSelect.value, returnSourceChooser.value()),
+      () => startReturnToAssessor(returnSelect.value, returnSourceChooser.value(), returnObservation.value),
       "primary"
     );
+    const returnObservation = document.createElement("input");
+    returnObservation.type = "text";
+    returnObservation.id = "spa-cdsp-correction-return-observation";
+    returnObservation.placeholder = "Observação (opcional)";
+    returnObservation.autocomplete = "off";
+    returnObservation.style.cssText =
+      "width:100%;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;" +
+      "font-size:11px;font-weight:700;padding:7px 8px;outline:none;box-sizing:border-box;";
 
     function refreshReturnAssessorOptions() {
       const query = normalizeKey(returnSearch.value);
       const previous = returnSelect.value;
+      const ready = state.activeTeamLoaded && state.activeTeamNames.length > 0;
       returnSelect.innerHTML = "";
-      CORRECTION_TEAM_NAMES.filter((name) => !query || normalizeKey(name).indexOf(query) >= 0).forEach((name) => {
+      state.activeTeamNames.filter((name) => !query || normalizeKey(name).indexOf(query) >= 0).forEach((name) => {
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;
@@ -7213,6 +7241,11 @@
         returnSelect.appendChild(option);
       });
       if (!returnSelect.value && returnSelect.options.length) returnSelect.options[0].selected = true;
+      returnSearch.disabled = !ready;
+      returnSelect.disabled = !ready;
+      runReturnButton.disabled = !ready;
+      runReturnButton.style.opacity = ready ? "1" : ".55";
+      runReturnButton.style.cursor = ready ? "pointer" : "not-allowed";
     }
 
     returnSearch.addEventListener("input", refreshReturnAssessorOptions);
@@ -7221,6 +7254,7 @@
     returnInner.appendChild(returnSourceChooser.element);
     returnInner.appendChild(returnSearch);
     returnInner.appendChild(returnSelect);
+    returnInner.appendChild(returnObservation);
     returnInner.appendChild(runReturnButton);
     returnBox.appendChild(returnSummary);
     returnBox.appendChild(returnInner);
@@ -7234,7 +7268,15 @@
     body.appendChild(sendButtons);
     section.appendChild(body);
 
-    window.setTimeout(refreshCorrectionFlowControls, 0);
+    window.setTimeout(() => {
+      refreshCorrectionFlowControls();
+      loadCorrectionActiveTeam()
+        .then(refreshReturnAssessorOptions)
+        .catch(() => {
+          refreshReturnAssessorOptions();
+          return null;
+        });
+    }, 0);
     return section;
   }
 

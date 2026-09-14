@@ -12619,12 +12619,13 @@
     });
     form.appendChild(manifestation.wrapper);
 
-    const assessor = inputField("Designar ao assessor(a)", "Nome do assessor(a)", false);
-    assessor.input.addEventListener("input", () => {
-      flowState.assessor = assessor.input.value;
-      refresh();
+    const activeAssessorChoices = [];
+    const assessor = searchableChoice("Designar ao assessor(a)", activeAssessorChoices, (choice) => {
+      flowState.assessor = choice ? choice.value : "";
     });
-    form.appendChild(assessor.label);
+    assessor.input.placeholder = "Carregando equipe...";
+    assessor.input.disabled = true;
+    form.appendChild(assessor.wrapper);
 
     const officeBox = document.createElement("div");
     officeBox.style.cssText = "display:grid;grid-template-columns:1fr;gap:5px;";
@@ -12713,6 +12714,29 @@
 
     section.body.appendChild(form);
     refresh();
+    window.setTimeout(() => {
+      const database = window.SPA_CDSP_TEAM_DATABASE;
+      if (!database || typeof database.loadActiveNames !== "function") {
+        setStatus("Lista da equipe indisponivel");
+        log("Leitor da lista interna da equipe nao foi carregado.", "error");
+        return;
+      }
+
+      database
+        .loadActiveNames()
+        .then((names) => {
+          names.forEach((name) => activeAssessorChoices.push({ label: name, value: name }));
+          assessor.input.disabled = false;
+          assessor.input.placeholder = "Pesquisar assessor(a)...";
+          log("Lista interna carregada com " + activeAssessorChoices.length + " assessor(es) ativo(s).", "ok");
+        })
+        .catch((error) => {
+          assessor.input.placeholder = "Lista da equipe indisponivel";
+          const message = error && error.message ? error.message : String(error);
+          setStatus("Lista da equipe indisponivel");
+          log(message, "error");
+        });
+    }, 0);
     return section.section;
   }
 
