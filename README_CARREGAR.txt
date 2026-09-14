@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.82
+CDSP Extensao Geral - 1.83
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -102,8 +102,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.82.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.83.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.82.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.83.zip" no painel da Chrome Web Store.
