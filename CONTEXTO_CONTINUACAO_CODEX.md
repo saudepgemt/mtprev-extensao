@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.78`
-- Ultima tag publicada no repositorio: `v1.78`
+- Versao atual da extensao: `1.79`
+- Ultima tag publicada no repositorio: `v1.79`
 
 ## Como retomar no notebook
 
@@ -180,6 +180,13 @@ Versao `1.78`:
 - Ao classificar, a extensao abre o passo `Complementar classificacao do processo`, preenche os campos do SPA e somente salva apos confirmar cada selecao. Caso o assessor nao seja localizado, interrompe o salvamento e orienta o preenchimento manual.
 - Quando Tera Oficio for `Sim`, cria a Nova Tarefa com tipo Oficio, usuario Enzo Luiz Sawiski Lamin, prazo de 1 dia util, vencimento no proximo dia util considerando fins de semana e feriados nacionais, e a mesma observacao da classificacao.
 
+Versao `1.79`:
+
+- No Simples Encerramento, em Conteudo ao qual nao cabe Recorrer/Manifestar > Embargos de Declaracao > Sentenca, a multa em liminar passou a ser escolha exclusiva: sem multa, ou multa revogada posteriormente. O ID da decisao de revogacao somente aparece na segunda escolha e e obrigatorio.
+- Os caminhos de Despacho/Liminar/Decisao Monocratica e Acordao continuam sem solicitar ID de revogacao.
+- Em Conteudo ao qual nao cabe Recorrer/Manifestar > Agravo Interno, o ID da decisao passou a anteceder a data, e os fundamentos finais sao alternativas exclusivas: selecionar um unico fundamento libera a geracao.
+- Em Conteudo ao qual nao cabe Recorrer/Manifestar > Impugnacao ao Cumprimento de Sentenca, o ID da impugnacao passou a anteceder a data.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -193,7 +200,7 @@ Versao `1.78`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
-- Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado.
+- Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado. Em Conteudo ao qual nao cabe Recorrer/Manifestar, preservar a multa em liminar de Embargos de Declaracao > Sentenca como escolha exclusiva, com ID obrigatorio apenas para multa revogada; em Agravo Interno, preservar os fundamentos finais como escolhas exclusivas e o ID antes da data; em Impugnacao ao Cumprimento de Sentenca, preservar o ID antes da data.
 - Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587, ATR007588 e ATR007594, confirmar as selecoes Select2 e interromper antes de salvar quando o assessor nao for localizado. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 = Enzo Luiz Sawiski Lamin, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa.
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.

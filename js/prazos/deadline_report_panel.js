@@ -696,7 +696,8 @@
         choice("origin", "Foi gerado por", [{ value: "decision", label: "Despacho / Liminar / Decis\u00e3o Monocr\u00e1tica" }, { value: "sentence", label: "Senten\u00e7a" }, { value: "judgment", label: "Ac\u00f3rd\u00e3o" }]),
         id("originId", "ID da decis\u00e3o/senten\u00e7a/ac\u00f3rd\u00e3o"),
         choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }], (values) => values.origin === "sentence"),
-        id("revocationId", "ID da revoga\u00e7\u00e3o", (values) => values.origin === "sentence")
+        choice("liminarFine", "Multa em liminar", [{ value: "noFine", label: "N\u00e3o foi fixada multa em liminar" }, { value: "revoked", label: "Foi fixada multa em liminar, por\u00e9m foi revogada posteriormente" }], (values) => values.origin === "sentence"),
+        id("revocationId", "ID da decis\u00e3o de revoga\u00e7\u00e3o", (values) => values.origin === "sentence" && values.liminarFine === "revoked")
       ],
       ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "Foi gerado por: {originLabel}.", "A {originLabel} est\u00e1 no Id. {originId}.", "{embargoHeading}"],
       [
@@ -707,7 +708,8 @@
         check("commonLimit", "O valor da causa ou bloqueio ultrapassam o teto do Juizado.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
         check("smallClaimsRite", "Conferi na senten\u00e7a que n\u00e3o houve altera\u00e7\u00e3o do rito processual.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "smallClaims" }),
         check("sentenceCompetence", "O procedimento \u00e9 de responsabilidade do Estado.", { level: 1, when: (values) => values.origin === "sentence" }),
-        check("noFine", "N\u00e3o foi fixada multa em liminar, ou ela foi revogada posteriormente (Id. {revocationId}).", { level: 1, when: (values) => values.origin === "sentence" }),
+        check("noFine", "N\u00e3o foi fixada multa em liminar.", { level: 1, when: (values) => values.origin === "sentence" && values.liminarFine === "noFine" }),
+        check("fineRevoked", "Foi fixada multa em liminar, por\u00e9m foi revogada posteriormente (Id. {revocationId}).", { level: 1, when: (values) => values.origin === "sentence" && values.liminarFine === "revoked" }),
         check("fees", "Os honor\u00e1rios foram definidos por equidade ou n\u00e3o ultrapassaram R$ 5.000,00 para advogado particular ou Defensoria.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
         check("publicProsecutor", "N\u00e3o foram deferidos honor\u00e1rios ao Minist\u00e9rio P\u00fablico.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
         check("equalFees", "Os honor\u00e1rios foram direcionados ao Estado e ao Munic\u00edpio de forma igualit\u00e1ria.", { level: 1, when: (values) => values.origin === "sentence" && values.rite === "common" }),
@@ -723,14 +725,18 @@
     add(
       "conteudo_irrecorrivel",
       "Agravo Interno",
-      [pgeDate, id("decisionId", "ID da decis\u00e3o monocr\u00e1tica"), choice("fineStatus", "Multa", [{ value: "noFine", label: "N\u00e3o foi fixada multa" }, { value: "fine", label: "A multa foi fixada" }]), choice("fineThreshold", "Patamar da multa", [{ value: "daily", label: "O valor da multa di\u00e1ria foi igual ou inferior a R$ 2.000,00" }, { value: "cap", label: "Foi fixado teto de incid\u00eancia de at\u00e9 R$ 30.000,00" }], (values) => values.fineStatus === "fine")],
+      [id("decisionId", "ID da decis\u00e3o monocr\u00e1tica"), pgeDate, choice("fineStatus", "Multa", [{ value: "noFine", label: "N\u00e3o foi fixada multa" }, { value: "fine", label: "A multa foi fixada" }]), choice("fineThreshold", "Patamar da multa", [{ value: "daily", label: "O valor da multa di\u00e1ria foi igual ou inferior a R$ 2.000,00" }, { value: "cap", label: "Foi fixado teto de incid\u00eancia de at\u00e9 R$ 30.000,00" }], (values) => values.fineStatus === "fine")],
       ["A intima\u00e7\u00e3o que est\u00e1 comigo \u00e9 a seguinte: {piece}.", pgeLine, "A decis\u00e3o monocr\u00e1tica est\u00e1 no Id. {decisionId}.", "Considerando, eu verifiquei que:", "{fineStatusLabel}.", "{fineThresholdLabel}"],
-      [check("notMonocratic", "A decis\u00e3o n\u00e3o \u00e9 monocr\u00e1tica;", { level: 1 }), check("responsibility", "Trata-se de direcionamento de responsabilidade;", { level: 1 }), check("noUrgent", "N\u00e3o foi concedida tutela de urg\u00eancia.", { level: 1 })]
+      [
+        check("notMonocratic", "A decis\u00e3o n\u00e3o \u00e9 monocr\u00e1tica;", { level: 1, exclusiveGroup: "agravoInternoReason" }),
+        check("responsibility", "Trata-se de direcionamento de responsabilidade;", { level: 1, exclusiveGroup: "agravoInternoReason" }),
+        check("noUrgent", "N\u00e3o foi concedida tutela de urg\u00eancia.", { level: 1, exclusiveGroup: "agravoInternoReason" })
+      ]
     );
     add(
       "conteudo_irrecorrivel",
       "Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a",
-      [protocolDate, protocolId("ID da Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"), pgeDate, id("sentenceId", "ID da senten\u00e7a"), choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }])],
+      [protocolId("ID da Impugna\u00e7\u00e3o ao Cumprimento de Senten\u00e7a"), protocolDate, pgeDate, id("sentenceId", "ID da senten\u00e7a"), choice("rite", "Rito", [{ value: "common", label: "Procedimento Comum" }, { value: "smallClaims", label: "Juizado" }])],
       ["O Cumprimento de Senten\u00e7a foi protocolado em {protocolDate} sob Id. {protocolId}.", pgeLine, "A senten\u00e7a est\u00e1 na Id. {sentenceId}.", "Considerando que est\u00e1 em {riteLabel}, eu verifiquei:"],
       [check("noExcess", "N\u00e3o houve excesso de execu\u00e7\u00e3o;", { level: 1 }), check("noFine", "N\u00e3o foi pedida multa no Cumprimento de Senten\u00e7a;", { level: 1 }), check("noPrison", "N\u00e3o foi pedida pris\u00e3o ou afastamento de agente p\u00fablico;", { level: 1 }), check("noCosts", "N\u00e3o houve fixa\u00e7\u00e3o de custas;", { level: 1 }), check("procedure", "Conferi o procedimento no SISREG e no SIGADOC.", { level: 1 }), check("noFees", "N\u00e3o foram pedidos honor\u00e1rios.", { level: 1, when: (values) => values.rite === "smallClaims" })]
     );
@@ -6874,7 +6880,21 @@
     }
 
     function canGenerate(model) {
-      return fieldsComplete(model) && activeChecks(model).every((item) => !item.required || state.checks[item.key]);
+      const checks = activeChecks(model);
+      const exclusiveGroups = new Map();
+      const individualChecks = checks.filter((item) => {
+        if (!item.exclusiveGroup) return true;
+        const group = exclusiveGroups.get(item.exclusiveGroup) || [];
+        group.push(item);
+        exclusiveGroups.set(item.exclusiveGroup, group);
+        return false;
+      });
+      const individualComplete = individualChecks.every((item) => !item.required || state.checks[item.key]);
+      const exclusiveComplete = Array.from(exclusiveGroups.values()).every((group) => {
+        const required = group.some((item) => item.required);
+        return !required || group.some((item) => state.checks[item.key]);
+      });
+      return fieldsComplete(model) && individualComplete && exclusiveComplete;
     }
 
     function createFieldControl(field) {
@@ -6978,7 +6998,8 @@
         const label = document.createElement("label");
         const input = document.createElement("input");
         const text = document.createElement("span");
-        input.type = "checkbox";
+        input.type = item.exclusiveGroup ? "radio" : "checkbox";
+        if (item.exclusiveGroup) input.name = "spa-cdsp-simple-closure-check-" + item.exclusiveGroup;
         input.checked = Boolean(state.checks[item.key]);
         input.style.margin = "1px 0 0";
         text.textContent = item.text;
@@ -6988,6 +7009,11 @@
         label.appendChild(input);
         label.appendChild(text);
         input.addEventListener("change", () => {
+          if (item.exclusiveGroup && input.checked) {
+            activeChecks(model).forEach((candidate) => {
+              if (candidate.exclusiveGroup === item.exclusiveGroup) state.checks[candidate.key] = false;
+            });
+          }
           state.checks[item.key] = input.checked;
           refresh();
         });
