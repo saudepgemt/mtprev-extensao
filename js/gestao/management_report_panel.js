@@ -785,21 +785,23 @@
     }
 
     if (alertType === "correcao") {
-      if (record.inboxType === "revisor") {
-        return receivedColumnBusinessDaysValue(record, reportDate) >= REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS;
-      }
-      return record.inboxType === "retificar" &&
-        receivedBusinessDaysValue(record, reportDate) >= CORRECTION_BILLING_BUSINESS_DAYS;
+      return record.inboxType === "revisor" &&
+        receivedColumnBusinessDaysValue(record, reportDate) >= REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS;
     }
 
     if (alertType === "peca") {
-      return record.inboxType === "redator" && record.riskStatus === "Critico";
+      return (record.inboxType === "redator" && record.riskStatus === "Critico") ||
+        (record.inboxType === "retificar" &&
+          receivedBusinessDaysValue(record, reportDate) >= CORRECTION_BILLING_BUSINESS_DAYS);
     }
 
     return false;
   }
 
   function billingAlertReason(record, alertType, reportDate) {
+    if (alertType === "peca" && record && record.inboxType === "retificar") {
+      return "Peca a retificar ha " + billingBusinessDaysValue(record, alertType, reportDate) + " dias uteis na caixa";
+    }
     if (alertType === "peca") {
       return recordRiskReasons(record);
     }
@@ -820,6 +822,7 @@
       internalDueDateText: record.internalDueDateText,
       pjeDeadlineText: record.pjeDeadlineText,
       riskStatus: record.riskStatus,
+      chargeGroup: billingChargeGroup(record, alertType),
       reason: billingAlertReason(record, alertType, reportDate)
     };
   }
@@ -854,15 +857,18 @@
       lines.push("", "SETOR: " + sectorGroup.sector);
       sectorGroup.assessorGroups.forEach((assessorGroup) => {
         lines.push("", "Responsavel: " + assessorGroup.assessor);
-        lines.push("N | Processo | Recebido | Dias uteis | Motivo | Link");
-        assessorGroup.records.forEach((record, index) => {
-          lines.push(
-            (index + 1) + " | " + record.processNumber +
-              " | " + (record.receivedText || "-") +
-              " | " + record.businessDays +
-              " | " + record.reason +
-              " | " + (record.procedureUrl || "-")
-          );
+        assessorGroup.chargeGroups.forEach((chargeGroup) => {
+          lines.push("", "Tipo de cobranca: " + chargeGroup.label);
+          lines.push("N | Processo | Recebido | Dias uteis | Motivo | Link");
+          chargeGroup.records.forEach((record, index) => {
+            lines.push(
+              (index + 1) + " | " + record.processNumber +
+                " | " + (record.receivedText || "-") +
+                " | " + record.businessDays +
+                " | " + record.reason +
+                " | " + (record.procedureUrl || "-")
+            );
+          });
         });
       });
     });
@@ -930,12 +936,27 @@
 
         const assessorGroups = Array.from(byAssessor.entries())
           .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
-          .map(([assessor, assessorRecords]) => ({
-            assessor,
-            records: assessorRecords.sort((a, b) =>
-              String(a.processNumber || "").localeCompare(String(b.processNumber || ""), "pt-BR")
-            )
-          }));
+          .map(([assessor, assessorRecords]) => {
+            const byChargeGroup = new Map();
+            assessorRecords.forEach((record) => {
+              const chargeGroup = record.chargeGroup || billingChargeGroup(record, alertType);
+              if (!byChargeGroup.has(chargeGroup.key)) {
+                byChargeGroup.set(chargeGroup.key, { label: chargeGroup.label, order: chargeGroup.order, records: [] });
+              }
+              byChargeGroup.get(chargeGroup.key).records.push(record);
+            });
+
+            const chargeGroups = Array.from(byChargeGroup.values())
+              .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "pt-BR"))
+              .map((chargeGroup) => ({
+                label: chargeGroup.label,
+                records: chargeGroup.records.sort((a, b) =>
+                  String(a.processNumber || "").localeCompare(String(b.processNumber || ""), "pt-BR")
+                )
+              }));
+
+            return { assessor, chargeGroups };
+          });
 
         return { sector, assessorGroups };
       });
@@ -1561,6 +1582,35 @@
       : receivedBusinessDaysValue(record, reportDate);
   }
 
+  function billingChargeGroup(record, alertType) {
+    if (alertType === "peca" && record && record.inboxType === "retificar") {
+      return {
+        key: "peca_retificar",
+        label: "Pecas a retificar: 3 ou mais dias uteis na caixa",
+        order: 2
+      };
+    }
+    if (alertType === "peca") {
+      return {
+        key: "peca_critica",
+        label: "Processos criticos na Caixa Geral do Redator",
+        order: 1
+      };
+    }
+    if (alertType === "correcao") {
+      return {
+        key: "revisor",
+        label: "Caixa Geral do Revisor: 2 ou mais dias uteis por Recebido",
+        order: 1
+      };
+    }
+    return {
+      key: "triagem",
+      label: "Caixa Geral do Triador: 3 ou mais dias uteis por Recebido",
+      order: 1
+    };
+  }
+
   function billingCriteriaText(alertType) {
     if (alertType === "triagem") {
       return "Caixa Geral do Triador com " + TRIAGE_BILLING_RECEIVED_BUSINESS_DAYS +
@@ -1568,11 +1618,11 @@
     }
     if (alertType === "correcao") {
       return "Caixa Geral do Revisor com " + REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS +
-        " ou mais dias uteis, calculados pela coluna Recebido; ou Pecas a Retificar com " +
-        CORRECTION_BILLING_BUSINESS_DAYS + " ou mais dias uteis na caixa";
+        " ou mais dias uteis, calculados pela coluna Recebido";
     }
     if (alertType === "peca") {
-      return "Caixa Geral do Redator com situacao Critico no relatorio gerencial";
+      return "Caixa Geral do Redator com situacao Critico no relatorio gerencial; ou Pecas a Retificar com " +
+        CORRECTION_BILLING_BUSINESS_DAYS + " ou mais dias uteis na caixa";
     }
     return "Criterio nao identificado";
   }

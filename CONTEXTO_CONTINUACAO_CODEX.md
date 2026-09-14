@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.81`
-- Ultima tag publicada no repositorio: `v1.81`
+- Versao atual da extensao: `1.82`
+- Ultima tag publicada no repositorio: `v1.82`
 
 ## Como retomar no notebook
 
@@ -199,6 +199,11 @@ Versao `1.81`:
 - Na Caixa Geral do Revisor, a cobranca de Correcao passou a usar exclusivamente a coluna `Recebido`, com disparo a partir de 2 dias uteis. Pecas a Retificar permanecem com o criterio anterior de 3 dias uteis na caixa.
 - As mensagens prontas de cobranca agora separam os processos por setor e, dentro dele, por responsavel, em tabela textual pronta para copia.
 
+Versao `1.82`:
+
+- `Pecas a Retificar` deixou de integrar a cobranca de Correcao e passou a integrar a cobranca de Peca, pois a pendencia ja esta sob responsabilidade de quem minuta apos a revisao.
+- A cobranca de Peca distingue, em blocos e tabelas proprios, os processos criticos da Caixa Geral do Redator e as Pecas a Retificar com 3 ou mais dias uteis na caixa.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -220,6 +225,7 @@ Versao `1.81`:
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
 - Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
 - Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.
+- Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.
 
 ## Arquivos importantes
 
