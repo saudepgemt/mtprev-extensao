@@ -142,7 +142,9 @@
   ];
   const DEFAULT_INTERNAL_DEADLINE_BUSINESS_DAYS = 5;
   const BOX_CRITICAL_BUSINESS_DAYS = 2;
-  const EMAIL_ALERT_BUSINESS_DAYS = 3;
+  const TRIAGE_BILLING_RECEIVED_BUSINESS_DAYS = 3;
+  const REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS = 2;
+  const CORRECTION_BILLING_BUSINESS_DAYS = 3;
   const EMAIL_ALERT_TYPES = Object.freeze({
     triagem: {
       label: "Triagem",
@@ -776,15 +778,18 @@
 
   function recordQualifiesForBillingAlert(record, alertType, reportDate) {
     if (!record) return false;
-    const businessDays = receivedBusinessDaysValue(record, reportDate);
 
     if (alertType === "triagem") {
-      return record.inboxType === "triador" && businessDays >= EMAIL_ALERT_BUSINESS_DAYS;
+      return record.inboxType === "triador" &&
+        receivedColumnBusinessDaysValue(record, reportDate) >= TRIAGE_BILLING_RECEIVED_BUSINESS_DAYS;
     }
 
     if (alertType === "correcao") {
-      return (record.inboxType === "revisor" || record.inboxType === "retificar") &&
-        businessDays >= EMAIL_ALERT_BUSINESS_DAYS;
+      if (record.inboxType === "revisor") {
+        return receivedColumnBusinessDaysValue(record, reportDate) >= REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS;
+      }
+      return record.inboxType === "retificar" &&
+        receivedBusinessDaysValue(record, reportDate) >= CORRECTION_BILLING_BUSINESS_DAYS;
     }
 
     if (alertType === "peca") {
@@ -795,11 +800,11 @@
   }
 
   function billingAlertReason(record, alertType, reportDate) {
-    const businessDays = receivedBusinessDaysValue(record, reportDate);
     if (alertType === "peca") {
       return recordRiskReasons(record);
     }
-    return businessDays + " dias uteis na caixa";
+    return billingBusinessDaysValue(record, alertType, reportDate) + " dias uteis na caixa" +
+      (usesReceivedColumnForBilling(record, alertType) ? " (Recebido)" : "");
   }
 
   function compactRecordForBilling(record, alertType, reportDate, sector) {
@@ -811,7 +816,7 @@
       inboxTypeLabel: record.inboxTypeLabel,
       type: record.type,
       receivedText: record.receivedText,
-      businessDays: receivedBusinessDaysValue(record, reportDate),
+      businessDays: billingBusinessDaysValue(record, alertType, reportDate),
       internalDueDateText: record.internalDueDateText,
       pjeDeadlineText: record.pjeDeadlineText,
       riskStatus: record.riskStatus,
@@ -845,17 +850,20 @@
       "Processos:"
     ];
 
-    message.sectorGroups.forEach((group) => {
-      lines.push("", group.sector + ":");
-      group.records.forEach((record, index) => {
-        lines.push(
-          (index + 1) + ". " + record.processNumber +
-            " | Responsavel: " + (record.assessor || "Sem assessor(a)") +
-            " | Caixa: " + record.inboxTypeLabel +
-            " | " + record.businessDays + " dia(s) util(eis)" +
-            " | Motivo: " + record.reason +
-            (record.procedureUrl ? " | Link: " + record.procedureUrl : "")
-        );
+    message.sectorGroups.forEach((sectorGroup) => {
+      lines.push("", "SETOR: " + sectorGroup.sector);
+      sectorGroup.assessorGroups.forEach((assessorGroup) => {
+        lines.push("", "Responsavel: " + assessorGroup.assessor);
+        lines.push("N | Processo | Recebido | Dias uteis | Motivo | Link");
+        assessorGroup.records.forEach((record, index) => {
+          lines.push(
+            (index + 1) + " | " + record.processNumber +
+              " | " + (record.receivedText || "-") +
+              " | " + record.businessDays +
+              " | " + record.reason +
+              " | " + (record.procedureUrl || "-")
+          );
+        });
       });
     });
 
@@ -897,9 +905,7 @@
           recipientLabel: config.recipientLabel,
           sectors: new Set(),
           sectorRecords: new Map(),
-          criteria: alertType === "peca"
-            ? "critério crítico atual do relatório gerencial para processos em peça"
-            : "mais de " + EMAIL_ALERT_BUSINESS_DAYS + " dias uteis na caixa",
+          criteria: billingCriteriaText(alertType),
           records: []
         });
       }
@@ -914,13 +920,25 @@
 
     const messages = Array.from(groups.values()).map((message) => {
       const sectorNames = Array.from(message.sectors).sort((a, b) => a.localeCompare(b, "pt-BR"));
-      const sectorGroups = sectorNames.map((sector) => ({
-        sector,
-        records: (message.sectorRecords.get(sector) || []).sort((a, b) =>
-          String(a.assessor || "").localeCompare(String(b.assessor || ""), "pt-BR") ||
-          String(a.processNumber || "").localeCompare(String(b.processNumber || ""), "pt-BR")
-        )
-      }));
+      const sectorGroups = sectorNames.map((sector) => {
+        const byAssessor = new Map();
+        (message.sectorRecords.get(sector) || []).forEach((record) => {
+          const assessor = record.assessor || "Sem assessor(a)";
+          if (!byAssessor.has(assessor)) byAssessor.set(assessor, []);
+          byAssessor.get(assessor).push(record);
+        });
+
+        const assessorGroups = Array.from(byAssessor.entries())
+          .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+          .map(([assessor, assessorRecords]) => ({
+            assessor,
+            records: assessorRecords.sort((a, b) =>
+              String(a.processNumber || "").localeCompare(String(b.processNumber || ""), "pt-BR")
+            )
+          }));
+
+        return { sector, assessorGroups };
+      });
 
       message.sector = sectorNames.join("; ");
       message.subject = "[CDSP] " + config.subjectPrefix + " - " + message.sector;
@@ -941,7 +959,7 @@
         assessor: item.record.assessor,
         sector: item.sector,
         inboxTypeLabel: item.record.inboxTypeLabel,
-        businessDays: receivedBusinessDaysValue(item.record, reportDate)
+        businessDays: billingBusinessDaysValue(item.record, alertType, reportDate)
       }))
     };
   }
@@ -1525,6 +1543,38 @@
   function receivedBusinessDaysValue(record, reportDate) {
     const baseDate = record && record.calculationBaseDate instanceof Date ? record.calculationBaseDate : null;
     return baseDate ? businessDaysBetweenDates(baseDate, reportDate || startOfToday()) : receivedDaysValue(record);
+  }
+
+  function receivedColumnBusinessDaysValue(record, reportDate) {
+    const receivedDays = receivedDaysValue(record);
+    const baseDate = receivedBaseDate(reportDate || startOfToday(), receivedDays);
+    return businessDaysBetweenDates(baseDate, reportDate || startOfToday());
+  }
+
+  function usesReceivedColumnForBilling(record, alertType) {
+    return alertType === "triagem" || (alertType === "correcao" && record && record.inboxType === "revisor");
+  }
+
+  function billingBusinessDaysValue(record, alertType, reportDate) {
+    return usesReceivedColumnForBilling(record, alertType)
+      ? receivedColumnBusinessDaysValue(record, reportDate)
+      : receivedBusinessDaysValue(record, reportDate);
+  }
+
+  function billingCriteriaText(alertType) {
+    if (alertType === "triagem") {
+      return "Caixa Geral do Triador com " + TRIAGE_BILLING_RECEIVED_BUSINESS_DAYS +
+        " ou mais dias uteis, calculados pela coluna Recebido";
+    }
+    if (alertType === "correcao") {
+      return "Caixa Geral do Revisor com " + REVIEWER_BILLING_RECEIVED_BUSINESS_DAYS +
+        " ou mais dias uteis, calculados pela coluna Recebido; ou Pecas a Retificar com " +
+        CORRECTION_BILLING_BUSINESS_DAYS + " ou mais dias uteis na caixa";
+    }
+    if (alertType === "peca") {
+      return "Caixa Geral do Redator com situacao Critico no relatorio gerencial";
+    }
+    return "Criterio nao identificado";
   }
 
   function isTriageUnassignedAfterBusinessLimit(record, reportDate) {

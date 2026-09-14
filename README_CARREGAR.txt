@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.80
+CDSP Extensao Geral - 1.81
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -70,7 +70,8 @@ Comportamento:
 - A base Excel e carregada diretamente pelo painel da Coordenacao, evitando falha de leitura no service worker.
 - O relatorio gerencial da Coordenacao inclui os botoes Cobrar Triagem, Cobrar Correcao e Cobrar Peca dentro do relatorio gerado.
 - As cobrancas usam os processos ja lidos pelo relatorio, sem reler a tabela do SPA ao clicar nos botoes.
-- As mensagens de cobranca sao agrupadas por gestor de setor; Triagem usa gestores proprios e Correcao/Peca usam os gestores de producao.
+- As mensagens de cobranca sao agrupadas por gestor de setor; Triagem usa gestores proprios e Correcao/Peca usam os gestores de producao. Cada mensagem separa os processos por setor e responsavel, em tabela textual pronta para copia.
+- Cobrar Triagem usa `Recebido` a partir de 3 dias uteis. Na Correcao, Caixa Geral do Revisor usa `Recebido` a partir de 2 dias uteis e Pecas a Retificar permanece com 3 dias uteis na caixa.
 - Os botoes de cobranca abrem uma caixa com mensagens prontas e opcoes para copiar uma mensagem ou todas.
 - O relatorio gerencial marca triagem/revisor/correcao/procurador como critico a partir de 2 dias uteis, ignorando fins de semana e feriados nacionais de data fixa.
 - A permissao para Google Sheets foi removida do manifest.
@@ -101,8 +102,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.80.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.81.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.80.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.81.zip" no painel da Chrome Web Store.

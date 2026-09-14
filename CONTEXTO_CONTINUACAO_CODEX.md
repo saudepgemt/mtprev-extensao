@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.80`
-- Ultima tag publicada no repositorio: `v1.80`
+- Versao atual da extensao: `1.81`
+- Ultima tag publicada no repositorio: `v1.81`
 
 ## Como retomar no notebook
 
@@ -193,6 +193,12 @@ Versao `1.80`:
 - A lista fixa de devolucao do Fluxo de Correcao foi removida. Alteracoes futuras na equipe devem ser feitas na planilha, sem alterar o codigo.
 - Em Devolver ao assessor, foi incluido o campo digitavel opcional Observacao. Quando preenchido, ele e enviado ao campo `ATR007573` antes do salvamento da devolucao.
 
+Versao `1.81`:
+
+- As cobrancas de Triagem passaram a usar exclusivamente a coluna `Recebido`, com disparo a partir de 3 dias uteis na Caixa Geral do Triador.
+- Na Caixa Geral do Revisor, a cobranca de Correcao passou a usar exclusivamente a coluna `Recebido`, com disparo a partir de 2 dias uteis. Pecas a Retificar permanecem com o criterio anterior de 3 dias uteis na caixa.
+- As mensagens prontas de cobranca agora separam os processos por setor e, dentro dele, por responsavel, em tabela textual pronta para copia.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -213,6 +219,7 @@ Versao `1.80`:
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
 - Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
+- Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.
 
 ## Arquivos importantes
 
