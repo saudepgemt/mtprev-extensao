@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.85`
-- Ultima tag publicada no repositorio: `v1.85`
+- Versao atual da extensao: `1.86`
+- Ultima tag publicada no repositorio: `v1.86`
 
 ## Como retomar no notebook
 
@@ -218,6 +218,10 @@ Versao `1.85`:
 - No Fluxo de Triagem, a Observacao do Processo passou a ser um campo digitavel facultativo proprio. Com oficio, a Observacao do Oficio preenche somente a Nova Tarefa e a Observacao do Processo preenche somente a complementacao do processo. Sem oficio, somente a Observacao do Processo pode ser preenchida.
 - O Fluxo de Correcao passou a aceitar caixas com colunas diferentes: campos inexistentes nao bloqueiam Atualizar filtros nem Abrir e seus filtros sao ocultados automaticamente.
 
+Versao `1.86`:
+
+- O filtro `Assessor(a)` do Fluxo de Correcao voltou a listar somente os nomes encontrados na caixa de leitura atual. A base `data/equipe.xlsx` continua sendo usada exclusivamente na selecao de `Devolver ao assessor`.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -233,7 +237,7 @@ Versao `1.85`:
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado. Em Conteudo ao qual nao cabe Recorrer/Manifestar, preservar a multa em liminar de Embargos de Declaracao > Sentenca como escolha exclusiva, com ID obrigatorio apenas para multa revogada; em Agravo Interno, preservar os fundamentos finais como escolhas exclusivas e o ID antes da data; em Impugnacao ao Cumprimento de Sentenca, preservar o ID antes da data.
 - Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587, ATR007588 e ATR007594, confirmar as selecoes Select2 e interromper antes de salvar quando o assessor nao for localizado. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 = Enzo Luiz Sawiski Lamin, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa.
-- A coluna `Saiu da Equipe` de `data/equipe.xlsx` e a fonte unica da lista de assessores dos Fluxos de Triagem e Correcao: incluir somente `Nao Saiu da Equipe`, sem manter lista fixa de nomes no codigo. No Fluxo de Correcao, preservar tambem o preenchimento opcional de Observacao em `ATR007573` ao devolver ao assessor.
+- A coluna `Saiu da Equipe` de `data/equipe.xlsx` e a fonte unica da lista de assessores ativos da Designacao da Triagem e de `Devolver ao assessor` no Fluxo de Correcao: incluir somente `Nao Saiu da Equipe`, sem manter lista fixa de nomes no codigo. O filtro `Assessor(a)` do Fluxo de Correcao deve listar exclusivamente os nomes da caixa de leitura atual. Preservar tambem o preenchimento opcional de Observacao em `ATR007573` ao devolver ao assessor.
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.

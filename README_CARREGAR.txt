@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.85
+CDSP Extensao Geral - 1.86
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -34,6 +34,7 @@ Comportamento:
 - O botao solto/flutuante de Agravo de Instrumento nao e mais criado na tela do SPA.
 - O modulo Redacao e Correcao inclui o bloco compacto "Fluxo de Correcao".
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa de correcao e monta filtros arrastaveis, com a ordem salva na memoria do navegador.
+- O filtro `Assessor(a)` do Fluxo de Correcao mostra somente os nomes efetivamente presentes na caixa lida; a base interna de equipe ativa e usada apenas em `Devolver ao assessor`.
 - Os filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo aceitam multiplas selecoes.
 - O Fluxo de Correcao tambem filtra por Recebido; minuto(s), hora(s) e segundo(s) aparecem agrupados como "Hoje", e os demais periodos permanecem como opcoes proprias.
 - O Fluxo de Correcao identifica as colunas disponiveis em cada caixa: filtros cujas colunas nao existirem sao ocultados sem impedir a atualizacao ou abertura das pendencias.
@@ -104,8 +105,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.85.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.86.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.85.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.86.zip" no painel da Chrome Web Store.

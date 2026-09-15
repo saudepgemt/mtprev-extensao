@@ -2,7 +2,7 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **1.85**.
+Versão atual versionada neste repositório: **1.86**.
 
 ## Estrutura
 

@@ -6527,26 +6527,15 @@
 
       const previousKeys = order.slice(0, index);
       const availableRecords = recordsMatchingCorrectionFilterKeys(records, previousKeys);
-      const isAssessorFilter = key === "assessors";
-      const values = isAssessorFilter
-        ? state.activeTeamNames
-        : availableRecords.map((record) => record[definition.recordKey]);
-      const placeholder = isAssessorFilter && state.activeTeamLoading
-        ? "Carregando equipe..."
-        : isAssessorFilter && state.activeTeamError
-          ? "Lista da equipe indisponivel"
-          : records.length
-            ? definition.placeholder
-            : isAssessorFilter
-              ? "Assessor(a) ativo(a)"
-              : "Atualize os filtros";
+      const values = availableRecords.map((record) => record[definition.recordKey]);
+      const placeholder = records.length ? definition.placeholder : "Atualize os filtros";
       filters[definition.stateKey] = fillSelectOptions(
         select,
         values,
         placeholder,
         filters[definition.stateKey]
       );
-      setCorrectionSelectDisabled(select, isAssessorFilter ? !state.activeTeamLoaded : !records.length);
+      setCorrectionSelectDisabled(select, !records.length);
     });
 
     const filtered = filteredCorrectionRecords();
