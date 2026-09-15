@@ -775,6 +775,7 @@
       manifestations: [],
       receivedPeriods: []
     },
+    correctionAvailableFilterKeys: CORRECTION_FILTER_DEFAULT_ORDER.slice(),
     correctionFilterOrder: readStoredCorrectionFilterOrder(),
     activeTeamNames: [],
     activeTeamLoaded: false,
@@ -1816,32 +1817,20 @@
     ]);
     const processIndex = findColumnIndex(["Número do Processo", "Numero do Processo", "Processo"]);
 
-    if (assessorIndex < 0) {
-      throw new Error("Coluna 'Assessor(a)' nao encontrada ou nao habilitada no SPA.");
-    }
-    if (judgingBodyIndex < 0) {
-      throw new Error("Coluna 'Orgao julgador' nao encontrada ou nao habilitada no SPA.");
-    }
-    if (activePoleIndex < 0) {
-      throw new Error("Coluna 'Polo ativo' nao encontrada ou nao habilitada no SPA.");
-    }
-    if (manifestationIndex < 0) {
-      throw new Error("Coluna 'Manifestacao sugerida' nao encontrada ou nao habilitada no SPA.");
-    }
-    if (receivedIndex < 0) {
-      throw new Error("Coluna 'Recebido' nao encontrada ou nao habilitada no SPA.");
-    }
-    if (processIndex < 0) {
-      throw new Error("Coluna 'Numero do Processo' nao encontrada ou nao habilitada no SPA.");
-    }
-
     return {
       assessorIndex,
       judgingBodyIndex,
       activePoleIndex,
       manifestationIndex,
       receivedIndex,
-      processIndex
+      processIndex,
+      availableFilterKeys: Object.entries({
+        assessors: assessorIndex,
+        judgingBodies: judgingBodyIndex,
+        manifestations: manifestationIndex,
+        activePoles: activePoleIndex,
+        receivedPeriods: receivedIndex
+      }).filter(([, index]) => index >= 0).map(([key]) => key)
     };
   }
 
@@ -1884,6 +1873,12 @@
   async function collectCorrectionRecords() {
     const dt = getDataTable();
     const columns = columnsForCorrectionFlow();
+    state.correctionAvailableFilterKeys = columns.availableFilterKeys;
+    Object.keys(CORRECTION_FILTER_DEFINITIONS).forEach((key) => {
+      if (columns.availableFilterKeys.indexOf(key) >= 0) return;
+      const definition = CORRECTION_FILTER_DEFINITIONS[key];
+      state.correctionFilters[definition.stateKey] = [];
+    });
     const originalLength = dt.page.len();
     const originalInfo = dt.page.info();
     const originalPage = originalInfo && Number.isFinite(originalInfo.page) ? originalInfo.page : 0;
@@ -1957,17 +1952,18 @@
 
   function filteredCorrectionRecords() {
     const filters = state.correctionFilters || {};
+    const available = new Set(state.correctionAvailableFilterKeys || []);
     const assessors = selectionArray(filters.assessors);
     const judgingBodies = selectionArray(filters.judgingBodies);
     const activePoles = selectionArray(filters.activePoles);
     const manifestations = selectionArray(filters.manifestations);
     const receivedPeriods = selectionArray(filters.receivedPeriods);
     return (state.correctionRecords || []).filter((record) => {
-      if (assessors.length && !selectionHas(assessors, record.assessor)) return false;
-      if (judgingBodies.length && !selectionHas(judgingBodies, record.judgingBody)) return false;
-      if (activePoles.length && !selectionHas(activePoles, record.activePole)) return false;
-      if (manifestations.length && !selectionHas(manifestations, record.manifestation)) return false;
-      if (receivedPeriods.length && !selectionHas(receivedPeriods, record.receivedPeriod)) return false;
+      if (available.has("assessors") && assessors.length && !selectionHas(assessors, record.assessor)) return false;
+      if (available.has("judgingBodies") && judgingBodies.length && !selectionHas(judgingBodies, record.judgingBody)) return false;
+      if (available.has("activePoles") && activePoles.length && !selectionHas(activePoles, record.activePole)) return false;
+      if (available.has("manifestations") && manifestations.length && !selectionHas(manifestations, record.manifestation)) return false;
+      if (available.has("receivedPeriods") && receivedPeriods.length && !selectionHas(receivedPeriods, record.receivedPeriod)) return false;
       return true;
     });
   }
@@ -1978,8 +1974,9 @@
 
   function selectedCorrectionFilterKeys() {
     const filters = state.correctionFilters || {};
+    const available = new Set(state.correctionAvailableFilterKeys || []);
     return ["assessors", "judgingBodies", "activePoles", "manifestations", "receivedPeriods"].filter((key) =>
-      selectionArray(filters[key]).length > 0
+      available.has(key) && selectionArray(filters[key]).length > 0
     );
   }
 
@@ -2013,11 +2010,12 @@
 
   function recordsMatchingCorrectionFilterKeys(records, keys) {
     const filters = state.correctionFilters || {};
+    const available = new Set(state.correctionAvailableFilterKeys || []);
     return (Array.isArray(records) ? records : []).filter((record) =>
       (Array.isArray(keys) ? keys : []).every((key) => {
         const definition = CORRECTION_FILTER_DEFINITIONS[key];
         const selected = definition ? selectionArray(filters[definition.stateKey]) : [];
-        return !selected.length || selected.indexOf(record[definition.recordKey]) >= 0;
+        return !available.has(key) || !selected.length || selected.indexOf(record[definition.recordKey]) >= 0;
       })
     );
   }
@@ -6504,11 +6502,15 @@
     const records = state.correctionRecords || [];
     const filters = state.correctionFilters;
     const order = normalizeCorrectionFilterOrder((state.correctionFilterOrder || []).join(","));
+    const available = new Set(state.correctionAvailableFilterKeys || []);
     state.correctionFilterOrder = order;
 
     order.forEach((key) => {
       const group = fieldsContainer.querySelector('[data-filter-key="' + key + '"]');
-      if (group) fieldsContainer.appendChild(group);
+      if (!group) return;
+      group.hidden = !available.has(key);
+      group.style.display = available.has(key) ? "grid" : "none";
+      if (available.has(key)) fieldsContainer.appendChild(group);
     });
 
     order.forEach((key, index) => {
@@ -6517,6 +6519,11 @@
 
       const select = document.querySelector("#spa-cdsp-correction-" + key);
       if (!select) return;
+      if (!available.has(key)) {
+        filters[definition.stateKey] = fillSelectOptions(select, [], "", []);
+        setCorrectionSelectDisabled(select, true);
+        return;
+      }
 
       const previousKeys = order.slice(0, index);
       const availableRecords = recordsMatchingCorrectionFilterKeys(records, previousKeys);

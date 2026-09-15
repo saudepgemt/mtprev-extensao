@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.84`
-- Ultima tag publicada no repositorio: `v1.84`
+- Versao atual da extensao: `1.85`
+- Ultima tag publicada no repositorio: `v1.85`
 
 ## Como retomar no notebook
 
@@ -213,6 +213,11 @@ Versao `1.84`:
 
 - O texto padrao de `CUMP GERAL` no SIGADOC passou a aceitar tambem o modelo recriado `SAUDE - CUMP`, sem sufixo de subscritor. Quando houver modelos com sufixo, a extensao continua priorizando essa forma.
 
+Versao `1.85`:
+
+- No Fluxo de Triagem, a Observacao do Processo passou a ser um campo digitavel facultativo proprio. Com oficio, a Observacao do Oficio preenche somente a Nova Tarefa e a Observacao do Processo preenche somente a complementacao do processo. Sem oficio, somente a Observacao do Processo pode ser preenchida.
+- O Fluxo de Correcao passou a aceitar caixas com colunas diferentes: campos inexistentes nao bloqueiam Atualizar filtros nem Abrir e seus filtros sao ocultados automaticamente.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -237,6 +242,7 @@ Versao `1.84`:
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.
 - Na base `data/equipe.xlsx`, preservar Aline Cristina de Souza e Maria Leticia Mendonca e Silva como `Nao Saiu da Equipe`, para que ambas constem nas listas de assessores dos Fluxos de Triagem e Correcao.
 - No SIGADOC, preservar a selecao de `CUMP GERAL` tanto para modelos com sufixo de subscritor quanto para o modelo-base recriado `SAUDE - CUMP`, sem vincular o fluxo a identificadores numericos do sistema.
+- No Fluxo de Triagem, preservar a separacao entre Observacao do Processo, facultativa e exclusiva da complementacao, e Observacao do Oficio, obrigatoria somente com oficio e exclusiva da Nova Tarefa. No Fluxo de Correcao, tratar colunas ausentes como filtros indisponiveis, sem interromper a leitura ou abertura de processos.
 
 ## Arquivos importantes
 

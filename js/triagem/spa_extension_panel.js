@@ -7428,7 +7428,7 @@
       if (!(await chooseSpaSelect(assessor, action.assessor, true))) {
         throw new Error("O assessor nao foi preenchido automaticamente. Selecione-o manualmente antes de salvar.");
       }
-      setFormFieldValue(observation, action.observation || "");
+      setFormFieldValue(observation, action.processObservation || "");
 
       if (action.hasOffice) {
         const taskType = document.querySelector("#progress_form_data_Nova-Tarefa_0_ATR007590");
@@ -7447,7 +7447,7 @@
         }
         setFormFieldValue(taskBusinessDays, "1");
         setFormFieldValue(taskDueDate, nextNationalBusinessDay());
-        setFormFieldValue(taskObservation, action.observation);
+        setFormFieldValue(taskObservation, action.officeObservation || "");
       }
 
       clearTriageClassificationAction();
@@ -12519,7 +12519,7 @@
       assessor: "",
       hasOffice: "",
       officeObservation: null,
-      manualObservation: ""
+      processObservation: ""
     };
     const form = document.createElement("div");
     form.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;";
@@ -12667,13 +12667,15 @@
       if (!canClassify() || state.running) return;
       try {
         state.running = true;
-        const observation = flowState.hasOffice === "yes" ? flowState.officeObservation.value : flowState.manualObservation;
         await beginTriageClassification({
           additionalInfo: flowState.additionalInfo,
           manifestation: flowState.manifestation,
           assessor: flowState.assessor,
           hasOffice: flowState.hasOffice === "yes",
-          observation: observation
+          officeObservation: flowState.hasOffice === "yes" && flowState.officeObservation
+            ? flowState.officeObservation.value
+            : "",
+          processObservation: flowState.processObservation
         });
       } catch (error) {
         state.running = false;
@@ -12694,18 +12696,19 @@
     function refresh() {
       observationSlot.innerHTML = "";
       if (flowState.hasOffice === "yes") {
-        const officeObservation = searchableChoice("Observação", TRIAGE_OFFICE_OBSERVATIONS, (choice) => {
+        const officeObservation = searchableChoice("Observação do Ofício", TRIAGE_OFFICE_OBSERVATIONS, (choice) => {
           flowState.officeObservation = choice;
         });
         if (flowState.officeObservation) officeObservation.input.value = flowState.officeObservation.label;
         observationSlot.appendChild(officeObservation.wrapper);
-      } else if (flowState.hasOffice === "no") {
-        const manualObservation = inputField("Observação", "", true);
-        manualObservation.input.value = flowState.manualObservation;
-        manualObservation.input.addEventListener("input", () => {
-          flowState.manualObservation = manualObservation.input.value;
+      }
+      if (flowState.hasOffice === "yes" || flowState.hasOffice === "no") {
+        const processObservation = inputField("Observação do Processo", "", true);
+        processObservation.input.value = flowState.processObservation;
+        processObservation.input.addEventListener("input", () => {
+          flowState.processObservation = processObservation.input.value;
         });
-        observationSlot.appendChild(manualObservation.label);
+        observationSlot.appendChild(processObservation.label);
       }
       classifyButton.disabled = !canClassify();
       classifyButton.style.opacity = classifyButton.disabled ? ".55" : "1";

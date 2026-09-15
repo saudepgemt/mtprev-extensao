@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.84
+CDSP Extensao Geral - 1.85
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -18,7 +18,7 @@ Comportamento:
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
 - O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no extremo direito do cabecalho antes do botao de recolher, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.
 - Em Triagem e Protocolo, o encerramento do fluxo fica somente no botao "Encerrar" do cabecalho; nao ha mais aba interna de encerramento.
-- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, para complementar a classificacao do processo. O fluxo pesquisa Manifestacao Sugerida sem duplicidades, confirma o assessor no SPA e permite escolher se havera oficio. Com oficio, cria Nova Tarefa para Enzo Luiz Sawiski Lamin, com prazo de 1 dia util, vencimento no proximo dia util nacional e a mesma observacao; sem oficio, a observacao manual e opcional e a Nova Tarefa nao e preenchida.
+- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, para complementar a classificacao do processo. O fluxo pesquisa Manifestacao Sugerida sem duplicidades, confirma o assessor no SPA e permite escolher se havera oficio. Com oficio, a Observacao do Oficio predefinida vai somente para a Nova Tarefa de Enzo Luiz Sawiski Lamin, com prazo de 1 dia util; a Observacao do Processo digitavel e facultativa vai somente para a classificacao. Sem oficio, apenas a Observacao do Processo pode ser preenchida e a Nova Tarefa nao e criada.
 - O SPA tem o modulo Oficios dentro do menu geral, reunindo as acoes do Extrator de forma organizada.
 - Na caixa do SPA, o botao SIG abre a pagina do processo em segundo plano e extrai os dados completos pelo mesmo fluxo do botao interno.
 - Se a aba temporaria nao responder, o modulo tenta uma leitura direta da pagina do processo como contingencia.
@@ -36,6 +36,7 @@ Comportamento:
 - No Fluxo de Correcao, "Atualizar filtros" le todas as paginas da caixa de correcao e monta filtros arrastaveis, com a ordem salva na memoria do navegador.
 - Os filtros de Assessor(a), Orgao julgador, Manifestacao sugerida e Polo passivo aceitam multiplas selecoes.
 - O Fluxo de Correcao tambem filtra por Recebido; minuto(s), hora(s) e segundo(s) aparecem agrupados como "Hoje", e os demais periodos permanecem como opcoes proprias.
+- O Fluxo de Correcao identifica as colunas disponiveis em cada caixa: filtros cujas colunas nao existirem sao ocultados sem impedir a atualizacao ou abertura das pendencias.
 - A leitura dos filtros usa a posicao visivel das colunas da tabela, para alinhar "Manifestacao Sugerida" com os valores exibidos no SPA.
 - Todos os filtros sao opcionais; se todos ficarem vazios, o botao "Abrir" pergunta antes de abrir todos os processos lidos.
 - O botao "Abrir" abre as pendencias filtradas e, em cada aba, aciona automaticamente "Visualizar e editar minuta".
@@ -103,8 +104,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.84.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.85.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.84.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.85.zip" no painel da Chrome Web Store.
