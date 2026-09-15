@@ -266,6 +266,7 @@
       tipo: 'CUMP',
       aliases: ['cump', 'cumprimento', 'cumprir'],
       bases: ['SAUDE CUMP', 'SAÚDE CUMP', 'SAUDE - CUMP', 'SAÚDE - CUMP'],
+      aceitarBaseSemSufixo: true,
     },
     {
       tipo: 'SINF',
@@ -1922,7 +1923,7 @@
 
     const usarSufixo = modelo.usarSufixo !== false;
 
-    if (usarSufixo && !sufixo) {
+    if (usarSufixo && !sufixo && !modelo.aceitarBaseSemSufixo) {
       return {
         option: null,
         sufixo,
@@ -1939,6 +1940,12 @@
         base,
         base.replace(' - ', ' '),
       ]);
+
+    if (usarSufixo && modelo.aceitarBaseSemSufixo) {
+      modelo.bases.forEach((base) => {
+        candidatos.push(base, base.replace(' - ', ' '));
+      });
+    }
 
     const optionPorCandidato = encontrarOpcaoPorCandidatos(options, candidatos, !usarSufixo);
     if (optionPorCandidato) return { option: optionPorCandidato, sufixo, mensagem: '' };
@@ -1967,6 +1974,14 @@
       return texto.endsWith(sufixoCompacto) &&
         basesNormalizadas.some((base) => texto.includes(base));
     });
+
+    if (!porBaseESufixo && modelo.aceitarBaseSemSufixo) {
+      const porBase = options.find((opt) => {
+        const texto = compactarTexto(textoOpcaoSelect(opt));
+        return basesNormalizadas.some((base) => texto === base || texto.includes(base));
+      });
+      if (porBase) return { option: porBase, sufixo, mensagem: '' };
+    }
 
     return {
       option: porBaseESufixo || null,

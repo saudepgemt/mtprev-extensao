@@ -14,6 +14,7 @@ Padrao atual:
 - Extrator SIGADOC: selecionar o campo Modelo antes do Texto padrao; usar Oficio para os modelos comuns e Comunicacao Interna para os tipos PERICIA ESTADO e PERICIA JUSTICA GRATUITA.
 - Extrator SIGADOC: PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, sem baixar PDF e sem copiar texto.
 - Extrator SIGADOC: AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
+- Extrator SIGADOC: para o tipo `CUMP GERAL`, localizar o texto padrao por nome e aceitar tanto modelos com sufixo de subscritor quanto o modelo-base `SAUDE - CUMP` recriado, sem depender do ID interno do SIGADOC.
 - Coordenacao/Gestao: setores dos assessores sao carregados da base interna data/equipe.xlsx, sem Google Sheets.
 - Base interna Excel: o background informa a URL interna e o painel da Coordenacao le o arquivo com ExcelJS; nao voltar a converter o XLSX no service worker.
 - Coordenacao/Gestao: preservar os botoes Cobrar Triagem, Cobrar Correcao e Cobrar Peca dentro do relatorio gerado, nunca no menu compacto.

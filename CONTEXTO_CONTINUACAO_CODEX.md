@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.83`
-- Ultima tag publicada no repositorio: `v1.83`
+- Versao atual da extensao: `1.84`
+- Ultima tag publicada no repositorio: `v1.84`
 
 ## Como retomar no notebook
 
@@ -209,6 +209,10 @@ Versao `1.83`:
 - A base `data/equipe.xlsx` foi sincronizada com a planilha entregue na pasta `1.82`, preservando Maria Leticia Mendonca e Silva como integrante ativa.
 - Aline Cristina de Souza passou a constar como `Nao Saiu da Equipe`. A formula da coluna `Saiu da Equipe` preserva essa excecao, para que ela continue aparecendo nas listas de assessores apesar de nao participar dos fluxos de processo.
 
+Versao `1.84`:
+
+- O texto padrao de `CUMP GERAL` no SIGADOC passou a aceitar tambem o modelo recriado `SAUDE - CUMP`, sem sufixo de subscritor. Quando houver modelos com sufixo, a extensao continua priorizando essa forma.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -232,6 +236,7 @@ Versao `1.83`:
 - Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.
 - Na base `data/equipe.xlsx`, preservar Aline Cristina de Souza e Maria Leticia Mendonca e Silva como `Nao Saiu da Equipe`, para que ambas constem nas listas de assessores dos Fluxos de Triagem e Correcao.
+- No SIGADOC, preservar a selecao de `CUMP GERAL` tanto para modelos com sufixo de subscritor quanto para o modelo-base recriado `SAUDE - CUMP`, sem vincular o fluxo a identificadores numericos do sistema.
 
 ## Arquivos importantes
 

@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.83
+CDSP Extensao Geral - 1.84
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -84,6 +84,7 @@ Comportamento:
 - No SIGADOC nao aparece o menu geral do SPA; aparece apenas o menu do Extrator/SIGADOC.
 - No SIGADOC, a lista de documentos possui automacao para visitar cada PGE-OFI visivel, abrir o documento e voltar pelo historico do navegador para seguir o proximo.
 - O Extrator seleciona o Modelo do SIGADOC antes do Texto padrao: Oficio para modelos comuns e Comunicacao Interna para os novos tipos de pericia.
+- Para `CUMP GERAL`, o Extrator aceita o texto padrao `SAUDE - CUMP` recriado, mesmo quando nao houver sufixo de subscritor.
 - Novos tipos mapeados no Extrator: PERICIA ESTADO, PERICIA JUSTICA GRATUITA, AUDIENCIA e SINF DANO MORAL.
 - PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, baixar arquivo ou copiar texto.
 - AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
@@ -102,8 +103,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.83.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.84.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.83.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.84.zip" no painel da Chrome Web Store.
