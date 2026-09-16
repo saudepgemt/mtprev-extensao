@@ -7712,6 +7712,71 @@
     }
   }
 
+  function createSearchableClosureChoice(labelText, choices, defaultValue) {
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "display:grid;grid-template-columns:1fr;gap:5px;position:relative;";
+    const title = document.createElement("div");
+    title.textContent = labelText;
+    title.style.cssText = "color:#d7e2ec;font-size:12px;font-weight:800;";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.autocomplete = "off";
+    input.placeholder = "Pesquisar...";
+    input.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #4a647d;border-radius:5px;background:#0d1722;color:#fff;padding:8px;font-size:12px;";
+    const menu = document.createElement("div");
+    menu.style.cssText = "display:none;max-height:180px;overflow:auto;border:1px solid #4a647d;border-radius:5px;background:#0d1722;padding:3px;position:relative;z-index:3;";
+    let selected = choices.find((choice) => choice.value === defaultValue) || null;
+    if (selected) input.value = selected.label;
+
+    function matches() {
+      const query = normalizeText(input.value).toLowerCase();
+      return choices.filter((choice) => !query || normalizeText(choice.label).toLowerCase().indexOf(query) >= 0);
+    }
+
+    function choose(choice) {
+      selected = choice || null;
+      input.value = choice ? choice.label : input.value;
+      menu.style.display = "none";
+    }
+
+    function render() {
+      const results = matches().slice(0, 35);
+      menu.innerHTML = "";
+      menu.style.display = results.length ? "grid" : "none";
+      results.forEach((choice) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.textContent = choice.label;
+        item.style.cssText = "border:0;border-radius:3px;background:transparent;color:#fff;text-align:left;padding:6px 7px;cursor:pointer;font-size:11px;line-height:1.25;";
+        item.addEventListener("mousedown", (event) => event.preventDefault());
+        item.addEventListener("click", () => choose(choice));
+        menu.appendChild(item);
+      });
+    }
+
+    input.addEventListener("focus", render);
+    input.addEventListener("input", () => {
+      selected = null;
+      render();
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      const match = matches()[0];
+      if (!match) return;
+      event.preventDefault();
+      choose(match);
+    });
+    input.addEventListener("blur", () => setTimeout(() => { menu.style.display = "none"; }, 150));
+    wrapper.appendChild(title);
+    wrapper.appendChild(input);
+    wrapper.appendChild(menu);
+    return {
+      wrapper: wrapper,
+      input: input,
+      value: () => selected ? selected.value : ""
+    };
+  }
+
   function showTriageClosureDialog(title, onConfirm) {
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(2,8,23,.62);display:grid;place-items:center;padding:18px;";
@@ -7725,19 +7790,11 @@
     const hint = document.createElement("div");
     hint.textContent = "Informe o motivo. A observação é facultativa.";
     hint.style.cssText = "font-size:12px;color:#b8c6d1;line-height:1.4;";
-    const reasonLabel = document.createElement("label");
-    reasonLabel.textContent = "Motivo";
-    reasonLabel.style.cssText = "display:grid;gap:5px;font-size:12px;font-weight:800;";
-    const reason = document.createElement("select");
-    reason.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #4a647d;border-radius:5px;background:#0d1722;color:#fff;padding:8px;font-size:12px;";
-    TRIAGE_CLOSURE_REASONS.forEach((label) => {
-      const option = document.createElement("option");
-      option.value = label;
-      option.textContent = label;
-      option.selected = label === "Outros";
-      reason.appendChild(option);
-    });
-    reasonLabel.appendChild(reason);
+    const reason = createSearchableClosureChoice(
+      "Motivo",
+      TRIAGE_CLOSURE_REASONS.map((label) => ({ label: label, value: label })),
+      "Outros"
+    );
     const observationLabel = document.createElement("label");
     observationLabel.textContent = "Observação";
     observationLabel.style.cssText = "display:grid;gap:5px;font-size:12px;font-weight:800;";
@@ -7766,7 +7823,7 @@
       cancel.disabled = true;
       confirm.textContent = "Preparando...";
       try {
-        await onConfirm({ reason: reason.value || "Outros", observation: observation.value || "" });
+        await onConfirm({ reason: reason.value() || "Outros", observation: observation.value || "" });
         close();
       } catch (error) {
         confirm.disabled = false;
@@ -7781,12 +7838,12 @@
     actions.appendChild(confirm);
     dialog.appendChild(heading);
     dialog.appendChild(hint);
-    dialog.appendChild(reasonLabel);
+    dialog.appendChild(reason.wrapper);
     dialog.appendChild(observationLabel);
     dialog.appendChild(actions);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
-    reason.focus();
+    reason.input.focus();
   }
 
   function elementLink(element) {
@@ -13101,19 +13158,11 @@
     const closureSection = createPanelSection("Sugerir encerramento", false);
     const closureForm = document.createElement("div");
     closureForm.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;";
-    const closureReasonLabel = document.createElement("label");
-    closureReasonLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
-    closureReasonLabel.textContent = "Motivo";
-    const closureReason = document.createElement("select");
-    closureReason.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;font-size:12px;font-weight:700;padding:7px 8px;min-height:34px;";
-    TRIAGE_CLOSURE_REASONS.forEach((reason) => {
-      const option = document.createElement("option");
-      option.value = reason;
-      option.textContent = reason;
-      option.selected = reason === "Outros";
-      closureReason.appendChild(option);
-    });
-    closureReasonLabel.appendChild(closureReason);
+    const closureReason = createSearchableClosureChoice(
+      "Motivo",
+      TRIAGE_CLOSURE_REASONS.map((reason) => ({ label: reason, value: reason })),
+      "Outros"
+    );
     const closureObservationLabel = document.createElement("label");
     closureObservationLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
     closureObservationLabel.textContent = "Observação (opcional)";
@@ -13125,7 +13174,7 @@
       if (state.running) return;
       try {
         state.running = true;
-        await beginTriageTaskClosure({ reason: closureReason.value || "Outros", observation: closureObservation.value || "" });
+        await beginTriageTaskClosure({ reason: closureReason.value() || "Outros", observation: closureObservation.value || "" });
       } catch (error) {
         state.running = false;
         const message = error && error.message ? error.message : String(error);
@@ -13135,7 +13184,7 @@
       }
     }, "warning");
     closureButton.style.width = "100%";
-    closureForm.appendChild(closureReasonLabel);
+    closureForm.appendChild(closureReason.wrapper);
     closureForm.appendChild(closureObservationLabel);
     closureForm.appendChild(closureButton);
     closureSection.body.appendChild(closureForm);
