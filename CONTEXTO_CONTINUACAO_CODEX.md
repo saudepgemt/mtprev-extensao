@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.87`
-- Ultima tag publicada no repositorio: `v1.87`
+- Versao atual da extensao: `1.88`
+- Ultima tag publicada no repositorio: `v1.88`
 
 ## Como retomar no notebook
 
@@ -227,6 +227,12 @@ Versao `1.87`:
 - No Fluxo de Triagem, a Nova Tarefa de oficio passou a ser direcionada para Yasmim Marques Nascimento. A classificacao agora repete a tentativa dos seletores e confere todos os campos obrigatorios antes de salvar.
 - No SIGADOC, a selecao de SES-UNIJUR passou a aguardar a confirmacao assincrona do ID, sigla e descricao da lotacao. O fluxo nao grava nem assina se o destinatario, o conteudo ou outro campo obrigatorio nao estiver confirmado.
 
+Versao `1.88`:
+
+- O Fluxo de Triagem foi dividido nos submenus `Classificar Processo` e `Sugerir encerramento`. A classificacao com oficio agora permite escolher o responsavel pela Nova Tarefa em lista fixa, com Yasmim Marques Nascimento preselecionada.
+- O encerramento sugerido foi disponibilizado no Fluxo de Triagem e como botao individual no relatorio de duplicados. Ambos usam os motivos do SPA, assumem `Outros` por padrao, aceitam Observacao facultativa e so a pendencia escolhida no relatorio e aberta em segundo plano.
+- A extensao aguarda o campo dinamico Observacao da etapa 2756 depois da escolha do Motivo e confirma o Motivo antes de salvar.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -241,7 +247,7 @@ Versao `1.87`:
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
 - Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado. Em Conteudo ao qual nao cabe Recorrer/Manifestar, preservar a multa em liminar de Embargos de Declaracao > Sentenca como escolha exclusiva, com ID obrigatorio apenas para multa revogada; em Agravo Interno, preservar os fundamentos finais como escolhas exclusivas e o ID antes da data; em Impugnacao ao Cumprimento de Sentenca, preservar o ID antes da data.
-- Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587, ATR007588 e ATR007594, confirmar as selecoes Select2 e interromper antes de salvar quando o assessor nao for localizado. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 = Yasmim Marques Nascimento, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Antes de salvar, confirmar todos esses campos. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa.
+- Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`, com os submenus `Classificar Processo` e `Sugerir encerramento`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587, ATR007588 e ATR007594, confirmar as selecoes Select2 e interromper antes de salvar quando o assessor nao for localizado. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 igual ao responsavel selecionado na lista fixa de oficios, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Yasmim Marques Nascimento e o valor preselecionado. Antes de salvar, confirmar todos esses campos. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa. O submenu de encerramento e o botao individual do relatorio de duplicados devem abrir o passo 2756, usar `Outros` por padrao, preencher a Observacao opcional carregada dinamicamente pelo SPA e salvar sem criar acao em lote.
 - A coluna `Saiu da Equipe` de `data/equipe.xlsx` e a fonte unica da lista de assessores ativos da Designacao da Triagem e de `Devolver ao assessor` no Fluxo de Correcao: incluir somente `Nao Saiu da Equipe`, sem manter lista fixa de nomes no codigo. O filtro `Assessor(a)` do Fluxo de Correcao deve listar exclusivamente os nomes da caixa de leitura atual. Preservar tambem o preenchimento opcional de Observacao em `ATR007573` ao devolver ao assessor.
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.

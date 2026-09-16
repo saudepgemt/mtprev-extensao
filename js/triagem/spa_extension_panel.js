@@ -96,6 +96,48 @@
   const LOG_LIMIT = 120;
   const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED";
   const TRIAGE_CLASSIFICATION_ACTION_KEY = "SPA_CDSP_TRIAGE_CLASSIFICATION_ACTION";
+  const TRIAGE_CLOSURE_ACTION_KEY = "SPA_CDSP_TRIAGE_CLOSURE_ACTION";
+  const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "Yasmim Marques Nascimento";
+  const TRIAGE_OFFICE_ASSIGNEES = [
+    "Gabrielle Rodrigues Silva Espindola",
+    "Matheus Augusto Ferreira Brandão",
+    "Beatriz Vitoria Miranda Silva Cerqueira",
+    "Anna Julia Ferreira da Mata",
+    "Yasmim Marques Nascimento"
+  ];
+  const TRIAGE_CLOSURE_REASONS = [
+    "Ciência da decisão/sentença favorável.",
+    "Ciência da remessa à segunda instância.",
+    "Ciência da extinção do processo sem julgamento do mérito.",
+    "Ciência de despacho de mero expediente.",
+    "Decisão conforme dispensa de atuação devidamente homologada.",
+    "Decisão conforme orientação normativa do Colégio de Procuradores.",
+    "Intimação destinada à outra parte.",
+    "Duplicidade de tarefa.",
+    "Intimação de pauta de julgamento de recurso.",
+    "Outros",
+    "Ciência da suspensão do feito",
+    "Ciência da suspensão do feito.",
+    "Providência já adotada.",
+    "Ciência de retorno dos autos da instância superior. Aguarda-se o início de cumprimento de sentença em desfavor do Estado.",
+    "Ciência de despacho de produção de provas.",
+    "Ciência de acordo homologado nos autos.",
+    "Atuação dispensada conforme orientação normativa e/ou enunciado jurídico do Colégio de Procuradores.",
+    "Intimação destinada à outra parte ou auxiliar do juízo.",
+    "RPV - aguardar expedição de ofício",
+    "RPV já cadastrada",
+    "RPV - bloqueio já cadastrado",
+    "RPV - bloqueio - aguardando protocolo SISBAJUD",
+    "RPV - ciência extinção por quitação",
+    "Cumprimento de Sentença - peticionado via PJe ou por outro colega",
+    "Cumprimento de Sentença - proposta de acordo do CONSENSO, aguardar andamento",
+    "Cumprimento de Sentença - prazo contrarrazões - matéria de interesse exclusivo do recorrente",
+    "Cumprimento de Sentença - proposta de acordo do CONSENSO rejeitada, seguida de remessa à Contadoria Judicial, aguardar andamento",
+    "Cumprimento de Sentença - Aguardar cálculo da contadoria judicial",
+    "Cumprimento de Sentença - sem interesse recursal. Aguardar expedição de ofício requisitório",
+    "Cumprimento de Sentença - sentença homologatória - ausente impugnação- valor abaixo do Enunciado 32 sem tese jurídica relevante",
+    "Cumprimento de Sentença - diferença irrisória entre os valores homologados e os apurados pela PGE"
+  ];
   const TRIAGE_MANIFESTATION_OPTIONS = [
     "Alegações finais", "Agravo ao STF", "Agravo ao STJ", "Agravo de instrumento", "Agravo interno", "Apelação",
     "Audiência", "Contestação", "Contrarrazões", "Contrarrazões à Apelação", "Contrarrazões ao Agravo ao STF",
@@ -167,6 +209,7 @@
     return String(text || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -7237,9 +7280,62 @@
     }
   }
 
+  function triageClosureAction() {
+    const read = (raw) => {
+      try {
+        return raw ? JSON.parse(raw) : null;
+      } catch (_error) {
+        return null;
+      }
+    };
+    try {
+      const currentTabAction = read(window.sessionStorage.getItem(TRIAGE_CLOSURE_ACTION_KEY));
+      if (currentTabAction) return currentTabAction;
+    } catch (_error) {
+      // A abertura em segundo plano usa o armazenamento local como alternativa.
+    }
+    return read(storageGet(TRIAGE_CLOSURE_ACTION_KEY, ""));
+  }
+
+  function saveTriageClosureAction(action) {
+    const serialized = JSON.stringify(action);
+    try {
+      window.sessionStorage.setItem(TRIAGE_CLOSURE_ACTION_KEY, serialized);
+    } catch (_error) {
+      // O armazenamento local abaixo tambem permite continuar na aba em segundo plano.
+    }
+    storageSet(TRIAGE_CLOSURE_ACTION_KEY, serialized);
+  }
+
+  function clearTriageClosureAction(operationId) {
+    try {
+      window.sessionStorage.removeItem(TRIAGE_CLOSURE_ACTION_KEY);
+    } catch (_error) {
+      // Sem sessionStorage, a limpeza do armazenamento local abaixo ainda ocorre.
+    }
+    try {
+      const stored = JSON.parse(storageGet(TRIAGE_CLOSURE_ACTION_KEY, ""));
+      if (!operationId || !stored || stored.operationId === operationId) {
+        localStorage.removeItem(TRIAGE_CLOSURE_ACTION_KEY);
+      }
+    } catch (_error) {
+      // Nenhuma acao pendente valida para limpar.
+    }
+  }
+
   function currentProcedureId() {
     const match = String(window.location.pathname || "").match(/^\/procedures\/(\d+)(?:\/|$)/);
     return match ? match[1] : "";
+  }
+
+  function procedureIdFromUrl(url) {
+    try {
+      const parsed = new URL(resolveUrl(url));
+      const match = String(parsed.pathname || "").match(/^\/procedures\/(\d+)(?:\/|$)/);
+      return match ? match[1] : "";
+    } catch (_error) {
+      return "";
+    }
   }
 
   function dispatchFormEvents(input) {
@@ -7451,6 +7547,7 @@
       }
 
       if (action.hasOffice) {
+        const officeAssignee = String(action.officeAssignee || TRIAGE_DEFAULT_OFFICE_ASSIGNEE).trim();
         const taskType = document.querySelector("#progress_form_data_Nova-Tarefa_0_ATR007590");
         const taskUser = document.querySelector("#progress_form_data_Nova-Tarefa_0_ATR007591");
         const taskBusinessDays = document.querySelector("#progress_form_data_Nova-Tarefa_0_ATR007592");
@@ -7462,8 +7559,8 @@
         if (!(await chooseSpaSelectWithRetries(taskType, "Ofício", false, 3))) {
           throw new Error("Nao foi possivel selecionar 'Ofício' em Tipo de tarefa.");
         }
-        if (!(await chooseSpaSelectWithRetries(taskUser, "Yasmim Marques Nascimento", false, 4))) {
-          throw new Error("A usuaria Yasmim Marques Nascimento nao foi preenchida automaticamente na Nova Tarefa.");
+        if (!(await chooseSpaSelectWithRetries(taskUser, officeAssignee, false, 4))) {
+          throw new Error("A pessoa responsável pelo ofício não foi preenchida automaticamente na Nova Tarefa.");
         }
         const dueDate = nextNationalBusinessDay();
         if (!setFormFieldValue(taskBusinessDays, "1") || !setFormFieldValue(taskDueDate, dueDate) ||
@@ -7477,7 +7574,7 @@
         if (!fieldValueWasApplied(info, action.additionalInfo || "")) missingFields.push("Informacoes adicionais");
         if (!fieldValueWasApplied(observation, action.processObservation || "")) missingFields.push("Observacao do Processo");
         if (!selectionWasApplied(taskType, "Ofício", false)) missingFields.push("Tipo de tarefa");
-        if (!selectionWasApplied(taskUser, "Yasmim Marques Nascimento", false)) missingFields.push("Usuario da Nova Tarefa");
+        if (!selectionWasApplied(taskUser, officeAssignee, false)) missingFields.push("Usuario da Nova Tarefa");
         if (!fieldValueWasApplied(taskBusinessDays, "1")) missingFields.push("Prazo da Nova Tarefa");
         if (!fieldValueWasApplied(taskDueDate, dueDate)) missingFields.push("Vencimento da Nova Tarefa");
         if (!fieldValueWasApplied(taskObservation, action.officeObservation || "")) missingFields.push("Observacao do Oficio");
@@ -7507,6 +7604,189 @@
       log(message, "error");
       originalAlert.call(window, message);
     }
+  }
+
+  function taskClosureLink() {
+    const expected = normalizeText(CONFIG.encerramentoText).toLowerCase();
+    return Array.from(document.querySelectorAll("a[href*='/new_progress/']")).find((link) => {
+      const text = normalizeText([link.getAttribute("data-title"), link.getAttribute("title"), link.textContent].join(" ")).toLowerCase();
+      const href = String(link.getAttribute("href") || "");
+      return text.indexOf(expected) >= 0 || href.indexOf("/new_progress/" + CONFIG.encerramentoStepId) >= 0;
+    }) || null;
+  }
+
+  function progressFieldByLabel(labelText) {
+    const wanted = normalizeText(labelText).toLowerCase();
+    const labels = Array.from(document.querySelectorAll("#progress-form label"));
+    const label = labels.find((item) => normalizeText(item.textContent).toLowerCase().indexOf(wanted) === 0);
+    if (!label) return null;
+    if (label.htmlFor) {
+      const controlled = document.getElementById(label.htmlFor);
+      if (controlled && /^(input|textarea)$/i.test(controlled.tagName || "")) return controlled;
+    }
+    const container = label.closest(".form-group, .step-attribute-box, .row, div") || label.parentElement;
+    return container ? container.querySelector("textarea, input:not([type='hidden']):not([type='submit']):not([type='button'])") : null;
+  }
+
+  async function waitForProgressField(labelText, timeoutMs) {
+    const until = Date.now() + (timeoutMs || 8000);
+    while (Date.now() < until) {
+      const field = progressFieldByLabel(labelText);
+      if (field && !field.disabled) return field;
+      await sleep(250);
+    }
+    return null;
+  }
+
+  async function beginTriageTaskClosure(action) {
+    const prepared = Object.assign({}, action, {
+      procedureId: action.procedureId || currentProcedureId(),
+      createdAt: Date.now(),
+      operationId: action.operationId || "triage-closure-" + Date.now() + "-" + Math.random().toString(36).slice(2)
+    });
+    if (!prepared.procedureId) throw new Error("Nao foi possivel identificar a pendencia para sugerir o encerramento.");
+    saveTriageClosureAction(prepared);
+    const link = taskClosureLink();
+    if (!link) return prepared;
+
+    setStatus("Abrindo sugestao de encerramento");
+    log("Abrindo Sugerir encerramento de tarefa.");
+    const href = resolveUrl(link.getAttribute("href"));
+    link.click();
+    setTimeout(() => {
+      if (href && window.location.href !== href && window.location.pathname.indexOf("/new_progress/") < 0) {
+        window.location.assign(href);
+      }
+    }, 850);
+    return prepared;
+  }
+
+  async function continuePendingTriageTaskClosure() {
+    const action = triageClosureAction();
+    if (!action || !action.createdAt || Date.now() - action.createdAt > 5 * 60 * 1000) return;
+    if (String(action.procedureId || "") !== currentProcedureId()) return;
+
+    const motive = document.querySelector("#progress_form_data_ATR009297");
+    const save = document.querySelector("#btn-progress-save");
+    if (!motive || !save) {
+      const link = taskClosureLink();
+      if (link) {
+        await beginTriageTaskClosure(action);
+      } else if (Date.now() - action.createdAt < 10000) {
+        setTimeout(continuePendingTriageTaskClosure, 600);
+      }
+      return;
+    }
+
+    try {
+      state.running = true;
+      setStatus("Preenchendo sugestao de encerramento");
+      const requestedReason = String(action.reason || "Outros").trim() || "Outros";
+      const reasonSelected = await chooseSpaSelectWithRetries(motive, requestedReason, false, 4);
+      if (!reasonSelected && !(await chooseSpaSelectWithRetries(motive, "Outros", false, 2))) {
+        throw new Error("Nao foi possivel selecionar o Motivo do encerramento.");
+      }
+
+      const observationText = String(action.observation || "").trim();
+      if (observationText) {
+        const observation = await waitForProgressField("Observação", 8000);
+        if (!observation || !setFormFieldValue(observation, observationText) || !fieldValueWasApplied(observation, observationText)) {
+          throw new Error("Nao foi possivel preencher a Observacao do encerramento.");
+        }
+      }
+
+      if (!selectionWasApplied(motive, requestedReason, false) && !selectionWasApplied(motive, "Outros", false)) {
+        throw new Error("O Motivo do encerramento nao foi confirmado.");
+      }
+      clearTriageClosureAction(action.operationId);
+      setStatus("Salvando sugestao de encerramento");
+      log("Motivo e observacao conferidos. Salvando sugestao de encerramento.", "ok");
+      save.click();
+    } catch (error) {
+      clearTriageClosureAction(action.operationId);
+      state.running = false;
+      const message = error && error.message ? error.message : String(error);
+      setStatus("Preenchimento pendente");
+      log(message, "error");
+      originalAlert.call(window, message);
+    }
+  }
+
+  function showTriageClosureDialog(title, onConfirm) {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(2,8,23,.62);display:grid;place-items:center;padding:18px;";
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.style.cssText = "width:min(440px,100%);box-sizing:border-box;background:#102033;color:#e8f0f7;border:1px solid #41607d;border-radius:8px;box-shadow:0 18px 55px rgba(0,0,0,.42);padding:18px;display:grid;gap:12px;font-family:Arial,sans-serif;";
+    const heading = document.createElement("strong");
+    heading.textContent = title || "Sugerir encerramento";
+    heading.style.cssText = "font-size:16px;";
+    const hint = document.createElement("div");
+    hint.textContent = "Informe o motivo. A observação é facultativa.";
+    hint.style.cssText = "font-size:12px;color:#b8c6d1;line-height:1.4;";
+    const reasonLabel = document.createElement("label");
+    reasonLabel.textContent = "Motivo";
+    reasonLabel.style.cssText = "display:grid;gap:5px;font-size:12px;font-weight:800;";
+    const reason = document.createElement("select");
+    reason.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #4a647d;border-radius:5px;background:#0d1722;color:#fff;padding:8px;font-size:12px;";
+    TRIAGE_CLOSURE_REASONS.forEach((label) => {
+      const option = document.createElement("option");
+      option.value = label;
+      option.textContent = label;
+      option.selected = label === "Outros";
+      reason.appendChild(option);
+    });
+    reasonLabel.appendChild(reason);
+    const observationLabel = document.createElement("label");
+    observationLabel.textContent = "Observação";
+    observationLabel.style.cssText = "display:grid;gap:5px;font-size:12px;font-weight:800;";
+    const observation = document.createElement("textarea");
+    observation.rows = 4;
+    observation.placeholder = "Opcional";
+    observation.style.cssText = "width:100%;box-sizing:border-box;resize:vertical;border:1px solid #4a647d;border-radius:5px;background:#0d1722;color:#fff;padding:8px;font:12px Arial,sans-serif;";
+    observationLabel.appendChild(observation);
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;justify-content:flex-end;gap:8px;";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancelar";
+    cancel.style.cssText = "border:1px solid #56708a;border-radius:5px;background:#24384d;color:#fff;padding:8px 11px;cursor:pointer;font-weight:800;";
+    const confirm = document.createElement("button");
+    confirm.type = "button";
+    confirm.textContent = "Salvar";
+    confirm.style.cssText = "border:0;border-radius:5px;background:#1976d2;color:#fff;padding:8px 11px;cursor:pointer;font-weight:800;";
+    const close = () => overlay.remove();
+    cancel.addEventListener("click", close);
+    overlay.addEventListener("mousedown", (event) => {
+      if (event.target === overlay) close();
+    });
+    confirm.addEventListener("click", async () => {
+      confirm.disabled = true;
+      cancel.disabled = true;
+      confirm.textContent = "Preparando...";
+      try {
+        await onConfirm({ reason: reason.value || "Outros", observation: observation.value || "" });
+        close();
+      } catch (error) {
+        confirm.disabled = false;
+        cancel.disabled = false;
+        confirm.textContent = "Salvar";
+        const message = error && error.message ? error.message : String(error);
+        log(message, "error");
+        originalAlert.call(window, message);
+      }
+    });
+    actions.appendChild(cancel);
+    actions.appendChild(confirm);
+    dialog.appendChild(heading);
+    dialog.appendChild(hint);
+    dialog.appendChild(reasonLabel);
+    dialog.appendChild(observationLabel);
+    dialog.appendChild(actions);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    reason.focus();
   }
 
   function elementLink(element) {
@@ -9804,6 +10084,27 @@
     return opened > 0;
   }
 
+  async function beginDuplicateReportTaskClosure(record, details) {
+    if (!record || !record.pendencyUrl) {
+      throw new Error("A pendencia deste item nao possui uma URL para sugerir o encerramento.");
+    }
+    const procedureId = procedureIdFromUrl(record.pendencyUrl);
+    if (!procedureId) {
+      throw new Error("Nao foi possivel identificar a pendencia vinculada a este item.");
+    }
+
+    const action = await beginTriageTaskClosure({
+      procedureId: procedureId,
+      reason: details && details.reason ? details.reason : "Outros",
+      observation: details && details.observation ? details.observation : ""
+    });
+    if (!(await openUrlInBackground(record.pendencyUrl))) {
+      clearTriageClosureAction(action.operationId);
+      throw new Error("A extensao nao conseguiu abrir a pendencia em segundo plano.");
+    }
+    log("Pendencia aberta em segundo plano para sugerir encerramento: expediente " + record.expedienteId + ".", "ok");
+  }
+
   async function openDuplicateReportGroup(group) {
     if (!group) return;
 
@@ -9876,6 +10177,17 @@
     } catch (error) {
       log("Erro ao abrir pelo relatorio: " + error.message, "error");
       setStatus("Erro no relatorio");
+    } finally {
+      state.running = false;
+    }
+  }
+
+  async function runDuplicateReportTaskClosure(action) {
+    guardStart();
+    try {
+      setStatus("Preparando sugestao de encerramento...");
+      await action();
+      setStatus("Sugestao de encerramento em andamento");
     } finally {
       state.running = false;
     }
@@ -10242,6 +10554,14 @@
             });
         });
 
+        const closureAction = createDuplicateReportButton("Sugerir encerramento", "amber");
+        closureAction.title = "Abrir esta pendência em segundo plano e sugerir o encerramento da tarefa.";
+        closureAction.addEventListener("click", () => {
+          showTriageClosureDialog("Sugerir encerramento da tarefa", (details) =>
+            runDuplicateReportTaskClosure(() => beginDuplicateReportTaskClosure(record, details))
+          );
+        });
+
         if (record.validated) {
           const validatedNotice = document.createElement("div");
           validatedNotice.style.cssText =
@@ -10291,6 +10611,7 @@
         actionCell.style.cssText = "grid-column:1 / -1;display:flex;justify-content:flex-end;gap:6px;margin-top:-2px;";
         actionCell.appendChild(action);
         actionCell.appendChild(validateAction);
+        actionCell.appendChild(closureAction);
         row.appendChild(actionCell);
         rowsWrapper.appendChild(row);
       });
@@ -12426,6 +12747,7 @@
     createPanel();
     setupExternalDocumentsPanel();
     setTimeout(continuePendingTriageClassification, 450);
+    setTimeout(continuePendingTriageTaskClosure, 650);
     log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
   }
 
@@ -12564,6 +12886,7 @@
       assessor: "",
       hasOffice: "",
       officeObservation: null,
+      officeAssignee: TRIAGE_DEFAULT_OFFICE_ASSIGNEE,
       processObservation: ""
     };
     const form = document.createElement("div");
@@ -12720,6 +13043,7 @@
           officeObservation: flowState.hasOffice === "yes" && flowState.officeObservation
             ? flowState.officeObservation.value
             : "",
+          officeAssignee: flowState.officeAssignee,
           processObservation: flowState.processObservation
         });
       } catch (error) {
@@ -12735,12 +13059,22 @@
 
     function canClassify() {
       if (!flowState.manifestation || !String(flowState.assessor || "").trim() || !flowState.hasOffice) return false;
-      return flowState.hasOffice !== "yes" || Boolean(flowState.officeObservation && flowState.officeObservation.value);
+      return flowState.hasOffice !== "yes" || Boolean(
+        flowState.officeObservation && flowState.officeObservation.value && String(flowState.officeAssignee || "").trim()
+      );
     }
 
     function refresh() {
       observationSlot.innerHTML = "";
       if (flowState.hasOffice === "yes") {
+        const officeAssignee = searchableChoice(
+          "Responsável pelo Ofício",
+          TRIAGE_OFFICE_ASSIGNEES.map((label) => ({ label: label, value: label })),
+          (choice) => { flowState.officeAssignee = choice ? choice.value : ""; }
+        );
+        officeAssignee.input.value = flowState.officeAssignee || TRIAGE_DEFAULT_OFFICE_ASSIGNEE;
+        officeAssignee.input.placeholder = "Pesquisar responsável...";
+        observationSlot.appendChild(officeAssignee.wrapper);
         const officeObservation = searchableChoice("Observação do Ofício", TRIAGE_OFFICE_OBSERVATIONS, (choice) => {
           flowState.officeObservation = choice;
         });
@@ -12760,7 +13094,52 @@
       classifyButton.style.cursor = classifyButton.disabled ? "not-allowed" : "pointer";
     }
 
-    section.body.appendChild(form);
+    const classificationSection = createPanelSection("Classificar Processo", false);
+    classificationSection.body.appendChild(form);
+    section.body.appendChild(classificationSection.section);
+
+    const closureSection = createPanelSection("Sugerir encerramento", false);
+    const closureForm = document.createElement("div");
+    closureForm.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;";
+    const closureReasonLabel = document.createElement("label");
+    closureReasonLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
+    closureReasonLabel.textContent = "Motivo";
+    const closureReason = document.createElement("select");
+    closureReason.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;font-size:12px;font-weight:700;padding:7px 8px;min-height:34px;";
+    TRIAGE_CLOSURE_REASONS.forEach((reason) => {
+      const option = document.createElement("option");
+      option.value = reason;
+      option.textContent = reason;
+      option.selected = reason === "Outros";
+      closureReason.appendChild(option);
+    });
+    closureReasonLabel.appendChild(closureReason);
+    const closureObservationLabel = document.createElement("label");
+    closureObservationLabel.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
+    closureObservationLabel.textContent = "Observação (opcional)";
+    const closureObservation = document.createElement("textarea");
+    closureObservation.rows = 3;
+    closureObservation.style.cssText = "width:100%;box-sizing:border-box;resize:vertical;border:1px solid #344253;border-radius:5px;background:#0d131a;color:#e8f0f7;font:700 12px Arial,sans-serif;padding:7px 8px;";
+    closureObservationLabel.appendChild(closureObservation);
+    const closureButton = createButton("Sugerir encerramento", async () => {
+      if (state.running) return;
+      try {
+        state.running = true;
+        await beginTriageTaskClosure({ reason: closureReason.value || "Outros", observation: closureObservation.value || "" });
+      } catch (error) {
+        state.running = false;
+        const message = error && error.message ? error.message : String(error);
+        setStatus("Fluxo de Triagem falhou");
+        log(message, "error");
+        originalAlert.call(window, message);
+      }
+    }, "warning");
+    closureButton.style.width = "100%";
+    closureForm.appendChild(closureReasonLabel);
+    closureForm.appendChild(closureObservationLabel);
+    closureForm.appendChild(closureButton);
+    closureSection.body.appendChild(closureForm);
+    section.body.appendChild(closureSection.section);
     refresh();
     window.setTimeout(() => {
       const database = window.SPA_CDSP_TEAM_DATABASE;
