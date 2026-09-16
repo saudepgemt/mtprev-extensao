@@ -2176,6 +2176,74 @@
     return textoAtual.includes(textoEsperado) || textoEsperado.includes(textoAtual);
   }
 
+  function estadoDestinatarioSigadoc(destino) {
+    const id = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_id') ||
+      document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.id')[0];
+    const sigla = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla') ||
+      document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.sigla')[0];
+    const descricao = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_descricao') ||
+      document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.descricao')[0];
+    const span = document.getElementById('exDocumentoDTO.lotacaoDestinatarioSelSpan');
+    const idValue = limparValorExtraido(id && id.value);
+    const siglaValue = limparValorExtraido(sigla && sigla.value);
+    const descricaoValue = limparValorExtraido((span && span.textContent) || (descricao && descricao.value));
+    const expectedSigla = limparValorExtraido(destino && destino.sigla);
+    const expectedDescription = limparValorExtraido(destino && destino.descricao);
+
+    return {
+      idValue,
+      siglaValue,
+      descricaoValue,
+      confirmed: Boolean(
+        idValue &&
+        normalizarTexto(siglaValue) === normalizarTexto(expectedSigla) &&
+        descricaoDestinatarioCorresponde(descricaoValue, expectedDescription)
+      ),
+    };
+  }
+
+  async function aguardarConfirmacaoDestinatarioSigadoc(destino, timeoutMs) {
+    const timeout = Math.max(500, Number(timeoutMs) || 0);
+    const inicio = Date.now();
+    let estado = estadoDestinatarioSigadoc(destino);
+    while (Date.now() - inicio < timeout) {
+      if (estado.confirmed) return estado;
+      await aguardar(200);
+      estado = estadoDestinatarioSigadoc(destino);
+    }
+    return estado;
+  }
+
+  function solicitarConfirmacaoDestinatarioSigadoc(siglaDestino) {
+    executarNoContextoDaPagina(`
+      (function () {
+        var destino = ${JSON.stringify(siglaDestino)};
+        var campo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla') ||
+          document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.sigla')[0];
+        if (!campo) return;
+
+        campo.value = destino;
+        campo.dispatchEvent(new Event('input', { bubbles: true }));
+        campo.dispatchEvent(new Event('change', { bubbles: true }));
+        try {
+          if (typeof handleEnter === 'function') {
+            handleEnter(campo, {
+              type: 'keypress', keyCode: 13, which: 13,
+              preventDefault: function () {}, stopPropagation: function () {}
+            });
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao simular Enter no destinatário:', erro);
+        }
+        try {
+          if (typeof ajax_lotacaoDestinatario === 'function') ajax_lotacaoDestinatario();
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao confirmar destinatário:', erro);
+        }
+      })();
+    `);
+  }
+
   async function preencherDestinatarioSigadoc(pacote) {
     const sigla = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla');
     const span = document.getElementById('exDocumentoDTO.lotacaoDestinatarioSelSpan');
@@ -2212,62 +2280,48 @@
       console.warn('[CDSP - Extrator] Não foi possível remover o foco do destinatário:', erro);
     }
 
-    executarNoContextoDaPagina(`
-      (function () {
-        var destino = ${JSON.stringify(siglaDestino)};
-        var campo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla') ||
-          document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.sigla')[0];
-
-        if (!campo) return;
-
-        campo.value = destino;
-        campo.dispatchEvent(new Event('input', { bubbles: true }));
-        campo.dispatchEvent(new Event('change', { bubbles: true }));
-
-        try {
-          if (typeof handleEnter === 'function') {
-            handleEnter(campo, {
-              type: 'keypress',
-              keyCode: 13,
-              which: 13,
-              preventDefault: function () {},
-              stopPropagation: function () {}
-            });
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao simular Enter no destinatário:', erro);
-        }
-
-        try {
-          if (typeof ajax_lotacaoDestinatario === 'function') {
-            ajax_lotacaoDestinatario();
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao confirmar destinatário:', erro);
-        }
-      })();
-    `);
-
-    await new Promise((resolve) => setTimeout(resolve, 700));
-
-    const valor = limparValorExtraido((sigla && sigla.value) || (span && span.textContent) || '');
-    const descricao = limparValorExtraido(
-      (span && span.textContent) || (descricaoCampo && descricaoCampo.value) || ''
-    );
-
-    if (normalizarTexto(valor) !== normalizarTexto(siglaDestino)) {
-      return `Destinatário preenchido como ${siglaDestino}; confira se o SIGADOC reconheceu a lotação.`;
+    let estado = estadoDestinatarioSigadoc(destino);
+    for (let attempt = 1; attempt <= 3 && !estado.confirmed; attempt += 1) {
+      solicitarConfirmacaoDestinatarioSigadoc(siglaDestino);
+      estado = await aguardarConfirmacaoDestinatarioSigadoc(destino, 3000 * attempt);
     }
 
-    if (descricao && !descricaoDestinatarioCorresponde(descricao, descricaoEsperada)) {
-      return `Destinatário preenchido como ${siglaDestino}; confira a descrição exibida: ${descricao}.`;
-    }
-
-    if (descricaoEsperada && !descricao) {
-      return `Destinatário preenchido como ${siglaDestino}; confira se o SIGADOC exibiu ${descricaoEsperada}.`;
+    if (!estado.confirmed) {
+      throw new Error(
+        `O SIGADOC nao confirmou o destinatario ${siglaDestino}. ` +
+        'A assinatura foi interrompida para evitar gravacao sem a lotacao selecionada.'
+      );
     }
 
     return `Destinatário preenchido como ${siglaDestino} (${descricaoEsperada || 'descrição não informada'}) e Enter enviado.`;
+  }
+
+  function validarCamposObrigatoriosSigadoc(pacote) {
+    const erros = [];
+    const descricao = document.getElementById('descrDocumento');
+    const assunto = obterCampoAssuntoSigadoc();
+    const areaEditavel = document.querySelector('[contenteditable="true"]');
+    const textarea = obterTextareaConteudoSigadoc();
+    const destino = obterDestinatarioSigadoc(pacote);
+    const estadoDestinatario = estadoDestinatarioSigadoc(destino);
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    const classificacao = modelo && modelo.classificacao;
+    const classificacaoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0] ||
+      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_id');
+    const conteudo = (areaEditavel && areaEditavel.innerHTML) || (textarea && textarea.value) || '';
+
+    if (!limparValorExtraido(descricao && descricao.value)) erros.push('Descricao');
+    if (!limparValorExtraido(assunto && assunto.value)) erros.push('Assunto');
+    if (!estadoDestinatario.confirmed) erros.push('Destinatario');
+    if (!limparValorExtraido(conteudo)) erros.push('Conteudo');
+    if (pacote.processo && !conteudoJaTemTabela(conteudo, pacote)) erros.push('Tabela do processo');
+    if (classificacao && limparValorExtraido(classificacaoId && classificacaoId.value) !== String(classificacao.id)) {
+      erros.push('Classificacao');
+    }
+
+    if (erros.length) {
+      throw new Error('O SIGADOC nao confirmou os campos obrigatorios: ' + erros.join(', ') + '.');
+    }
   }
 
   function preencherClassificacaoSigadoc(pacote) {
@@ -2349,6 +2403,8 @@
     } else {
       mensagens.push('Fechamento não alterado.');
     }
+
+    validarCamposObrigatoriosSigadoc(pacote);
 
     await storageRemove([PENDING_SIGADOC_KEY]);
     return mensagens;

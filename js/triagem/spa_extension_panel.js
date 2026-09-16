@@ -7346,6 +7346,22 @@
     return selectionWasApplied(select, text, partial);
   }
 
+  async function chooseSpaSelectWithRetries(select, text, partial, attempts) {
+    const totalAttempts = Math.max(1, Number(attempts) || 1);
+    for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
+      if (selectionWasApplied(select, text, partial)) return true;
+      if (await chooseSpaSelect(select, text, partial) && selectionWasApplied(select, text, partial)) {
+        return true;
+      }
+      if (attempt < totalAttempts) await sleep(450 * attempt);
+    }
+    return false;
+  }
+
+  function fieldValueWasApplied(field, value) {
+    return Boolean(field && String(field.value || "") === String(value || ""));
+  }
+
   function nationalHolidayKeys(year) {
     const keys = new Set([
       year + "-01-01", year + "-04-21", year + "-05-01", year + "-09-07", year + "-10-12",
@@ -7421,14 +7437,18 @@
     try {
       state.running = true;
       setStatus("Preenchendo classificacao");
-      setFormFieldValue(info, action.additionalInfo || "");
-      if (!(await chooseSpaSelect(manifestation, action.manifestation, false))) {
+      if (!setFormFieldValue(info, action.additionalInfo || "")) {
+        throw new Error("Nao foi possivel preencher Informacoes adicionais.");
+      }
+      if (!(await chooseSpaSelectWithRetries(manifestation, action.manifestation, false, 3))) {
         throw new Error("Nao foi possivel selecionar a Manifestacao Sugerida informada.");
       }
-      if (!(await chooseSpaSelect(assessor, action.assessor, true))) {
+      if (!(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
         throw new Error("O assessor nao foi preenchido automaticamente. Selecione-o manualmente antes de salvar.");
       }
-      setFormFieldValue(observation, action.processObservation || "");
+      if (!setFormFieldValue(observation, action.processObservation || "")) {
+        throw new Error("Nao foi possivel preencher a Observacao do Processo.");
+      }
 
       if (action.hasOffice) {
         const taskType = document.querySelector("#progress_form_data_Nova-Tarefa_0_ATR007590");
@@ -7439,15 +7459,40 @@
         if (!taskType || !taskUser || !taskBusinessDays || !taskDueDate || !taskObservation) {
           throw new Error("Os campos da Nova Tarefa nao foram encontrados.");
         }
-        if (!(await chooseSpaSelect(taskType, "Ofício", false))) {
+        if (!(await chooseSpaSelectWithRetries(taskType, "Ofício", false, 3))) {
           throw new Error("Nao foi possivel selecionar 'Ofício' em Tipo de tarefa.");
         }
-        if (!(await chooseSpaSelect(taskUser, "Enzo Luiz Sawiski Lamin", true))) {
-          throw new Error("O usuario Enzo Luiz Sawiski Lamin nao foi preenchido automaticamente na Nova Tarefa.");
+        if (!(await chooseSpaSelectWithRetries(taskUser, "Yasmim Marques Nascimento", false, 4))) {
+          throw new Error("A usuaria Yasmim Marques Nascimento nao foi preenchida automaticamente na Nova Tarefa.");
         }
-        setFormFieldValue(taskBusinessDays, "1");
-        setFormFieldValue(taskDueDate, nextNationalBusinessDay());
-        setFormFieldValue(taskObservation, action.officeObservation || "");
+        const dueDate = nextNationalBusinessDay();
+        if (!setFormFieldValue(taskBusinessDays, "1") || !setFormFieldValue(taskDueDate, dueDate) ||
+          !setFormFieldValue(taskObservation, action.officeObservation || "")) {
+          throw new Error("Nao foi possivel preencher todos os campos da Nova Tarefa.");
+        }
+
+        const missingFields = [];
+        if (!selectionWasApplied(manifestation, action.manifestation, false)) missingFields.push("Manifestacao Sugerida");
+        if (!selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
+        if (!fieldValueWasApplied(info, action.additionalInfo || "")) missingFields.push("Informacoes adicionais");
+        if (!fieldValueWasApplied(observation, action.processObservation || "")) missingFields.push("Observacao do Processo");
+        if (!selectionWasApplied(taskType, "Ofício", false)) missingFields.push("Tipo de tarefa");
+        if (!selectionWasApplied(taskUser, "Yasmim Marques Nascimento", false)) missingFields.push("Usuario da Nova Tarefa");
+        if (!fieldValueWasApplied(taskBusinessDays, "1")) missingFields.push("Prazo da Nova Tarefa");
+        if (!fieldValueWasApplied(taskDueDate, dueDate)) missingFields.push("Vencimento da Nova Tarefa");
+        if (!fieldValueWasApplied(taskObservation, action.officeObservation || "")) missingFields.push("Observacao do Oficio");
+        if (missingFields.length) {
+          throw new Error("A classificacao nao foi salva porque estes campos nao foram confirmados: " + missingFields.join(", ") + ".");
+        }
+      } else {
+        const missingFields = [];
+        if (!selectionWasApplied(manifestation, action.manifestation, false)) missingFields.push("Manifestacao Sugerida");
+        if (!selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
+        if (!fieldValueWasApplied(info, action.additionalInfo || "")) missingFields.push("Informacoes adicionais");
+        if (!fieldValueWasApplied(observation, action.processObservation || "")) missingFields.push("Observacao do Processo");
+        if (missingFields.length) {
+          throw new Error("A classificacao nao foi salva porque estes campos nao foram confirmados: " + missingFields.join(", ") + ".");
+        }
       }
 
       clearTriageClassificationAction();

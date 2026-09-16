@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.86
+CDSP Extensao Geral - 1.87
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -18,7 +18,7 @@ Comportamento:
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
 - O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no extremo direito do cabecalho antes do botao de recolher, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.
 - Em Triagem e Protocolo, o encerramento do fluxo fica somente no botao "Encerrar" do cabecalho; nao ha mais aba interna de encerramento.
-- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, para complementar a classificacao do processo. O fluxo pesquisa Manifestacao Sugerida sem duplicidades, confirma o assessor no SPA e permite escolher se havera oficio. Com oficio, a Observacao do Oficio predefinida vai somente para a Nova Tarefa de Enzo Luiz Sawiski Lamin, com prazo de 1 dia util; a Observacao do Processo digitavel e facultativa vai somente para a classificacao. Sem oficio, apenas a Observacao do Processo pode ser preenchida e a Nova Tarefa nao e criada.
+- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, para complementar a classificacao do processo. O fluxo pesquisa Manifestacao Sugerida sem duplicidades, confirma o assessor no SPA e permite escolher se havera oficio. Com oficio, a Observacao do Oficio predefinida vai somente para a Nova Tarefa de Yasmim Marques Nascimento, com prazo de 1 dia util; a Observacao do Processo digitavel e facultativa vai somente para a classificacao. Antes de salvar, o fluxo confere todos os campos obrigatorios. Sem oficio, apenas a Observacao do Processo pode ser preenchida e a Nova Tarefa nao e criada.
 - O SPA tem o modulo Oficios dentro do menu geral, reunindo as acoes do Extrator de forma organizada.
 - Na caixa do SPA, o botao SIG abre a pagina do processo em segundo plano e extrai os dados completos pelo mesmo fluxo do botao interno.
 - Se a aba temporaria nao responder, o modulo tenta uma leitura direta da pagina do processo como contingencia.
@@ -87,6 +87,7 @@ Comportamento:
 - No SIGADOC, a lista de documentos possui automacao para visitar cada PGE-OFI visivel, abrir o documento e voltar pelo historico do navegador para seguir o proximo.
 - O Extrator seleciona o Modelo do SIGADOC antes do Texto padrao: Oficio para modelos comuns e Comunicacao Interna para os novos tipos de pericia.
 - Para `CUMP GERAL`, o Extrator aceita o texto padrao `SAUDE - CUMP` recriado, mesmo quando nao houver sufixo de subscritor.
+- Antes de gravar ou assinar um oficio, o Extrator confirma que o SIGADOC concluiu a selecao do destinatario, inclusive ID e descricao da lotacao. Para `SES-UNIJUR`, ele repete a confirmacao assincrona e interrompe o fluxo caso algum campo obrigatorio nao seja confirmado.
 - Novos tipos mapeados no Extrator: PERICIA ESTADO, PERICIA JUSTICA GRATUITA, AUDIENCIA e SINF DANO MORAL.
 - PERICIA ESTADO e PERICIA JUSTICA GRATUITA preenchem, assinam e param na pagina pos-assinatura, sem tramitar, baixar arquivo ou copiar texto.
 - AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
@@ -105,8 +106,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.86.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.87.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.86.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.87.zip" no painel da Chrome Web Store.
