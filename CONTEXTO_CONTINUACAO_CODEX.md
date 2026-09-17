@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.93`
-- Ultima tag publicada no repositorio: `v1.93`
+- Versao atual da extensao: `1.94`
+- Ultima tag publicada no repositorio: `v1.94`
 
 ## Como retomar no notebook
 
@@ -255,6 +255,10 @@ Versao `1.93`:
 
 - Refinada a confirmacao da Peticao Inicial para os retornos do MNI/PJe sem IDs vinculados. O vinculo por ID continua prioritario; na ausencia dele, a extensao exige documento e movimentacao ambos identificados como Peticao Inicial e usa a menor diferenca de data/hora para selecionar o PDF correto.
 
+Versao `1.94`:
+
+- O botao `Peticao inicial` passou a abrir um submenu com `Peticao Inicial` e `Anexos da Peticao Inicial`. Os anexos sao abertos juntos em uma unica aba, sem a peca principal, usando IDs vinculados ou o grupo de mesma data/hora como contingencia.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -275,6 +279,7 @@ Versao `1.93`:
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
 - Nos Autos processuais, o atalho `Peticao inicial` deve exigir o documento classificado como Peticao Inicial e uma movimentacao de Peticao Inicial no Andamento PJE. Priorizar sempre o vinculo pelo mesmo ID; quando o MNI/PJe nao devolver IDs vinculados, selecionar pelo documento e movimentacao com essa classificacao e pela menor diferenca de data/hora. Nao abrir anexos, comprovantes, procuracoes ou substabelecimentos apenas porque mencionam a peticao.
+- Nos Autos processuais, manter o submenu `Peticao Inicial` e `Anexos da Peticao Inicial`. Os anexos devem abrir juntos em uma unica aba, sem incluir a peticao principal, por IDs associados a movimentacao ou pelo grupo com a mesma data/hora quando o MNI/PJe nao trouxer esses IDs.
 - Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
 - Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.

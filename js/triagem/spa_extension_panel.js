@@ -2130,17 +2130,29 @@
     return ids.indexOf(id) >= 0;
   }
 
+  function movementDocumentIds(movement) {
+    return Array.from(
+      new Set(
+        []
+          .concat((movement && movement.linkedDocumentIds) || [])
+          .concat((movement && movement.documentIds) || [])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
   function initialPetitionMovementDistance(movement, documentTimestamp) {
     const movementTimestamp = getExternalDocumentTimestamp(movement);
     if (!movementTimestamp || !documentTimestamp) return Number.MAX_SAFE_INTEGER;
     return Math.abs(movementTimestamp - documentTimestamp);
   }
 
-  function findInitialPetitionItem(items, movements) {
+  function findInitialPetitionSelection(items, movements) {
     const movementItems = (Array.isArray(movements) ? movements : []).filter(movementReferencesInitialPetition);
     if (!movementItems.length) return null;
 
-    return (Array.isArray(items) ? items : [])
+    const entries = (Array.isArray(items) ? items : [])
       .map((item, index) => ({
         item: item,
         index: index,
@@ -2153,7 +2165,44 @@
       }))
       .filter((entry) => entry.score > 0)
       // MNI/PJe occasionally omits document IDs. In that case, retain the double label check and use chronology as a tie-breaker.
-      .sort((a, b) => Number(b.linked) - Number(a.linked) || b.score - a.score || a.distance - b.distance || a.timestamp - b.timestamp || a.index - b.index)[0]?.item || null;
+      .sort((a, b) => Number(b.linked) - Number(a.linked) || b.score - a.score || a.distance - b.distance || a.timestamp - b.timestamp || a.index - b.index);
+    const selected = entries[0];
+    if (!selected) return null;
+
+    const linkedMovements = movementItems.filter((movement) => movementIsLinkedToExternalDocument(movement, selected.item.id));
+    const relatedMovements = linkedMovements.length
+      ? linkedMovements
+      : movementItems
+          .slice()
+          .sort(
+            (left, right) =>
+              initialPetitionMovementDistance(left, selected.timestamp) -
+              initialPetitionMovementDistance(right, selected.timestamp)
+          )
+          .slice(0, 1);
+    const relatedIds = new Set(relatedMovements.flatMap(movementDocumentIds));
+    const sameMoment = (candidate) => {
+      const petitionDate = String(selected.item.date || "").trim();
+      const petitionTime = String(selected.item.time || "").trim();
+      return Boolean(
+        petitionDate &&
+          petitionTime &&
+          petitionDate === String(candidate.date || "").trim() &&
+          petitionTime === String(candidate.time || "").trim()
+      );
+    };
+    const attachments = (Array.isArray(items) ? items : []).filter((candidate) => {
+      if (!isExternalDocumentSelectable(candidate) || candidate === selected.item) return false;
+      const candidateId = String(candidate.id || "").trim();
+      return (candidateId && relatedIds.has(candidateId)) || sameMoment(candidate);
+    });
+
+    return { petition: selected.item, attachments: attachments, movements: relatedMovements };
+  }
+
+  function findInitialPetitionItem(items, movements) {
+    const selection = findInitialPetitionSelection(items, movements);
+    return selection ? selection.petition : null;
   }
 
   function scorePgePetitionItem(item) {
@@ -4645,19 +4694,39 @@
     openAllWrap.appendChild(openAllButton);
     openAllWrap.appendChild(openAllMenu);
 
+    const quickActionButtons = [];
+    const directQuickActionButtons = [];
+    const initialPetitionWrap = document.createElement("div");
+    initialPetitionWrap.className = "spa-cdsp-external-docs-process-wrap";
+    initialPetitionWrap.dataset.quickActionId = "initial-petition";
+
+    const initialPetitionButton = createExternalDocumentsButton(
+      "Petição inicial",
+      "spa-cdsp-external-docs-quick-direct"
+    );
+    initialPetitionButton.title = "Escolher entre abrir a Petição Inicial ou seus anexos.";
+    initialPetitionButton.dataset.quickActionId = "initial-petition";
+
+    const initialPetitionMenu = document.createElement("div");
+    initialPetitionMenu.className = "spa-cdsp-external-docs-process-menu";
+    initialPetitionMenu.hidden = true;
+    const initialPetitionDocumentButton = createExternalDocumentsButton(
+      "Petição Inicial",
+      "spa-cdsp-external-docs-process-option"
+    );
+    const initialPetitionAttachmentsButton = createExternalDocumentsButton(
+      "Anexos da Petição Inicial",
+      "spa-cdsp-external-docs-process-option"
+    );
+    initialPetitionDocumentButton.dataset.quickActionId = "initial-petition";
+    initialPetitionAttachmentsButton.dataset.quickActionId = "initial-petition";
+    initialPetitionMenu.appendChild(initialPetitionDocumentButton);
+    initialPetitionMenu.appendChild(initialPetitionAttachmentsButton);
+    initialPetitionWrap.appendChild(initialPetitionButton);
+    initialPetitionWrap.appendChild(initialPetitionMenu);
+    quickActionButtons.push(initialPetitionButton, initialPetitionDocumentButton, initialPetitionAttachmentsButton);
+
     const quickActionItems = [
-      {
-        id: "initial-petition",
-        label: "Petição inicial",
-        run: async () => {
-          const item = await findInitialPetitionForQuickAction();
-          if (!item) {
-            status.textContent = "Nao encontrei Peticao Inicial confirmada pelo documento e pelo Andamento PJE.";
-            return;
-          }
-          await openExternalDocumentQuickItem(item, status, "Peticao inicial");
-        },
-      },
       {
         id: "current-expediente",
         label: "Expediente atual",
@@ -4702,8 +4771,6 @@
       },
     ];
 
-    const quickActionButtons = [];
-
     quickActionItems.forEach((action) => {
       const itemButton = document.createElement("button");
       itemButton.type = "button";
@@ -4735,11 +4802,13 @@
         }
       });
       quickActionButtons.push(itemButton);
+      directQuickActionButtons.push(itemButton);
     });
 
     quickActionsControls.appendChild(openAllWrap);
     quickActionsControls.appendChild(selectedWrap);
-    quickActionButtons.forEach((button) => quickActionsControls.appendChild(button));
+    quickActionsControls.appendChild(initialPetitionWrap);
+    directQuickActionButtons.forEach((button) => quickActionsControls.appendChild(button));
     quickActionsBar.appendChild(quickActionsControls);
 
     searchRow.appendChild(searchTools);
@@ -4899,6 +4968,7 @@
       pgeStateOption.style.display = isMovements ? "" : "none";
       openAllWrap.style.display = isMovements ? "none" : "";
       selectedWrap.style.display = isMovements ? "none" : "";
+      initialPetitionWrap.style.display = isMovements ? "none" : "";
       quickActionButtons.forEach((button) => {
         button.style.display = !isMovements || button.dataset.quickActionId === "latest-decision" ? "" : "none";
       });
@@ -5373,7 +5443,25 @@
         return null;
       }
 
-      return findInitialPetitionItem(items, movementCache.items);
+      return findInitialPetitionSelection(items, movementCache.items);
+    }
+
+    async function openInitialPetitionAttachments(triggerButton) {
+      const selection = await findInitialPetitionForQuickAction();
+      if (!selection) {
+        status.textContent = "Nao encontrei Peticao Inicial confirmada pelo documento e pelo Andamento PJE.";
+        return;
+      }
+      if (!selection.attachments.length) {
+        status.textContent = "Nao encontrei anexos vinculados a esta Peticao Inicial.";
+        return;
+      }
+      await openExternalDocumentItemSet(selection.attachments, "separate", "asc", triggerButton, {
+        emptyMessage: "Nao encontrei anexos em PDF para abrir.",
+        separateLoadingText: "Abrindo anexos da Peticao Inicial...",
+        separateStatusPrefix: "Anexos da Peticao Inicial abertos juntos",
+        viewerTitle: "Anexos da Peticao Inicial",
+      });
     }
 
     async function filteredExternalDocumentsForOpenAll() {
@@ -5732,11 +5820,13 @@
       if (openAllWrap.contains(event.target)) return;
       if (selectedWrap.contains(event.target)) return;
       if (contentOpenAllWrap.contains(event.target)) return;
+      if (initialPetitionWrap.contains(event.target)) return;
       filterMenu.hidden = true;
       processCompleteMenu.hidden = true;
       openAllMenu.hidden = true;
       selectedMenu.hidden = true;
       contentOpenAllMenu.hidden = true;
+      initialPetitionMenu.hidden = true;
       resetProcessCompleteMenuChoice();
       resetOpenAllMenuChoice();
       resetSelectedDocumentsMenuChoice();
@@ -5745,6 +5835,40 @@
 
     loadButton.addEventListener("click", () => {
       loadAllExternalSources({ force: true });
+    });
+
+    initialPetitionButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (panel.dataset.loading === "1" || panel.dataset.openingAll === "1") {
+        status.textContent = "Aguarde a acao atual terminar antes de abrir a Peticao Inicial.";
+        return;
+      }
+      filterMenu.hidden = true;
+      processCompleteMenu.hidden = true;
+      openAllMenu.hidden = true;
+      selectedMenu.hidden = true;
+      contentOpenAllMenu.hidden = true;
+      const shouldOpen = initialPetitionMenu.hidden;
+      initialPetitionMenu.hidden = !shouldOpen;
+    });
+
+    initialPetitionMenu.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    initialPetitionDocumentButton.addEventListener("click", async () => {
+      initialPetitionMenu.hidden = true;
+      const selection = await findInitialPetitionForQuickAction();
+      if (!selection) {
+        status.textContent = "Nao encontrei Peticao Inicial confirmada pelo documento e pelo Andamento PJE.";
+        return;
+      }
+      await openExternalDocumentQuickItem(selection.petition, status, "Peticao inicial");
+    });
+
+    initialPetitionAttachmentsButton.addEventListener("click", async () => {
+      initialPetitionMenu.hidden = true;
+      await openInitialPetitionAttachments(initialPetitionAttachmentsButton);
     });
 
     openAllButton.addEventListener("click", (event) => {

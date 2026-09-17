@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.93
+CDSP Extensao Geral - 1.94
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -53,6 +53,7 @@ Comportamento:
 - Os avisos operacionais aparecem em vermelho e negrito somente no checklist e nao entram no texto copiado. A excecao sao as verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que sao checkboxes e entram no texto gerado.
 - A ferramenta de busca nos autos processuais fica carregada como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, mesmo quando outro modulo esta ativo, mas nao aparece nas paginas de caixa/listagem de processos.
 - O botao "Peticao inicial" da busca nos autos somente abre um PDF identificado como Peticao Inicial quando tambem houver movimentacao de Peticao Inicial no Andamento PJE. O vinculo pelo mesmo ID de documento tem prioridade; quando o MNI/PJe nao fornecer IDs, a extensao seleciona o documento de Peticao Inicial mais proximo da movimentacao pela data/hora. Anexos ou documentos que apenas mencionem a peticao sao descartados.
+- O botao "Peticao inicial" abre um submenu com "Peticao Inicial" e "Anexos da Peticao Inicial". A primeira opcao abre somente a peca principal; a segunda abre, em uma unica aba, somente os anexos vinculados pela movimentacao ou agrupados pela mesma data/hora, sem repetir a Peticao Inicial.
 - A checkbox "Abrir minimizado" do painel de Autos define se novas paginas de processo abrem esse painel recolhido.
 - A aba "Andamento PJE" consulta o Worker/MCP institucional e mostra movimentos com expedientes vinculados, ciencia, prazo legal, prazo final, parte, procuradoria e status do expediente.
 - O visual da aba "Andamento PJE" foi ampliado, com timeline mais legivel, blocos de expediente maiores e grade clara para ciencia, expedicao e prazos.
@@ -107,8 +108,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.93.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.94.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.93.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.94.zip" no painel da Chrome Web Store.
