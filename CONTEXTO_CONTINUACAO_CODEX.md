@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.92`
-- Ultima tag publicada no repositorio: `v1.92`
+- Versao atual da extensao: `1.93`
+- Ultima tag publicada no repositorio: `v1.93`
 
 ## Como retomar no notebook
 
@@ -251,6 +251,10 @@ Versao `1.92`:
 
 - O botao `Peticao inicial` dos Autos processuais passou a exigir dupla confirmacao: o PDF deve ser a propria Peticao Inicial e seu ID deve estar vinculado a uma movimentacao de Peticao Inicial no Andamento PJE. Anexos e documentos que apenas mencionem a peticao nao podem ser abertos por esse atalho.
 
+Versao `1.93`:
+
+- Refinada a confirmacao da Peticao Inicial para os retornos do MNI/PJe sem IDs vinculados. O vinculo por ID continua prioritario; na ausencia dele, a extensao exige documento e movimentacao ambos identificados como Peticao Inicial e usa a menor diferenca de data/hora para selecionar o PDF correto.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -270,7 +274,7 @@ Versao `1.92`:
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
-- Nos Autos processuais, o atalho `Peticao inicial` deve exigir o documento classificado como Peticao Inicial e a movimentacao de Peticao Inicial vinculada ao mesmo ID retornada pelo Andamento PJE. Nao abrir anexos, comprovantes, procuracoes ou substabelecimentos apenas porque mencionam a peticao.
+- Nos Autos processuais, o atalho `Peticao inicial` deve exigir o documento classificado como Peticao Inicial e uma movimentacao de Peticao Inicial no Andamento PJE. Priorizar sempre o vinculo pelo mesmo ID; quando o MNI/PJe nao devolver IDs vinculados, selecionar pelo documento e movimentacao com essa classificacao e pela menor diferenca de data/hora. Nao abrir anexos, comprovantes, procuracoes ou substabelecimentos apenas porque mencionam a peticao.
 - Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
 - Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.

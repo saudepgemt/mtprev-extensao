@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.92
+CDSP Extensao Geral - 1.93
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -52,7 +52,7 @@ Comportamento:
 - Datas usam o formato dd/mm/aaaa; numeros CNJ sao formatados e validados. Os prazos contam a partir do dia seguinte, considerando o calendario geral do TJMT de 2026, fins de semana e feriados nacionais como base de continuidade.
 - Os avisos operacionais aparecem em vermelho e negrito somente no checklist e nao entram no texto copiado. A excecao sao as verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que sao checkboxes e entram no texto gerado.
 - A ferramenta de busca nos autos processuais fica carregada como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, mesmo quando outro modulo esta ativo, mas nao aparece nas paginas de caixa/listagem de processos.
-- O botao "Peticao inicial" da busca nos autos somente abre o PDF quando o proprio documento for identificado como Peticao Inicial e o mesmo ID estiver vinculado a uma movimentacao de Peticao Inicial no Andamento PJE. Anexos ou documentos que apenas mencionem a peticao sao descartados.
+- O botao "Peticao inicial" da busca nos autos somente abre um PDF identificado como Peticao Inicial quando tambem houver movimentacao de Peticao Inicial no Andamento PJE. O vinculo pelo mesmo ID de documento tem prioridade; quando o MNI/PJe nao fornecer IDs, a extensao seleciona o documento de Peticao Inicial mais proximo da movimentacao pela data/hora. Anexos ou documentos que apenas mencionem a peticao sao descartados.
 - A checkbox "Abrir minimizado" do painel de Autos define se novas paginas de processo abrem esse painel recolhido.
 - A aba "Andamento PJE" consulta o Worker/MCP institucional e mostra movimentos com expedientes vinculados, ciencia, prazo legal, prazo final, parte, procuradoria e status do expediente.
 - O visual da aba "Andamento PJE" foi ampliado, com timeline mais legivel, blocos de expediente maiores e grade clara para ciencia, expedicao e prazos.
@@ -107,8 +107,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.92.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.93.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.92.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.93.zip" no painel da Chrome Web Store.

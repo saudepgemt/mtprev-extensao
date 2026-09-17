@@ -2130,24 +2130,30 @@
     return ids.indexOf(id) >= 0;
   }
 
+  function initialPetitionMovementDistance(movement, documentTimestamp) {
+    const movementTimestamp = getExternalDocumentTimestamp(movement);
+    if (!movementTimestamp || !documentTimestamp) return Number.MAX_SAFE_INTEGER;
+    return Math.abs(movementTimestamp - documentTimestamp);
+  }
+
   function findInitialPetitionItem(items, movements) {
-    const movementItems = Array.isArray(movements) ? movements : [];
+    const movementItems = (Array.isArray(movements) ? movements : []).filter(movementReferencesInitialPetition);
+    if (!movementItems.length) return null;
+
     return (Array.isArray(items) ? items : [])
       .map((item, index) => ({
         item: item,
         index: index,
         score: scoreInitialPetitionItem(item),
         timestamp: getExternalDocumentTimestamp(item),
+        linked: movementItems.some((movement) => movementIsLinkedToExternalDocument(movement, item.id)),
+        distance: Math.min(
+          ...movementItems.map((movement) => initialPetitionMovementDistance(movement, getExternalDocumentTimestamp(item)))
+        ),
       }))
-      .filter((entry) =>
-        entry.score > 0 &&
-        movementItems.some(
-          (movement) =>
-            movementReferencesInitialPetition(movement) &&
-            movementIsLinkedToExternalDocument(movement, entry.item.id)
-        )
-      )
-      .sort((a, b) => b.score - a.score || a.timestamp - b.timestamp || a.index - b.index)[0]?.item || null;
+      .filter((entry) => entry.score > 0)
+      // MNI/PJe occasionally omits document IDs. In that case, retain the double label check and use chronology as a tie-breaker.
+      .sort((a, b) => Number(b.linked) - Number(a.linked) || b.score - a.score || a.distance - b.distance || a.timestamp - b.timestamp || a.index - b.index)[0]?.item || null;
   }
 
   function scorePgePetitionItem(item) {
