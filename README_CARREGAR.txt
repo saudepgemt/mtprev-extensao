@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.90
+CDSP Extensao Geral - 1.91
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -47,7 +47,7 @@ Comportamento:
 - O Fluxo de Correcao inclui atalhos unicos para "Enviar ao procurador", "Sugerir encerramento de tarefa" e "Devolver ao assessor", cada um com opcoes "Tela da pendencia" e "Tela da Minuta".
 - "Enviar ao procurador" direciona ao passo 2882, "Sugerir encerramento de tarefa" ao passo 2756 e "Devolver ao assessor" ao passo 2786, confirmando no botao Salvar quando a tela do passo abre.
 - O modulo Redacao e Correcao inclui o fluxo "Simples Encerramento", com selecao progressiva de tipo, peca, ID, data e checklist.
-- No Simples Encerramento, estao parametrizados os 32 modelos dos grupos Preclusao Consumativa, Preclusao Temporal, Conteudo ao qual nao cabe Recorrer/Manifestar e Demais Situacoes. O fluxo tem campos progressivos, escolhas exclusivas, checklist obrigatorio e copia automatica/manual em HTML formatado com Times New Roman 14, espacamento 1,15 e primeira linha de 1,25cm. Na Preclusao Consumativa, os IDs indicam a peca a que se referem e precedem a data nas pecas corrigidas; em Preclusao Temporal, Recurso Inominado fica restrito ao Juizado, com prazo de 10 dias uteis.
+- No Simples Encerramento, estao parametrizados os 32 modelos dos grupos Preclusao Consumativa, Preclusao Temporal, Conteudo ao qual nao cabe Recorrer/Manifestar e Demais Situacoes. O fluxo tem campos progressivos, escolhas exclusivas, checklist obrigatorio e copia automatica/manual em HTML formatado com Times New Roman 14, espacamento 1,15 e primeira linha de 1,25cm. Em Conteudo ao qual nao cabe Recorrer/Manifestar > Embargos de Declaracao > Sentenca, o ID da decisao de revogacao aparece somente quando a multa em liminar foi revogada; ele nao aparece nem e exigido na opcao "Nao foi fixada multa em liminar". Na Preclusao Consumativa, os IDs indicam a peca a que se referem e precedem a data nas pecas corrigidas; em Preclusao Temporal, Recurso Inominado fica restrito ao Juizado, com prazo de 10 dias uteis.
 - Ao gerar um Simples Encerramento, a extensao abre a elaboracao de peticao do TJ, percorre Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento e seleciona o modelo do tipo escolhido. A pasta `Procedimentos` e identificada pelo nome exato, sem confundir com `Triagem - Procedimentos`. O acesso declarado e limitado a docs.google.com permite substituir o marcador da minuta sem pedido dinamico durante o clique; se a confirmacao falhar, o texto continua copiado para colagem manual.
 - Datas usam o formato dd/mm/aaaa; numeros CNJ sao formatados e validados. Os prazos contam a partir do dia seguinte, considerando o calendario geral do TJMT de 2026, fins de semana e feriados nacionais como base de continuidade.
 - Os avisos operacionais aparecem em vermelho e negrito somente no checklist e nao entram no texto copiado. A excecao sao as verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que sao checkboxes e entram no texto gerado.
@@ -106,8 +106,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.90.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.91.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.90.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.91.zip" no painel da Chrome Web Store.

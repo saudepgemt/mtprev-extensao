@@ -11,7 +11,7 @@
       processingTimeoutMs: 180000,
       panelId: "spa-cdsp-deadline-panel",
       headerImageUrl: "",
-      version: "1.58"
+      version: "1.91"
     },
     window.SPA_CDSP_DEADLINE_REPORT_CONFIG || {}
   );
@@ -340,7 +340,11 @@
     const add = (typeKey, piece, fields, lines, checks, options) => {
       models[typeKey + "|" + piece] = Object.assign({ fields, lines, checks: checks || [] }, options || {});
     };
-    const id = (key, label, options) => field(key, label || "ID", "text", options);
+    const id = (key, label, options) => {
+      // Accept a conditional callback directly, just like choice(), so a conditional ID is not rendered unconditionally.
+      const fieldOptions = typeof options === "function" ? { when: options } : options;
+      return field(key, label || "ID", "text", fieldOptions);
+    };
     const protocolDate = field("protocolDate", "Data", "date");
     const pgeDate = field("pgeDate", "Data da intima\u00e7\u00e3o da PGE", "date");
     const protocolId = (label) => id("protocolId", label || "ID da pe\u00e7a protocolada");

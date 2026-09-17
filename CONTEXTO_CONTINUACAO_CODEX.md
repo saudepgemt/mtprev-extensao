@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.90`
-- Ultima tag publicada no repositorio: `v1.90`
+- Versao atual da extensao: `1.91`
+- Ultima tag publicada no repositorio: `v1.91`
 
 ## Como retomar no notebook
 
@@ -182,7 +182,7 @@ Versao `1.78`:
 
 Versao `1.79`:
 
-- No Simples Encerramento, em Conteudo ao qual nao cabe Recorrer/Manifestar > Embargos de Declaracao > Sentenca, a multa em liminar passou a ser escolha exclusiva: sem multa, ou multa revogada posteriormente. O ID da decisao de revogacao somente aparece na segunda escolha e e obrigatorio.
+- No Simples Encerramento, em Conteudo ao qual nao cabe Recorrer/Manifestar > Embargos de Declaracao > Sentenca, a multa em liminar passou a ser escolha exclusiva: sem multa, ou multa revogada posteriormente. O ID da decisao de revogacao somente aparece na segunda escolha e e obrigatorio; na opcao "Nao foi fixada multa em liminar", ele nao aparece nem e exigido.
 - Os caminhos de Despacho/Liminar/Decisao Monocratica e Acordao continuam sem solicitar ID de revogacao.
 - Em Conteudo ao qual nao cabe Recorrer/Manifestar > Agravo Interno, o ID da decisao passou a anteceder a data, e os fundamentos finais sao alternativas exclusivas: selecionar um unico fundamento libera a geracao.
 - Em Conteudo ao qual nao cabe Recorrer/Manifestar > Impugnacao ao Cumprimento de Sentenca, o ID da impugnacao passou a anteceder a data.
@@ -243,6 +243,10 @@ Versao `1.90`:
 - A confirmacao do responsavel pelo oficio passou a aceitar o sufixo de funcao retornado pelo Select2 remoto do SPA. Isso corrige o falso erro da Nova Tarefa quando Yasmim Marques Nascimento ja tinha sido selecionada.
 - A base `data/equipe.xlsx` foi confrontada com o SPA e teve corrigidas as grafias de Alexandre Emílio de Oliveira, Fransquislaine de Jesus Anicézio, João Víctor Silva dos Santos de Oliveira e Joyce Mylena Gonçalves de Araujo.
 
+Versao `1.91`:
+
+- Corrigido o campo condicional do ID de revogacao no Simples Encerramento. Em `Conteudo ao qual nao cabe Recorrer/Manifestar > Embargos de Declaracao > Sentenca > Procedimento Comum > Nao foi fixada multa em liminar`, o ID nao aparece nem e exigido. Ele permanece visivel e obrigatorio somente quando a multa foi revogada posteriormente.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -256,7 +260,7 @@ Versao `1.90`:
 - No Fluxo de Correcao, preservar o filtro `Recebido`, agrupando minuto(s), hora(s) e segundo(s) como `Hoje` e mantendo os demais periodos como opcoes proprias.
 - No Fluxo de Correcao, preservar a abertura confiavel exclusivamente pelo link `Visualizar e editar minuta`. Nao usar `Editar passo`, `Aceitar passo` nem outro controle de etapa. Aguardar o carregamento por ate 30 segundos, manter a fila ate confirmar a URL da minuta e usar navegacao direta apenas se o clique nativo nao produzir a transicao.
 - No modulo Redacao e Correcao, preservar o botao pequeno `Copiar` ao lado de `Cadastrar Agravo`, com memoria dinamica da ultima tabela gerada.
-- Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado. Em Conteudo ao qual nao cabe Recorrer/Manifestar, preservar a multa em liminar de Embargos de Declaracao > Sentenca como escolha exclusiva, com ID obrigatorio apenas para multa revogada; em Agravo Interno, preservar os fundamentos finais como escolhas exclusivas e o ID antes da data; em Impugnacao ao Cumprimento de Sentenca, preservar o ID antes da data.
+- Preservar o fluxo `Simples Encerramento` com os 32 modelos parametrizados nos quatro grupos. Manter a exibicao progressiva, os campos condicionais, o checklist obrigatorio, a copia automatica/manual, a formatacao Times New Roman 14 com espacamento 1,15 e recuo de 1,25 cm. Avisos operacionais devem aparecer somente na interface, em vermelho e negrito, nunca no texto copiado, exceto pelas verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que integram o texto gerado. Em Conteudo ao qual nao cabe Recorrer/Manifestar, preservar a multa em liminar de Embargos de Declaracao > Sentenca como escolha exclusiva: o ID de revogacao aparece e e obrigatorio apenas para multa revogada, nunca para "Nao foi fixada multa em liminar"; em Agravo Interno, preservar os fundamentos finais como escolhas exclusivas e o ID antes da data; em Impugnacao ao Cumprimento de Sentenca, preservar o ID antes da data.
 - Preservar o `Fluxo de Triagem` dentro da aba Triagem, acima de `Filtro de expediente`, com os submenus `Classificar Processo` e `Sugerir encerramento`. Ele deve abrir exclusivamente o passo `Complementar classificacao do processo`, preencher ATR001330, ATR007587 e ATR007594. ATR007588 e opcional na extensao: so deve ser enviado e confirmado quando houver um assessor selecionado; vazio, nao pode interromper o fluxo. Em Tera Oficio = Sim, preencher tambem a Nova Tarefa com ATR007590 = Oficio, ATR007591 igual ao responsavel selecionado na lista fixa de oficios, ATR007592 = 1, ATR007593 = proximo dia util nacional e ATR007589 igual a observacao selecionada. Yasmim Marques Nascimento e o valor preselecionado e sua confirmacao deve aceitar o complemento de funcao adicionado pelo SPA. Antes de salvar, confirmar todos os campos efetivamente preenchidos. Em Tera Oficio = Nao, a observacao manual e opcional e nao deve criar/preencher Nova Tarefa. O submenu de encerramento e o botao individual do relatorio de duplicados devem abrir o passo 2756, usar Motivo pesquisavel e `Outros` por padrao, preencher a Observacao opcional carregada dinamicamente pelo SPA e salvar sem criar acao em lote.
 - A coluna `Saiu da Equipe` de `data/equipe.xlsx` e a fonte unica da lista de assessores ativos da Designacao da Triagem e de `Devolver ao assessor` no Fluxo de Correcao: incluir somente `Nao Saiu da Equipe`, sem manter lista fixa de nomes no codigo. O filtro `Assessor(a)` do Fluxo de Correcao deve listar exclusivamente os nomes da caixa de leitura atual. Preservar tambem o preenchimento opcional de Observacao em `ATR007573` ao devolver ao assessor.
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
