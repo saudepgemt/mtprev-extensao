@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.95`
-- Ultima tag publicada no repositorio: `v1.95`
+- Versao atual da extensao: `1.96`
+- Ultima tag publicada no repositorio: `v1.96`
 
 ## Como retomar no notebook
 
@@ -263,6 +263,10 @@ Versao `1.95`:
 
 - O atalho `Peticao Inicial` passou a conferir o texto dos PDFs da primeira movimentacao antes de abrir. Ele prioriza o arquivo nomeado como Peticao Inicial, mas, quando o conteudo indicar apenas `Peticao Inicial em Anexo`, localiza a peca inicial efetiva entre os demais arquivos da mesma primeira data. A opcao de anexos abre todos os demais PDFs dessa data, sem repetir a peca efetiva.
 
+Versao `1.96`:
+
+- Corrigida a contingencia da identificacao por conteudo da Peticao Inicial. Depois de rejeitar uma capa cujo texto seja apenas `Peticao Inicial em Anexo`, se o PDF real nao tiver texto extraivel suficiente, o fluxo abre o proximo documento da primeira movimentacao que o SPA classificar tecnicamente como Peticao Inicial. No HTML de referencia, isso seleciona o documento `29867917 - Peticao inicial em pdf`, sem voltar a abrir a capa `29867916`.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -282,7 +286,7 @@ Versao `1.95`:
 - No Simples Encerramento, preservar a abertura automatica do modelo pelo caminho Modelos Publicos > SGJ > NSUS > Procedimentos > 2 - Simples Encerramento, com selecao por tipo e tentativa de substituir o marcador da minuta no Google Docs. A pasta `Procedimentos` deve ser localizada por correspondencia exata, sem aceitar `Triagem - Procedimentos` nem outra pasta semelhante. O acesso declarado a `docs.google.com` deve continuar estritamente restrito a esse fluxo, sem solicitacao dinamica de permissao.
 - No relatorio de duplicados, preservar a aplicacao persistente do marcador `Conferido`, aguardando a linha particular visivel e sua checkbox habilitada em `Meus marcadores`. Priorizar o clique nativo no label/input antes de qualquer Ajax; tentativas que falharem devem restaurar a checkbox. Usar handler `change` do SPA ou fallback com `marker_procedures[...]` somente como contingencia, com conferencia obrigatoria na pendencia. A aba auxiliar deve permanecer em segundo plano e sempre ser fechada ao final.
 - Nos Autos processuais, preservar `Ultima decisao` na barra de acoes de `Autos`, `Pasta` e `Andamento PJE`. Em Autos/Pasta, identificar a decisao mais recente pela data; no Andamento PJE, chamar a mesma rotina de decisao vinculada dos filtros. No `Andamento PJE`, ocultar os demais comandos rapidos e manter tambem `Ultima decisao` dentro dos filtros, como na `1.66`. `Ultima peticao PGE` permanece apenas em Autos/Pasta. Nos cartoes de `Prazos em aberto do Estado`, preservar `Abrir PDF` ligado ao expediente daquele prazo.
-- Nos Autos processuais, o atalho `Peticao inicial` deve exigir uma movimentacao de Peticao Inicial no Andamento PJE e conferir o conteudo dos PDFs da primeira movimentacao. Examinar primeiro o arquivo cujo nome/tipo indique Peticao Inicial; se o texto indicar somente `Peticao Inicial em Anexo`, procurar a peca efetiva nos demais arquivos da primeira data. Nao abrir anexos, comprovantes, procuracoes ou substabelecimentos apenas porque mencionam a peticao.
+- Nos Autos processuais, o atalho `Peticao inicial` deve exigir uma movimentacao de Peticao Inicial no Andamento PJE e conferir o conteudo dos PDFs da primeira movimentacao. Examinar primeiro o arquivo cujo nome/tipo indique Peticao Inicial; se o texto indicar somente `Peticao Inicial em Anexo`, procurar a peca efetiva nos demais arquivos da primeira data. Se a peca efetiva nao tiver texto extraivel suficiente, usar somente o proximo documento com classificacao tecnica de Peticao Inicial como contingencia, sem reconsiderar a capa rejeitada. Nao abrir anexos, comprovantes, procuracoes ou substabelecimentos apenas porque mencionam a peticao.
 - Nos Autos processuais, manter o submenu `Peticao Inicial` e `Anexos da Peticao Inicial`. Os anexos devem abrir juntos em uma unica aba e corresponder aos demais arquivos da primeira data de movimentacao, sem incluir a peca principal efetivamente identificada.
 - Preservar o fluxo do GitHub: toda alteracao consolidada deve atualizar a versao, passar pelas validacoes, gerar pasta e ZIP de output, receber commit, tag correspondente e push para o GitHub.
 - Na Coordenacao, preservar as cobrancas de Triagem pela coluna `Recebido` a partir de 3 dias uteis e de Revisor pela coluna `Recebido` a partir de 2 dias uteis. As mensagens devem continuar agrupadas por gestor, mas organizar visualmente os processos por setor e responsavel.

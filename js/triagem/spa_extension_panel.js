@@ -5520,6 +5520,7 @@
       const firstBundle = candidates.map((candidate) => candidate.item);
       let inspected = 0;
       let hadReadableContent = false;
+      let metadataFallback = null;
       for (const candidate of candidates) {
         inspected += 1;
         status.textContent =
@@ -5529,6 +5530,18 @@
         if (result && result.ok && result.isInitialPetition) {
           return replaceInitialPetitionSelection(selection, candidate.item, firstBundle);
         }
+        if (
+          !metadataFallback &&
+          candidate.nameScore > 0 &&
+          !(result && result.ok && result.attachmentOnly)
+        ) {
+          metadataFallback = candidate.item;
+        }
+      }
+
+      if (metadataFallback) {
+        status.textContent = "O conteudo nao confirmou a peca; abrindo o documento de Peticao Inicial indicado pelo SPA.";
+        return replaceInitialPetitionSelection(selection, metadataFallback, firstBundle);
       }
 
       if (hadReadableContent) {

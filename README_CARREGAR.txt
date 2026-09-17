@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.95
+CDSP Extensao Geral - 1.96
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -52,7 +52,7 @@ Comportamento:
 - Datas usam o formato dd/mm/aaaa; numeros CNJ sao formatados e validados. Os prazos contam a partir do dia seguinte, considerando o calendario geral do TJMT de 2026, fins de semana e feriados nacionais como base de continuidade.
 - Os avisos operacionais aparecem em vermelho e negrito somente no checklist e nao entram no texto copiado. A excecao sao as verificacoes obrigatorias de Tempestividade nos ritos Crianca da Preclusao Temporal, que sao checkboxes e entram no texto gerado.
 - A ferramenta de busca nos autos processuais fica carregada como ferramenta raiz nas paginas de processo, elaboracao de pecas, novos passos e cadastro de agravos do SPA, mesmo quando outro modulo esta ativo, mas nao aparece nas paginas de caixa/listagem de processos.
-- O botao "Peticao inicial" da busca nos autos confirma a movimentacao de Peticao Inicial no Andamento PJE e analisa o conteudo dos PDFs da primeira movimentacao. Ele examina primeiro o documento nomeado como Peticao Inicial; se ele for apenas uma capa com "Peticao Inicial em Anexo", procura a peca efetiva nos demais documentos dessa primeira data antes de abrir.
+- O botao "Peticao inicial" da busca nos autos confirma a movimentacao de Peticao Inicial no Andamento PJE e analisa o conteudo dos PDFs da primeira movimentacao. Ele examina primeiro o documento nomeado como Peticao Inicial; se ele for apenas uma capa com "Peticao Inicial em Anexo", procura a peca efetiva nos demais documentos dessa primeira data antes de abrir. Se o PDF efetivo nao trouxer texto suficiente para a confirmacao, usa como contingencia o proximo documento com tipo tecnico de Peticao Inicial, sem aceitar a capa rejeitada.
 - O botao "Peticao inicial" abre um submenu com "Peticao Inicial" e "Anexos da Peticao Inicial". A primeira opcao abre somente a peca efetiva; a segunda abre, em uma unica aba, os demais PDFs da primeira movimentacao, sem repetir a peca principal.
 - A checkbox "Abrir minimizado" do painel de Autos define se novas paginas de processo abrem esse painel recolhido.
 - A aba "Andamento PJE" consulta o Worker/MCP institucional e mostra movimentos com expedientes vinculados, ciencia, prazo legal, prazo final, parte, procuradoria e status do expediente.
@@ -108,8 +108,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.95.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.96.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.95.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.96.zip" no painel da Chrome Web Store.
