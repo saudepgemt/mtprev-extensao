@@ -7539,7 +7539,8 @@
       if (!(await chooseSpaSelectWithRetries(manifestation, action.manifestation, false, 3))) {
         throw new Error("Nao foi possivel selecionar a Manifestacao Sugerida informada.");
       }
-      if (!(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
+      const hasAssessor = Boolean(String(action.assessor || "").trim());
+      if (hasAssessor && !(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
         throw new Error("O assessor nao foi preenchido automaticamente. Selecione-o manualmente antes de salvar.");
       }
       if (!setFormFieldValue(observation, action.processObservation || "")) {
@@ -7559,7 +7560,7 @@
         if (!(await chooseSpaSelectWithRetries(taskType, "Ofício", false, 3))) {
           throw new Error("Nao foi possivel selecionar 'Ofício' em Tipo de tarefa.");
         }
-        if (!(await chooseSpaSelectWithRetries(taskUser, officeAssignee, false, 4))) {
+        if (!(await chooseSpaSelectWithRetries(taskUser, officeAssignee, true, 4))) {
           throw new Error("A pessoa responsável pelo ofício não foi preenchida automaticamente na Nova Tarefa.");
         }
         const dueDate = nextNationalBusinessDay();
@@ -7570,11 +7571,11 @@
 
         const missingFields = [];
         if (!selectionWasApplied(manifestation, action.manifestation, false)) missingFields.push("Manifestacao Sugerida");
-        if (!selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
+        if (hasAssessor && !selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
         if (!fieldValueWasApplied(info, action.additionalInfo || "")) missingFields.push("Informacoes adicionais");
         if (!fieldValueWasApplied(observation, action.processObservation || "")) missingFields.push("Observacao do Processo");
         if (!selectionWasApplied(taskType, "Ofício", false)) missingFields.push("Tipo de tarefa");
-        if (!selectionWasApplied(taskUser, officeAssignee, false)) missingFields.push("Usuario da Nova Tarefa");
+        if (!selectionWasApplied(taskUser, officeAssignee, true)) missingFields.push("Usuario da Nova Tarefa");
         if (!fieldValueWasApplied(taskBusinessDays, "1")) missingFields.push("Prazo da Nova Tarefa");
         if (!fieldValueWasApplied(taskDueDate, dueDate)) missingFields.push("Vencimento da Nova Tarefa");
         if (!fieldValueWasApplied(taskObservation, action.officeObservation || "")) missingFields.push("Observacao do Oficio");
@@ -7584,7 +7585,7 @@
       } else {
         const missingFields = [];
         if (!selectionWasApplied(manifestation, action.manifestation, false)) missingFields.push("Manifestacao Sugerida");
-        if (!selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
+        if (hasAssessor && !selectionWasApplied(assessor, action.assessor, true)) missingFields.push("Designar ao assessor(a)");
         if (!fieldValueWasApplied(info, action.additionalInfo || "")) missingFields.push("Informacoes adicionais");
         if (!fieldValueWasApplied(observation, action.processObservation || "")) missingFields.push("Observacao do Processo");
         if (missingFields.length) {
@@ -13115,7 +13116,7 @@
     form.appendChild(classifyButton);
 
     function canClassify() {
-      if (!flowState.manifestation || !String(flowState.assessor || "").trim() || !flowState.hasOffice) return false;
+      if (!flowState.manifestation || !flowState.hasOffice) return false;
       return flowState.hasOffice !== "yes" || Boolean(
         flowState.officeObservation && flowState.officeObservation.value && String(flowState.officeAssignee || "").trim()
       );

@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 1.89
+CDSP Extensao Geral - 1.90
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -18,7 +18,7 @@ Comportamento:
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
 - O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no extremo direito do cabecalho antes do botao de recolher, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.
 - Em Triagem e Protocolo, o encerramento do fluxo fica somente no botao "Encerrar" do cabecalho; nao ha mais aba interna de encerramento.
-- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, organizado nos submenus `Classificar Processo` e `Sugerir encerramento`. Na classificacao, o fluxo pesquisa Manifestacao Sugerida sem duplicidades, confirma o assessor no SPA e permite escolher se havera oficio. Com oficio, a Observacao do Oficio predefinida vai somente para a Nova Tarefa, com prazo de 1 dia util; o responsavel e selecionavel entre Gabrielle Rodrigues Silva Espindola, Matheus Augusto Ferreira Brandão, Beatriz Vitoria Miranda Silva Cerqueira, Anna Julia Ferreira da Mata e Yasmim Marques Nascimento, que permanece preselecionada. A Observacao do Processo digitavel e facultativa vai somente para a classificacao. Antes de salvar, o fluxo confere todos os campos obrigatorios. Sem oficio, apenas a Observacao do Processo pode ser preenchida e a Nova Tarefa nao e criada. O motivo do submenu de encerramento e da caixa aberta pelo relatorio de duplicadas e pesquisavel, com o mesmo comportamento da Manifestacao Sugerida; a observacao continua opcional.
+- A aba Triagem inclui o `Fluxo de Triagem`, acima de `Filtro de expediente`, organizado nos submenus `Classificar Processo` e `Sugerir encerramento`. Na classificacao, o fluxo pesquisa Manifestacao Sugerida sem duplicidades e permite deixar `Designar ao assessor(a)` em branco. Quando houver assessor escolhido, a extensao o confirma no SPA; quando estiver vazio, ela prossegue sem bloquear a classificacao. Com oficio, a Observacao do Oficio predefinida vai somente para a Nova Tarefa, com prazo de 1 dia util; o responsavel e selecionavel entre Gabrielle Rodrigues Silva Espindola, Matheus Augusto Ferreira Brandão, Beatriz Vitoria Miranda Silva Cerqueira, Anna Julia Ferreira da Mata e Yasmim Marques Nascimento, que permanece preselecionada. A confirmacao do responsavel aceita o complemento de funcao apresentado pelo Select2 remoto do SPA. A Observacao do Processo digitavel e facultativa vai somente para a classificacao. Antes de salvar, o fluxo confere os campos efetivamente preenchidos. Sem oficio, apenas a Observacao do Processo pode ser preenchida e a Nova Tarefa nao e criada. O motivo do submenu de encerramento e da caixa aberta pelo relatorio de duplicadas e pesquisavel, com o mesmo comportamento da Manifestacao Sugerida; a observacao continua opcional.
 - O SPA tem o modulo Oficios dentro do menu geral, reunindo as acoes do Extrator de forma organizada.
 - Na caixa do SPA, o botao SIG abre a pagina do processo em segundo plano e extrai os dados completos pelo mesmo fluxo do botao interno.
 - Se a aba temporaria nao responder, o modulo tenta uma leitura direta da pagina do processo como contingencia.
@@ -106,8 +106,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 1.89.
+4. Selecione esta pasta: CDSP Extensao Geral - 1.90.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 1.89.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP "CDSP Extensao Geral - 1.90.zip" no painel da Chrome Web Store.
