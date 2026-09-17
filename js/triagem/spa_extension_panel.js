@@ -2089,19 +2089,49 @@
   }
 
   function scoreInitialPetitionItem(item) {
-    const text = getExternalDocumentSearchText(item);
+    if (!item || !item.isPdf) return 0;
+
+    const type = normalizeText(item.type).toLowerCase();
+    const description = normalizeText(item.description).toLowerCase();
+    const text = [type, description].filter(Boolean).join(" ");
     if (!text) return 0;
 
+    // An attachment can mention the petition in its description, but it is not the petition itself.
+    if (/\b(anexo|anexos|documento anexo|comprovante|procuracao|substabelecimento)\b/.test(text)) return 0;
+
     let score = 0;
-    if (/\bpetic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(text)) score += 120;
-    if (/\b(?:inicial|iniciais)\s+petic/.test(text)) score += 95;
-    if (text.indexOf("peticao inicial") >= 0 || text.indexOf("peticoes iniciais") >= 0) score += 90;
-    if (/\binicial\b/.test(text) && /\bpetic/.test(text)) score += 55;
-    if (/\bpetic/.test(text)) score += 10;
+    if (/^petic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(type)) score += 240;
+    if (/\bpetic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(type)) score += 180;
+    if (/\b(?:inicial|iniciais)\s+petic/.test(type)) score += 160;
+    if (/\bpetic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(description)) score += 120;
+    if (/\b(?:inicial|iniciais)\s+petic/.test(description)) score += 100;
     return score;
   }
 
-  function findInitialPetitionItem(items) {
+  function movementReferencesInitialPetition(movement) {
+    const text = normalizeText(
+      [
+        movement && movement.type,
+        movement && movement.description,
+        movement && movement.searchText,
+        movement && movement.movementLabel,
+      ].join(" ")
+    ).toLowerCase();
+    return /\bpetic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(text) || /\b(?:inicial|iniciais)\s+petic/.test(text);
+  }
+
+  function movementIsLinkedToExternalDocument(movement, documentId) {
+    const id = String(documentId || "").trim();
+    if (!id || !movement) return false;
+    const ids = []
+      .concat(movement.linkedDocumentIds || [])
+      .concat(movement.documentIds || [])
+      .map((value) => String(value || "").trim());
+    return ids.indexOf(id) >= 0;
+  }
+
+  function findInitialPetitionItem(items, movements) {
+    const movementItems = Array.isArray(movements) ? movements : [];
     return (Array.isArray(items) ? items : [])
       .map((item, index) => ({
         item: item,
@@ -2109,7 +2139,14 @@
         score: scoreInitialPetitionItem(item),
         timestamp: getExternalDocumentTimestamp(item),
       }))
-      .filter((entry) => entry.score > 0)
+      .filter((entry) =>
+        entry.score > 0 &&
+        movementItems.some(
+          (movement) =>
+            movementReferencesInitialPetition(movement) &&
+            movementIsLinkedToExternalDocument(movement, entry.item.id)
+        )
+      )
       .sort((a, b) => b.score - a.score || a.timestamp - b.timestamp || a.index - b.index)[0]?.item || null;
   }
 
@@ -4607,10 +4644,9 @@
         id: "initial-petition",
         label: "Petição inicial",
         run: async () => {
-          const items = await ensureExternalDocumentItemsLoadedForQuickAction();
-          const item = findInitialPetitionItem(items);
+          const item = await findInitialPetitionForQuickAction();
           if (!item) {
-            status.textContent = "Nao encontrei peticao inicial no resumo carregado.";
+            status.textContent = "Nao encontrei Peticao Inicial confirmada pelo documento e pelo Andamento PJE.";
             return;
           }
           await openExternalDocumentQuickItem(item, status, "Peticao inicial");
@@ -5308,6 +5344,30 @@
       }
 
       return Array.isArray(getSourceCache(source.key).items) ? getSourceCache(source.key).items : [];
+    }
+
+    async function findInitialPetitionForQuickAction() {
+      const items = await ensureExternalDocumentItemsLoadedForQuickAction();
+      if (!items.length) return null;
+
+      const movementSource = sources.movements;
+      if (!movementSource || !movementSource.url) {
+        status.textContent = "Nao foi possivel consultar o Andamento PJE para confirmar a Peticao Inicial.";
+        return null;
+      }
+
+      const movementCache = getSourceCache("movements");
+      try {
+        if (!movementCache.loaded) {
+          status.textContent = "Confirmando a Peticao Inicial no Andamento PJE...";
+          await loadExternalSourceIntoCache(movementSource, { force: false });
+        }
+      } catch (error) {
+        status.textContent = "Nao foi possivel confirmar a Peticao Inicial no Andamento PJE: " + (error && error.message ? error.message : error);
+        return null;
+      }
+
+      return findInitialPetitionItem(items, movementCache.items);
     }
 
     async function filteredExternalDocumentsForOpenAll() {
