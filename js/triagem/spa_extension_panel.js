@@ -2205,6 +2205,74 @@
     return selection ? selection.petition : null;
   }
 
+  function initialPetitionDateKey(item) {
+    const dateText = String((item && item.date) || "");
+    const match = dateText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!match) return "";
+    return match[3] + "-" + match[2] + "-" + match[1];
+  }
+
+  function firstMovementDocuments(items) {
+    const documents = (Array.isArray(items) ? items : [])
+      .filter(isExternalDocumentSelectable)
+      .map((item, index) => ({
+        item: item,
+        index: index,
+        dateKey: initialPetitionDateKey(item),
+      }))
+      .filter((entry) => entry.dateKey);
+    if (!documents.length) return [];
+
+    const firstDate = documents.reduce(
+      (current, entry) => (!current || entry.dateKey < current ? entry.dateKey : current),
+      ""
+    );
+    return documents.filter((entry) => entry.dateKey === firstDate);
+  }
+
+  function initialPetitionNameScore(item) {
+    const description = normalizeText(item && item.description).toLowerCase();
+    const type = normalizeText(item && item.type).toLowerCase();
+    let score = scoreInitialPetitionItem(item);
+    if (/^petic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(description)) score += 320;
+    if (/\bpetic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(description)) score += 160;
+    if (/^petic(?:ao|oes|a|as)?\s+(?:inicial|iniciais)\b/.test(type)) score += 80;
+    return score;
+  }
+
+  function initialPetitionContentCandidates(items, selection) {
+    const firstBundle = firstMovementDocuments(items);
+    const entries = firstBundle.length
+      ? firstBundle
+      : (Array.isArray(items) ? items : [])
+          .filter(isExternalDocumentSelectable)
+          .map((item, index) => ({ item: item, index: index }));
+    const selected = selection && selection.petition ? selection.petition : null;
+
+    return entries
+      .map((entry) => ({
+        item: entry.item,
+        index: entry.index,
+        selected: entry.item === selected,
+        nameScore: initialPetitionNameScore(entry.item),
+      }))
+      .sort(
+        (left, right) =>
+          right.nameScore - left.nameScore ||
+          Number(right.selected) - Number(left.selected) ||
+          left.index - right.index
+      );
+  }
+
+  function replaceInitialPetitionSelection(selection, petition, firstBundle) {
+    if (!selection || !petition) return selection;
+    const bundle = Array.isArray(firstBundle) && firstBundle.length ? firstBundle : selection.attachments || [];
+    return Object.assign({}, selection, {
+      petition: petition,
+      attachments: bundle.filter((item) => item !== petition && isExternalDocumentSelectable(item)),
+    });
+  }
+
   function scorePgePetitionItem(item) {
     const text = getExternalDocumentSearchText(item);
     if (!text || text.indexOf("cdsp") < 0) return 0;
@@ -5443,7 +5511,33 @@
         return null;
       }
 
-      return findInitialPetitionSelection(items, movementCache.items);
+      const selection = findInitialPetitionSelection(items, movementCache.items);
+      if (!selection) return null;
+
+      const candidates = initialPetitionContentCandidates(items, selection);
+      if (!candidates.length) return selection;
+
+      const firstBundle = candidates.map((candidate) => candidate.item);
+      let inspected = 0;
+      let hadReadableContent = false;
+      for (const candidate of candidates) {
+        inspected += 1;
+        status.textContent =
+          "Conferindo o conteudo da Peticao Inicial (" + inspected + "/" + candidates.length + ")...";
+        const result = await inspectInitialPetitionDocumentThroughExtension(candidate.item);
+        if (result && result.ok && !result.inconclusive) hadReadableContent = true;
+        if (result && result.ok && result.isInitialPetition) {
+          return replaceInitialPetitionSelection(selection, candidate.item, firstBundle);
+        }
+      }
+
+      if (hadReadableContent) {
+        status.textContent = "Nao encontrei uma Peticao Inicial no conteudo dos documentos da primeira movimentacao.";
+        return null;
+      }
+
+      status.textContent = "Nao foi possivel ler os PDFs; abrindo o documento indicado pelo SPA.";
+      return replaceInitialPetitionSelection(selection, selection.petition, firstBundle);
     }
 
     async function openInitialPetitionAttachments(triggerButton) {
@@ -8583,6 +8677,24 @@
         });
       }
     });
+  }
+
+  function inspectInitialPetitionDocumentThroughExtension(record) {
+    if (!record || !record.url || !canUseExtensionBackgroundTabs()) {
+      return Promise.resolve({
+        ok: false,
+        isInitialPetition: false,
+        inconclusive: true,
+        record: record || null,
+        error: "Documento nao informado para conferencia.",
+      });
+    }
+
+    return requestExtensionMessage(
+      "SPA_CDSP_INSPECT_INITIAL_PETITION_DOCUMENT",
+      { record: record },
+      CONFIG.autosDocumentSearchTimeoutMs
+    ).then((response) => Object.assign({ record: record }, response || {}));
   }
 
   async function openUrlInBackground(url) {

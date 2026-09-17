@@ -191,6 +191,7 @@ let scheduledRoutineRunning = false;
 let fallbackProtocolPassword = "";
 const autosSearchCache = new Map();
 const duplicatePdfFingerprintCache = new Map();
+const initialPetitionInspectionCache = new Map();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -4833,6 +4834,93 @@ async function insertSimpleClosureIntoGoogleDoc(payload) {
   };
 }
 
+function classifyInitialPetitionText(text) {
+  const normalized = normalizeSearchText(text || "");
+  const attachmentMarker = /\bpeticao\s+inicial\s+em\s+anexo\b/.test(normalized);
+  const initialMarker = /\bpeticao\s+inicial\b/.test(normalized);
+  const substantiveMarkers = [
+    /\bexcelentissim[oa]\b/,
+    /\bautor(?:a|es)?\b/,
+    /\breu(?:s)?\b/,
+    /\bdos\s+fatos\b/,
+    /\bdos\s+pedidos\b/,
+    /\bvem\s+(?:respeitosamente|a\s+presenca)\b/,
+    /\bacao\s+(?:de|em)\b/,
+  ].reduce((total, matcher) => total + Number(matcher.test(normalized)), 0);
+  const initialScore =
+    Number(initialMarker) * 4 +
+    substantiveMarkers * 2 +
+    Number(normalized.length >= 900) +
+    Number(normalized.length >= 1800);
+  const attachmentOnly = attachmentMarker && substantiveMarkers < 2;
+  const isInitialPetition =
+    !attachmentOnly &&
+    ((initialMarker && substantiveMarkers >= 2) || (!attachmentMarker && substantiveMarkers >= 4 && normalized.length >= 700));
+
+  return {
+    isInitialPetition,
+    attachmentOnly,
+    initialScore,
+    substantiveMarkers,
+    textLength: normalized.length,
+  };
+}
+
+async function inspectInitialPetitionDocument(message) {
+  const record = message && message.record ? message.record : {};
+  const viewerUrl = normalizeAllowedUrl(record.url);
+  const pdfUrl = normalizePdfDownloadUrl(record.url);
+  if (!viewerUrl || !pdfUrl) {
+    return {
+      ok: false,
+      isInitialPetition: false,
+      inconclusive: true,
+      record,
+      error: "URL do documento fora do dominio permitido do SPA.",
+    };
+  }
+
+  const cached = initialPetitionInspectionCache.get(pdfUrl);
+  if (cached) {
+    return Object.assign({}, cached, { record: Object.assign({}, record, { url: viewerUrl }), fromCache: true });
+  }
+
+  try {
+    const downloaded = await fetchExpedienteText(pdfUrl);
+    const classified = classifyInitialPetitionText(downloaded && downloaded.text ? downloaded.text : "");
+    const result = {
+      ok: true,
+      isInitialPetition: classified.isInitialPetition,
+      attachmentOnly: classified.attachmentOnly,
+      initialScore: classified.initialScore,
+      substantiveMarkers: classified.substantiveMarkers,
+      textLength: classified.textLength,
+      byteLength: downloaded && downloaded.byteLength ? downloaded.byteLength : 0,
+      inconclusive: classified.textLength <= 0,
+      fromCache: false,
+      diagnostics: {
+        pdfUrl,
+        offscreenError: downloaded && downloaded.offscreenError ? downloaded.offscreenError : "",
+        pdfJsError: downloaded && downloaded.pdfJsError ? downloaded.pdfJsError : "",
+        rawError: downloaded && downloaded.rawError ? downloaded.rawError : "",
+      },
+    };
+    initialPetitionInspectionCache.set(pdfUrl, result);
+    while (initialPetitionInspectionCache.size > AUTOS_SEARCH_CACHE_MAX) {
+      initialPetitionInspectionCache.delete(initialPetitionInspectionCache.keys().next().value);
+    }
+    return Object.assign({}, result, { record: Object.assign({}, record, { url: viewerUrl }) });
+  } catch (error) {
+    return {
+      ok: false,
+      isInitialPetition: false,
+      inconclusive: true,
+      record: Object.assign({}, record, { url: viewerUrl }),
+      error: error && error.message ? error.message : String(error),
+    };
+  }
+}
+
 async function insertSimpleClosureIntoCurrentDocument(sender, payload) {
   const tabId = cdspGeneralTabId(sender);
   if (!tabId) return { ok: false, error: "Aba do SPA nao identificada." };
@@ -5149,6 +5237,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           found: false,
           record: message.record || null,
           error: error && error.message ? error.message : String(error)
+        });
+      });
+
+    return true;
+  }
+
+  if (message.type === "SPA_CDSP_INSPECT_INITIAL_PETITION_DOCUMENT") {
+    inspectInitialPetitionDocument(message)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          isInitialPetition: false,
+          inconclusive: true,
+          record: message.record || null,
+          error: error && error.message ? error.message : String(error),
         });
       });
 
