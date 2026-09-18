@@ -202,6 +202,31 @@
   line-height: 1.25;
 }
 
+.cdsp-sigadoc-menu__password {
+  display: grid;
+  gap: 4px;
+  color: #dce9f5;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cdsp-sigadoc-menu__password input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #496078;
+  border-radius: 4px;
+  background: #142536;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 400;
+  padding: 7px 8px;
+}
+
+.cdsp-sigadoc-menu__password input:focus {
+  border-color: #2f9cab;
+  outline: none;
+}
+
 .cdsp-sigadoc-menu .cdsp-sigadoc-menu__button,
 .cdsp-sigadoc-menu #spa-sigadoc-btn,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn {

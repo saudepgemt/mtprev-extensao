@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.98`
-- Ultima tag publicada no repositorio: `v1.98`
+- Versao atual da extensao: `1.99`
+- Ultima tag publicada no repositorio: `v1.99`
 
 ## Como retomar no notebook
 
@@ -278,6 +278,12 @@ Versao `1.98`:
 - Foram adicionados os tipos `ALTA` e `INFOR SEDUC` ao Fluxo de Triagem e ao Extrator do SIGADOC.
 - Os modelos documentados de oficio deixaram de depender de `Texto padrao`: a extensao preenche Modelo, destinatario, classificacao, descricao, assunto, tabela, links e corpo proprio. Tabela, links e corpo usam Times New Roman 12; os titulos ficam em negrito e o fechamento permanece `Atenciosamente`.
 - Para os destinatarios, `AUDIENCIA` usa `UNIJUR`; Avaliacao Psicopedagogica e Medicamento Escolar preservam `SEDUC-UAS`; SETASC IDOSO preserva `SETASC-CPPDDH`.
+
+Versao `1.99`:
+
+- O menu de Oficios do SIGADOC passou a ter o campo opcional `Senha do SIGADOC`.
+- A senha digitada permanece somente no `sessionStorage` do SIGADOC e e removida ao encerrar a sessao; ela nao e salva em `localStorage` nem no armazenamento da extensao.
+- A assinatura continua tentando primeiro a credencial interna. Somente se o modal de senha permanecer aberto, a extensao tenta a senha opcional da sessao para o mesmo subscritor; se as duas falharem, interrompe o fluxo sem concluir a pos-assinatura.
 
 ## Regras permanentes combinadas
 

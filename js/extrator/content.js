@@ -20,6 +20,7 @@
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
+  const SIGADOC_SESSION_PASSWORD_KEY = 'cdspSigadocSessionPassword';
   const TEMPO_EXPIRACAO_MS = 1000 * 60 * 60 * 8;
   const TEMPO_FLUXO_ASSINATURA_MS = 1000 * 60 * 15;
   const TEMPO_FLUXO_FINALIZACAO_MS = 1000 * 60 * 60 * 8;
@@ -2950,6 +2951,37 @@
     }) || null;
   }
 
+  function obterSenhaDaSessaoSigadoc() {
+    try {
+      return String(sessionStorage.getItem(SIGADOC_SESSION_PASSWORD_KEY) || '');
+    } catch (_erro) {
+      return '';
+    }
+  }
+
+  function salvarSenhaDaSessaoSigadoc(senha) {
+    try {
+      if (senha) {
+        sessionStorage.setItem(SIGADOC_SESSION_PASSWORD_KEY, senha);
+      } else {
+        sessionStorage.removeItem(SIGADOC_SESSION_PASSWORD_KEY);
+      }
+    } catch (_erro) {
+      // O fluxo de assinatura continua disponível mesmo quando a sessão não puder ser gravada.
+    }
+  }
+
+  function modalSenhaSigadocContinuaAberto(campoSenha) {
+    const campoAtual = document.getElementById('senhaUsuarioSubscritor');
+    if (!campoSenha || !campoSenha.isConnected) {
+      return Boolean(campoAtual && campoAtual.isConnected);
+    }
+    const dialog = document.getElementById('senhaDialog');
+    if (!dialog) return true;
+    const style = window.getComputedStyle ? window.getComputedStyle(dialog) : null;
+    return !style || (style.display !== 'none' && style.visibility !== 'hidden');
+  }
+
   function selecionarAssinaturaPorSenhaSigadoc() {
     const radio = document.getElementById('ad_password_0') ||
       document.querySelector('input[name="radioProviderAssinatura"][id^="ad_password"]');
@@ -2991,17 +3023,42 @@
       throw new Error('Modal de senha do SIGADOC não apareceu com os campos esperados.');
     }
 
-    setValorCampo(matricula, credencial.matricula);
-    setValorCampo(senha, credencial.senha);
-    await aguardar(250);
-
     const pacote = await obterPacoteSalvo();
     if (pacote) {
       await salvarFluxoPosAssinaturaSigadoc(pacote);
     }
 
-    await limparFluxoAssinaturaSigadoc();
-    ok.click();
+    const senhaDaSessao = obterSenhaDaSessaoSigadoc();
+    const tentativas = [{ origem: 'credencial interna', senha: credencial.senha }];
+    if (senhaDaSessao && senhaDaSessao !== credencial.senha) {
+      tentativas.push({ origem: 'Senha do SIGADOC', senha: senhaDaSessao });
+    }
+
+    for (let indice = 0; indice < tentativas.length; indice += 1) {
+      const tentativa = tentativas[indice];
+      setValorCampo(matricula, credencial.matricula);
+      setValorCampo(senha, tentativa.senha);
+      await aguardar(250);
+      ok.click();
+
+      // Em caso de senha incorreta, o SIGADOC mantém o modal aberto. Somente
+      // nessa situação a senha opcional da sessão é usada como contingência.
+      await aguardar(1600);
+      if (!modalSenhaSigadocContinuaAberto(senha)) {
+        await limparFluxoAssinaturaSigadoc();
+        return;
+      }
+
+      if (indice < tentativas.length - 1) {
+        console.warn('[CDSP - Extrator] A ' + tentativa.origem + ' não foi aceita; tentando a Senha do SIGADOC da sessão.');
+      }
+    }
+
+    throw new Error(
+      senhaDaSessao
+        ? 'O SIGADOC não aceitou a credencial interna nem a Senha do SIGADOC informada nesta sessão.'
+        : 'O SIGADOC não aceitou a credencial interna. Informe opcionalmente a Senha do SIGADOC e tente novamente.'
+    );
   }
 
   async function iniciarFluxoAssinaturaSigadoc(pacote, btn) {
@@ -3077,6 +3134,7 @@
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha no fluxo de assinatura SIGADOC:', erro);
       await limparFluxoAssinaturaSigadoc();
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
       const btn = document.getElementById('spa-sigadoc-assinar-btn');
       atualizarBotao(btn, 'erro', '!', 'Erro ao assinar');
       if (btn) btn.title = erro.message || 'Falha ao assinar no SIGADOC.';
@@ -3471,6 +3529,20 @@
     const tituloAcoes = document.createElement('strong');
     tituloAcoes.textContent = 'Oficios';
     acoes.appendChild(tituloAcoes);
+
+    const senhaWrapper = document.createElement('label');
+    senhaWrapper.className = 'cdsp-sigadoc-menu__password';
+    senhaWrapper.textContent = 'Senha do SIGADOC';
+    const senhaInput = document.createElement('input');
+    senhaInput.id = 'cdsp-sigadoc-session-password';
+    senhaInput.type = 'password';
+    senhaInput.autocomplete = 'current-password';
+    senhaInput.placeholder = 'Opcional';
+    senhaInput.value = obterSenhaDaSessaoSigadoc();
+    senhaInput.title = 'Usada somente como segunda tentativa de assinatura nesta sessão do SIGADOC.';
+    senhaInput.addEventListener('input', () => salvarSenhaDaSessaoSigadoc(senhaInput.value));
+    senhaWrapper.appendChild(senhaInput);
+    acoes.appendChild(senhaWrapper);
 
     acoes.appendChild(criarBotaoMenuSigadoc(
       'spa-sigadoc-btn',
