@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.99`
-- Ultima tag publicada no repositorio: `v1.99`
+- Versao atual da extensao: `2.00`
+- Ultima tag publicada no repositorio: `v2.00`
 
 ## Como retomar no notebook
 
@@ -284,6 +284,12 @@ Versao `1.99`:
 - O menu de Oficios do SIGADOC passou a ter o campo opcional `Senha do SIGADOC`.
 - A senha digitada permanece somente no `sessionStorage` do SIGADOC e e removida ao encerrar a sessao; ela nao e salva em `localStorage` nem no armazenamento da extensao.
 - A assinatura continua tentando primeiro a credencial interna. Somente se o modal de senha permanecer aberto, a extensao tenta a senha opcional da sessao para o mesmo subscritor; se as duas falharem, interrompe o fluxo sem concluir a pos-assinatura.
+
+Versao `2.00`:
+
+- A classificacao dos oficios passou a acionar o fluxo nativo do SIGADOC: informa a sigla `091`, chama `ajax_classificacao()` e aguarda o retorno de ID, sigla e descricao antes de prosseguir.
+- Se a consulta assincrona for bloqueada, a extensao usa `retorna_classificacao()` no contexto da pagina como contingencia. O preenchimento e interrompido quando o SIGADOC nao confirma a classificacao.
+- Todos os tipos documentados de oficio agora possuem classificacao `091` na matriz interna. A conferencia nao depende do ID numerico fixo: aceita o identificador retornado pelo proprio SIGADOC quando a sigla e a descricao estiverem corretas.
 
 ## Regras permanentes combinadas
 

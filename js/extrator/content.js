@@ -203,6 +203,7 @@
       bases: ['SAÚDE - AVALIAÇÃO PSICOPEDAGÓGICA', 'SAUDE - AVALIAÇÃO PSICOPEDAGÓGICA'],
       usarSufixo: false,
       destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -211,6 +212,7 @@
       bases: ['SAÚDE - DESCUMP', 'SAUDE - DESCUMP'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -219,6 +221,7 @@
       bases: ['SAÚDE - HOME CARE', 'SAUDE - HOME CARE'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -227,6 +230,7 @@
       bases: ['SAÚDE - MED ESCOLAR', 'SAUDE - MED ESCOLAR'],
       usarSufixo: false,
       destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -235,6 +239,7 @@
       bases: ['SAÚDE - SECUND', 'SAUDE - SECUND'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -246,6 +251,7 @@
         sigla: 'SETASC-CPPDDH',
         descricao: 'COORDENADORIA DE PROTECAO A PESSOA E DEFESA DOS DIREITOS HUMANOS',
       },
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -254,6 +260,7 @@
       bases: ['SAÚDE CUMP MULTA', 'SAUDE CUMP MULTA'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -271,12 +278,15 @@
       bases: ['SAÚDE CUMP SANÇÕES', 'SAUDE CUMP SANÇÕES'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
       tipo: 'REQ',
       aliases: ['req', 'requisicao', 'requisição'],
       bases: ['SAUDE REQ', 'SAÚDE REQ', 'SAUDE - REQ', 'SAÚDE - REQ'],
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -284,18 +294,24 @@
       aliases: ['cump', 'cumprimento', 'cumprir'],
       bases: ['SAUDE CUMP', 'SAÚDE CUMP', 'SAUDE - CUMP', 'SAÚDE - CUMP'],
       aceitarBaseSemSufixo: true,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
       tipo: 'SINF',
       aliases: ['sinf'],
       bases: ['SAUDE SINF', 'SAÚDE SINF', 'SAUDE - SINF', 'SAÚDE - SINF'],
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
       tipo: 'EXME',
       aliases: ['exme'],
       bases: ['SAUDE - EXME', 'SAÚDE - EXME', 'SAUDE EXME', 'SAÚDE EXME'],
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -319,6 +335,8 @@
         'SAUDE - PRESTAÇÃO DE CONTAS',
         'SAÚDE - PRESTAÇÃO DE CONTAS',
       ],
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       conteudoProprio: true,
     },
     {
@@ -2540,8 +2558,6 @@
     const estadoDestinatario = estadoDestinatarioSigadoc(destino);
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     const classificacao = modelo && modelo.classificacao;
-    const classificacaoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0] ||
-      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_id');
     const conteudo = (areaEditavel && areaEditavel.innerHTML) || (textarea && textarea.value) || '';
 
     if (!limparValorExtraido(descricao && descricao.value)) erros.push('Descricao');
@@ -2549,7 +2565,7 @@
     if (!estadoDestinatario.confirmed) erros.push('Destinatario');
     if (!limparValorExtraido(conteudo)) erros.push('Conteudo');
     if (pacote.processo && !conteudoJaTemTabela(conteudo, pacote)) erros.push('Tabela do processo');
-    if (classificacao && limparValorExtraido(classificacaoId && classificacaoId.value) !== String(classificacao.id)) {
+    if (classificacao && !estadoClassificacaoSigadoc(classificacao).confirmed) {
       erros.push('Classificacao');
     }
 
@@ -2558,11 +2574,7 @@
     }
   }
 
-  function preencherClassificacaoSigadoc(pacote) {
-    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
-    const classificacao = modelo && modelo.classificacao;
-    if (!classificacao) return '';
-
+  function estadoClassificacaoSigadoc(classificacao) {
     const campoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0] ||
       document.getElementById('formulario_exDocumentoDTO.classificacaoSel_id');
     const campoDescricao = document.getElementsByName('exDocumentoDTO.classificacaoSel.descricao')[0] ||
@@ -2570,38 +2582,94 @@
     const campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
       document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
     const span = document.getElementById('exDocumentoDTO.classificacaoSelSpan');
+    const descricao = limparValorExtraido((campoDescricao && campoDescricao.value) || (span && span.textContent));
+    const id = limparValorExtraido(campoId && campoId.value);
+    const sigla = limparValorExtraido(campoSigla && campoSigla.value);
+    const descricaoEsperada = normalizarTexto(classificacao && classificacao.descricao);
+    const descricaoConfirmada = descricaoEsperada && normalizarTexto(descricao).includes(descricaoEsperada);
 
-    let alterou = false;
-    if (campoId && classificacao.id) alterou = setValorCampo(campoId, classificacao.id) || alterou;
-    if (campoDescricao) alterou = setValorCampo(campoDescricao, classificacao.descricao) || alterou;
-    if (campoSigla) alterou = setValorCampo(campoSigla, classificacao.codigo) || alterou;
-    if (span) {
-      span.textContent = classificacao.descricao;
-      alterou = true;
+    return {
+      id,
+      sigla,
+      descricao,
+      confirmed: Boolean(
+        classificacao &&
+        Boolean(id) &&
+        sigla === String(classificacao.codigo || '') &&
+        descricaoConfirmada
+      ),
+    };
+  }
+
+  async function aguardarConfirmacaoClassificacaoSigadoc(classificacao, timeoutMs = 5000) {
+    const inicio = Date.now();
+    let estado = estadoClassificacaoSigadoc(classificacao);
+    while (!estado.confirmed && Date.now() - inicio < timeoutMs) {
+      await aguardar(200);
+      estado = estadoClassificacaoSigadoc(classificacao);
+    }
+    return estado;
+  }
+
+  function solicitarClassificacaoSigadoc(classificacao, usarRetornoDireto) {
+    executarNoContextoDaPagina(`
+      (function(classificacao, usarRetornoDireto) {
+        var campo = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
+          document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
+        if (!campo) return;
+
+        campo.value = classificacao.codigo;
+        campo.dispatchEvent(new Event('input', { bubbles: true }));
+        campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+        try {
+          if (!usarRetornoDireto && typeof ajax_classificacao === 'function') {
+            ajax_classificacao();
+            return;
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao consultar a classificação:', erro);
+        }
+
+        try {
+          if (typeof retorna_classificacao === 'function') {
+            retorna_classificacao(classificacao.id, classificacao.codigo, classificacao.descricao);
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao aplicar a classificação:', erro);
+        }
+      })(${JSON.stringify(classificacao)}, ${Boolean(usarRetornoDireto)});
+    `);
+  }
+
+  async function preencherClassificacaoSigadoc(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    const classificacao = modelo && modelo.classificacao;
+    if (!classificacao) return '';
+
+    const campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
+      document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
+    if (!campoSigla) return 'Campo de classificação não encontrado.';
+
+    setValorCampo(campoSigla, classificacao.codigo);
+    solicitarClassificacaoSigadoc(classificacao, false);
+    let estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 5000);
+
+    // Contingência para uma resposta AJAX bloqueada pelo próprio SIGADOC: usa o
+    // callback nativo, no contexto da página, para registrar ID, sigla e descrição.
+    if (!estado.confirmed) {
+      solicitarClassificacaoSigadoc(classificacao, true);
+      estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 2500);
     }
 
-    executarNoContextoDaPagina(`
-      (function(classificacao) {
-        var campoId = document.getElementsByName('exDocumentoDTO.classificacaoSel.id')[0];
-        var campoDescricao = document.getElementsByName('exDocumentoDTO.classificacaoSel.descricao')[0];
-        var campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0];
-        var span = document.getElementById('exDocumentoDTO.classificacaoSelSpan');
+    if (!estado.confirmed) {
+      throw new Error(
+        `O SIGADOC não confirmou a classificação ${classificacao.codigo}. ` +
+        'Confira a classificação manualmente antes de gravar ou assinar.'
+      );
+    }
 
-        if (campoId && classificacao.id) campoId.value = classificacao.id;
-        if (campoDescricao) campoDescricao.value = classificacao.descricao;
-        if (campoSigla) {
-          campoSigla.value = classificacao.codigo;
-          campoSigla.dispatchEvent(new Event('input', { bubbles: true }));
-          campoSigla.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        if (span) span.textContent = classificacao.descricao;
-        try { if (typeof updateURL === 'function') updateURL(); } catch (erro) {}
-      })(${JSON.stringify(classificacao)});
-    `);
-
-    return alterou
-      ? `Classificação definida como ${classificacao.codigo}.`
-      : 'Campo de classificação não encontrado.';
+    return `Classificação definida como ${classificacao.codigo}.`;
   }
 
   async function preencherCamposSigadoc(pacote) {
@@ -2624,7 +2692,7 @@
       mensagens.push('Assunto não encontrado.');
     }
 
-    const mensagemClassificacao = preencherClassificacaoSigadoc(pacote);
+    const mensagemClassificacao = await preencherClassificacaoSigadoc(pacote);
     if (mensagemClassificacao) mensagens.push(mensagemClassificacao);
 
     mensagens.push(await preencherDestinatarioSigadoc(pacote));
