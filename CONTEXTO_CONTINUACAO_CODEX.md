@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.01`
-- Ultima tag publicada no repositorio: `v2.01`
+- Versao atual da extensao: `2.02`
+- Ultima tag publicada no repositorio: `v2.02`
 
 ## Como retomar no notebook
 
@@ -295,6 +295,10 @@ Versao `2.01`:
 
 - A classificacao passou a reproduzir o gesto exigido pelo SIGADOC: apos preencher `091`, o campo recebe foco e perde foco, disparando o `onblur` que preenche a descricao visivel da classificacao.
 - A consulta por `ajax_classificacao()` e o callback `retorna_classificacao()` permanecem como contingencias sequenciais quando o desfoco nativo nao concluir a selecao.
+
+Versao `2.02`:
+
+- Corrigida a perda de foco da `Senha do SIGADOC`: o menu proprio nao e reconstruido enquanto esse campo estiver ativo, permitindo digitacao continua mesmo com atualizacoes observadas na pagina.
 
 ## Regras permanentes combinadas
 

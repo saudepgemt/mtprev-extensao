@@ -3607,6 +3607,8 @@
 
     const body = panel.querySelector('.cdsp-sigadoc-menu__body');
     if (!body || body.querySelector('.copiando')) return;
+    const senhaEmEdicao = body.querySelector('#cdsp-sigadoc-session-password');
+    if (senhaEmEdicao && document.activeElement === senhaEmEdicao) return;
 
     body.innerHTML = '';
 
