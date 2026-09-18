@@ -2642,6 +2642,18 @@
     `);
   }
 
+  async function confirmarClassificacaoPorDesfocoSigadoc(campo, classificacao) {
+    setValorCampo(campo, classificacao.codigo);
+    try {
+      campo.focus();
+      await aguardar(80);
+      campo.blur();
+      campo.dispatchEvent(new Event('focusout', { bubbles: true }));
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Falha ao desfocar a classificação:', erro);
+    }
+  }
+
   async function preencherClassificacaoSigadoc(pacote) {
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     const classificacao = modelo && modelo.classificacao;
@@ -2651,9 +2663,15 @@
       document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
     if (!campoSigla) return 'Campo de classificação não encontrado.';
 
-    setValorCampo(campoSigla, classificacao.codigo);
-    solicitarClassificacaoSigadoc(classificacao, false);
-    let estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 5000);
+    // O próprio SIGADOC carrega a descrição somente no onblur deste campo.
+    // Este foco/desfoco reproduz o clique fora feito manualmente na tela.
+    await confirmarClassificacaoPorDesfocoSigadoc(campoSigla, classificacao);
+    let estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 4500);
+
+    if (!estado.confirmed) {
+      solicitarClassificacaoSigadoc(classificacao, false);
+      estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 3500);
+    }
 
     // Contingência para uma resposta AJAX bloqueada pelo próprio SIGADOC: usa o
     // callback nativo, no contexto da página, para registrar ID, sigla e descrição.

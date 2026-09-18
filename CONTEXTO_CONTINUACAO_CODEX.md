@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.00`
-- Ultima tag publicada no repositorio: `v2.00`
+- Versao atual da extensao: `2.01`
+- Ultima tag publicada no repositorio: `v2.01`
 
 ## Como retomar no notebook
 
@@ -290,6 +290,11 @@ Versao `2.00`:
 - A classificacao dos oficios passou a acionar o fluxo nativo do SIGADOC: informa a sigla `091`, chama `ajax_classificacao()` e aguarda o retorno de ID, sigla e descricao antes de prosseguir.
 - Se a consulta assincrona for bloqueada, a extensao usa `retorna_classificacao()` no contexto da pagina como contingencia. O preenchimento e interrompido quando o SIGADOC nao confirma a classificacao.
 - Todos os tipos documentados de oficio agora possuem classificacao `091` na matriz interna. A conferencia nao depende do ID numerico fixo: aceita o identificador retornado pelo proprio SIGADOC quando a sigla e a descricao estiverem corretas.
+
+Versao `2.01`:
+
+- A classificacao passou a reproduzir o gesto exigido pelo SIGADOC: apos preencher `091`, o campo recebe foco e perde foco, disparando o `onblur` que preenche a descricao visivel da classificacao.
+- A consulta por `ajax_classificacao()` e o callback `retorna_classificacao()` permanecem como contingencias sequenciais quando o desfoco nativo nao concluir a selecao.
 
 ## Regras permanentes combinadas
 
