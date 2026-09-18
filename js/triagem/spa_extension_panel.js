@@ -172,7 +172,8 @@
     { label: "Medicamento Escolar", value: "Enviar ofício \"MED ESCOLAR\" - Pedido de administração de medicamento em ambiente escolar." },
     { label: "SETASC IDOSO", value: "Enviar ofício \"SETASC IDOSO\" - Pedido de prestação de assistência social a pessoa em situação de vulnerabilidade." },
     { label: "Home Care", value: "Enviar ofício \"HOME CARE\" - Determinação judicial para realização de visita domiciliar." },
-    { label: "Alta Médica", value: "Enviar ofício \"ALTA HOME CARE\" - Determinação judicial que deferiu alta médica em serviço de home care." }
+    { label: "ALTA", value: "Enviar ofício \"ALTA\" - Determinação judicial que deferiu alta médica em serviço de home care." },
+    { label: "INFOR SEDUC", value: "Enviar ofício \"INFOR SEDUC\" - Solicitação de informações e providências para cumprimento de determinação judicial." }
   ];
 
   const HEALTH_LOGO_SRC =
@@ -7714,39 +7715,82 @@
       .filter((item) => item.getAttribute("aria-disabled") !== "true" && isVisible(item));
   }
 
+  function closeSelect2Dropdowns($, except) {
+    if (!$) return;
+    $(".select2-hidden-accessible").each(function () {
+      try {
+        $(this).select2("close");
+      } catch (_error) {
+        // Some native selects use the Select2 marker without an active instance.
+      }
+    });
+    if (except) {
+      try {
+        $(except).select2("close");
+      } catch (_error) {
+        // The target will be reopened immediately below.
+      }
+    }
+  }
+
+  function select2SearchFor(select, $) {
+    const instance = $(select).data("select2");
+    const candidates = [
+      instance && instance.dropdown && instance.dropdown.$search && instance.dropdown.$search[0],
+      instance && instance.$dropdown && instance.$dropdown.find(".select2-search__field")[0],
+      document.querySelector(".select2-container--open .select2-search__field")
+    ];
+    return candidates.find((candidate) => candidate && isVisible(candidate)) || null;
+  }
+
+  function select2ResultsFor(select, $) {
+    const instance = $(select).data("select2");
+    const results = instance && instance.results && instance.results.$results;
+    if (results && results.length) {
+      return Array.from(results[0].querySelectorAll(".select2-results__option"))
+        .filter((item) => item.getAttribute("aria-disabled") !== "true" && isVisible(item));
+    }
+    return visibleSelect2Results();
+  }
+
   async function chooseSelect2Option(select, text, partial) {
     const $ = window.jQuery;
     if (!$ || !select || !($(select).hasClass("select2-hidden-accessible") || $(select).data("select2"))) return false;
 
     try {
+      // A Select2 remoto aberto em outro campo recebe a digitacao global. Fechar
+      // qualquer lista residual e indispensavel antes de abrir o campo-alvo.
+      closeSelect2Dropdowns($, select);
       $(select).select2("open");
     } catch (_error) {
       return false;
     }
 
-    await sleep(80);
-    const search = document.querySelector(".select2-container--open .select2-search__field");
+    await sleep(140);
+    const search = select2SearchFor(select, $);
     if (!search) return false;
+    search.focus();
+    if (window.jQuery) window.jQuery(search).val(text).trigger("input").trigger("keyup");
     search.value = text;
     search.dispatchEvent(new Event("input", { bubbles: true }));
-    search.dispatchEvent(new KeyboardEvent("keyup", { key: "", bubbles: true }));
-    await sleep(350);
+    search.dispatchEvent(new KeyboardEvent("keyup", { key: text.slice(-1), bubbles: true }));
+    await sleep(700);
 
     const wanted = normalizeText(text).toLowerCase();
-    const result = visibleSelect2Results().find((item) => {
+    const result = select2ResultsFor(select, $).find((item) => {
       const candidate = normalizeText(item.textContent).toLowerCase();
       return partial ? candidate.indexOf(wanted) >= 0 : candidate === wanted;
     });
 
-    dispatchEnter(search);
-    await sleep(150);
-    if (selectionWasApplied(select, text, partial)) return true;
-    if (!result) return false;
+    if (!result) {
+      closeSelect2Dropdowns($, select);
+      return false;
+    }
 
     result.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
     result.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
     result.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
-    await sleep(220);
+    await sleep(320);
     return selectionWasApplied(select, text, partial);
   }
 
@@ -7939,15 +7983,20 @@
 
   function progressFieldByLabel(labelText) {
     const wanted = normalizeText(labelText).toLowerCase();
-    const labels = Array.from(document.querySelectorAll("#progress-form label"));
-    const label = labels.find((item) => normalizeText(item.textContent).toLowerCase().indexOf(wanted) === 0);
-    if (!label) return null;
-    if (label.htmlFor) {
-      const controlled = document.getElementById(label.htmlFor);
-      if (controlled && /^(input|textarea)$/i.test(controlled.tagName || "")) return controlled;
+    const labels = Array.from(document.querySelectorAll("#progress-form label"))
+      .filter((item) => normalizeText(item.textContent).toLowerCase().indexOf(wanted) === 0)
+      .filter((item) => isVisible(item));
+
+    for (const label of labels) {
+      if (label.htmlFor) {
+        const controlled = document.getElementById(label.htmlFor);
+        if (controlled && /^(input|textarea)$/i.test(controlled.tagName || "") && isVisible(controlled)) return controlled;
+      }
+      const container = label.closest(".form-group, .step-attribute-box") || label.parentElement;
+      const field = container && container.querySelector("textarea, input:not([type='hidden']):not([type='submit']):not([type='button'])");
+      if (field && isVisible(field)) return field;
     }
-    const container = label.closest(".form-group, .step-attribute-box, .row, div") || label.parentElement;
-    return container ? container.querySelector("textarea, input:not([type='hidden']):not([type='submit']):not([type='button'])") : null;
+    return null;
   }
 
   async function waitForProgressField(labelText, timeoutMs) {
@@ -8011,7 +8060,9 @@
 
       const observationText = String(action.observation || "").trim();
       if (observationText) {
-        const observation = await waitForProgressField("Observação", 8000);
+        // The SPA creates this field only after the Motivo is accepted. It can
+        // take several Ajax cycles, especially for the remote Select2 options.
+        const observation = await waitForProgressField("Observação", 20000);
         if (!observation || !setFormFieldValue(observation, observationText) || !fieldValueWasApplied(observation, observationText)) {
           throw new Error("Nao foi possivel preencher a Observacao do encerramento.");
         }
@@ -8025,7 +8076,6 @@
       log("Motivo e observacao conferidos. Salvando sugestao de encerramento.", "ok");
       save.click();
     } catch (error) {
-      clearTriageClosureAction(action.operationId);
       state.running = false;
       const message = error && error.message ? error.message : String(error);
       setStatus("Preenchimento pendente");

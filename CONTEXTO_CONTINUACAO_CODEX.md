@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `1.97`
-- Ultima tag publicada no repositorio: `v1.97`
+- Versao atual da extensao: `1.98`
+- Ultima tag publicada no repositorio: `v1.98`
 
 ## Como retomar no notebook
 
@@ -270,6 +270,14 @@ Versao `1.96`:
 Versao `1.97`:
 
 - O Andamento PJe/MNI deixou de ser bloqueador para o atalho `Peticao Inicial`. Quando a consulta falhar ou nao identificar a movimentacao, a extensao continua pelo PDF identificado nos Autos, aplica a conferencia de conteudo e a contingencia tecnica da primeira movimentacao. Quando o Andamento PJe responder, sua vinculacao por ID continua sendo usada como prioridade adicional.
+
+Versao `1.98`:
+
+- O Fluxo de Triagem passou a isolar cada Select2 remoto antes de pesquisar. Assim, o responsavel pelo oficio e selecionado exclusivamente no campo `Usuario` da Nova Tarefa, sem alterar `Designar ao assessor(a)`.
+- A sugestao de encerramento passou a aguardar por ate 20 segundos o campo dinamico `Observacao` carregado pelo SPA e a procura somente no formulario visivel da etapa.
+- Foram adicionados os tipos `ALTA` e `INFOR SEDUC` ao Fluxo de Triagem e ao Extrator do SIGADOC.
+- Os modelos documentados de oficio deixaram de depender de `Texto padrao`: a extensao preenche Modelo, destinatario, classificacao, descricao, assunto, tabela, links e corpo proprio. Tabela, links e corpo usam Times New Roman 12; os titulos ficam em negrito e o fechamento permanece `Atenciosamente`.
+- Para os destinatarios, `AUDIENCIA` usa `UNIJUR`; Avaliacao Psicopedagogica e Medicamento Escolar preservam `SEDUC-UAS`; SETASC IDOSO preserva `SETASC-CPPDDH`.
 
 ## Regras permanentes combinadas
 

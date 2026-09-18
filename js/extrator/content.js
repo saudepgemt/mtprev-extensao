@@ -110,6 +110,11 @@
     descricao: 'UNIDADE JURIDICA',
   });
 
+  const DESTINATARIO_UNIJUR_SIGADOC = Object.freeze({
+    sigla: 'UNIJUR',
+    descricao: 'UNIDADE JURIDICA',
+  });
+
   const DESTINATARIO_DGPG_SIGADOC = Object.freeze({
     sigla: 'DGPG',
     descricao: 'DIRETORIA GERAL DA PROCURADORIA GERAL',
@@ -163,9 +168,10 @@
       bases: ['SAÚDE - AUDIÊNCIA', 'SAUDE - AUDIENCIA'],
       usarSufixo: false,
       modeloDocumento: MODELO_DOCUMENTO_OFICIO_SIGADOC,
-      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      destinatario: DESTINATARIO_UNIJUR_SIGADOC,
       classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       apenasPreenchimento: true,
+      conteudoProprio: true,
     },
     {
       tipo: 'SINF DANO MORAL',
@@ -181,6 +187,7 @@
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
       classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
       apenasPreenchimento: true,
+      conteudoProprio: true,
     },
     {
       tipo: 'AVALIAÇÃO PSICOPEDAGÓGICA',
@@ -195,6 +202,7 @@
       bases: ['SAÚDE - AVALIAÇÃO PSICOPEDAGÓGICA', 'SAUDE - AVALIAÇÃO PSICOPEDAGÓGICA'],
       usarSufixo: false,
       destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+      conteudoProprio: true,
     },
     {
       tipo: 'DESCUMP',
@@ -202,6 +210,7 @@
       bases: ['SAÚDE - DESCUMP', 'SAUDE - DESCUMP'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      conteudoProprio: true,
     },
     {
       tipo: 'HOME CARE',
@@ -209,6 +218,7 @@
       bases: ['SAÚDE - HOME CARE', 'SAUDE - HOME CARE'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      conteudoProprio: true,
     },
     {
       tipo: 'MED ESCOLAR',
@@ -216,6 +226,7 @@
       bases: ['SAÚDE - MED ESCOLAR', 'SAUDE - MED ESCOLAR'],
       usarSufixo: false,
       destinatario: { sigla: 'SEDUC-UAS', descricao: 'UNIDADE DE ASSESSORIA' },
+      conteudoProprio: true,
     },
     {
       tipo: 'SECUND',
@@ -223,6 +234,7 @@
       bases: ['SAÚDE - SECUND', 'SAUDE - SECUND'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      conteudoProprio: true,
     },
     {
       tipo: 'SETASC IDOSO',
@@ -233,6 +245,7 @@
         sigla: 'SETASC-CPPDDH',
         descricao: 'COORDENADORIA DE PROTECAO A PESSOA E DEFESA DOS DIREITOS HUMANOS',
       },
+      conteudoProprio: true,
     },
     {
       tipo: 'CUMP MULTA',
@@ -240,6 +253,7 @@
       bases: ['SAÚDE CUMP MULTA', 'SAUDE CUMP MULTA'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      conteudoProprio: true,
     },
     {
       tipo: 'CUMP SANÇÕES',
@@ -256,27 +270,32 @@
       bases: ['SAÚDE CUMP SANÇÕES', 'SAUDE CUMP SANÇÕES'],
       usarSufixo: false,
       destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      conteudoProprio: true,
     },
     {
       tipo: 'REQ',
       aliases: ['req', 'requisicao', 'requisição'],
       bases: ['SAUDE REQ', 'SAÚDE REQ', 'SAUDE - REQ', 'SAÚDE - REQ'],
+      conteudoProprio: true,
     },
     {
       tipo: 'CUMP',
       aliases: ['cump', 'cumprimento', 'cumprir'],
       bases: ['SAUDE CUMP', 'SAÚDE CUMP', 'SAUDE - CUMP', 'SAÚDE - CUMP'],
       aceitarBaseSemSufixo: true,
+      conteudoProprio: true,
     },
     {
       tipo: 'SINF',
       aliases: ['sinf'],
       bases: ['SAUDE SINF', 'SAÚDE SINF', 'SAUDE - SINF', 'SAÚDE - SINF'],
+      conteudoProprio: true,
     },
     {
       tipo: 'EXME',
       aliases: ['exme'],
       bases: ['SAUDE - EXME', 'SAÚDE - EXME', 'SAUDE EXME', 'SAÚDE EXME'],
+      conteudoProprio: true,
     },
     {
       tipo: 'ORÇAMENTO',
@@ -299,6 +318,27 @@
         'SAUDE - PRESTAÇÃO DE CONTAS',
         'SAÚDE - PRESTAÇÃO DE CONTAS',
       ],
+      conteudoProprio: true,
+    },
+    {
+      tipo: 'INFOR SEDUC',
+      aliases: ['infor seduc', 'informacoes seduc', 'informações seduc'],
+      bases: ['SAÚDE - INFOR SEDUC', 'SAUDE - INFOR SEDUC'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_OFICIO_SIGADOC,
+      destinatario: { sigla: 'SEDUC-UAE', descricao: 'UNIDADE DE APOIO ESTRATÉGICO' },
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      conteudoProprio: true,
+    },
+    {
+      tipo: 'ALTA',
+      aliases: ['alta home care', 'alta medica', 'alta médica', 'alta'],
+      bases: ['SAÚDE - ALTA HOME CARE', 'SAUDE - ALTA HOME CARE'],
+      usarSufixo: false,
+      modeloDocumento: MODELO_DOCUMENTO_OFICIO_SIGADOC,
+      destinatario: DESTINATARIO_PADRAO_SIGADOC,
+      classificacao: CLASSIFICACAO_ACOES_JUDICIAIS_SIGADOC,
+      conteudoProprio: true,
     },
   ]);
 
@@ -320,6 +360,8 @@
     'PERÍCIA ESTADO': 'Pagamento de perícia solicitada pelo Estado em processo judicial - Judicialização de saúde pública - {Número do Processo}',
     AUDIÊNCIA: 'Designação de audiência judicial - Judicialização de saúde pública - {Número do Processo}',
     'SINF DANO MORAL': 'Solicitação de informações para defesa do Estado em ação de dano moral - Judicialização de saúde pública - {Número do Processo}',
+    'INFOR SEDUC': 'SOLICITAÇÃO DE INFORMAÇÕES E PROVIDÊNCIAS PARA CUMPRIMENTO DE DETERMINAÇÃO JUDICIAL - Judicialização de saúde pública - {Número do Processo}',
+    ALTA: 'ALTA MÉDICA EM SERVIÇO DE HOME CARE – JUDICIALIZAÇÃO DA SAÚDE PÚBLICA - {Número do Processo}',
   });
 
   const OFICIOS_COM_FLUXO_SPA = Object.freeze({
@@ -463,6 +505,8 @@
     ) {
       return 'MED ESCOLAR';
     }
+    if (compacto.includes('inforseduc') || compacto.includes('informacoesseduc')) return 'INFOR SEDUC';
+    if (compacto.includes('altahomecare') || compacto.includes('altamedica') || compacto === 'alta') return 'ALTA';
     if (compacto.includes('homecare')) return 'HOME CARE';
     if (/\bdescump\b/.test(texto) || compacto.includes('descumprimento') || compacto === 'descump') return 'DESCUMP';
     if (
@@ -1266,7 +1310,7 @@
   function montarTabelaHtml(linhas) {
     return `
       <table border="1" cellspacing="0" cellpadding="6"
-             style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11pt;">
+             style="border-collapse:collapse;width:100%;font-family:'Times New Roman',serif;font-size:12pt;">
         ${linhas.map(([label, valor]) => `
           <tr>
             <td style="background:#1a3a5c;color:#ffffff;font-weight:bold;width:35%;padding:6px 10px;">${escaparHtml(label)}</td>
@@ -1284,11 +1328,181 @@
     if (!links.some(([, url]) => Boolean(url))) return '';
 
     return `
-      <p style="font-family:Arial,sans-serif;font-size:11pt;margin:10px 0 0 0;">
+      <p style="font-family:'Times New Roman',serif;font-size:12pt;margin:10px 0 0 0;">
         ${links.map(([label, url]) => `
           <strong>${escaparHtml(label)}:</strong>
           ${url ? `<a href="${escaparHtml(url)}">${escaparHtml(url)}</a>` : ''}`).join('<br>')}
       </p>`;
+  }
+
+  const TEXTO_ACESSO_SES = 'A íntegra da referida decisão e demais documentações do processo judicial pode ser acessada por intermédio do sistema "SPA - Sistema de Processos Automatizados" da PGE ou, ainda, do sistema "PJe - Processo Judicial eletrônico" do Judiciário, por meio dos dados constantes da tabela acima. A assessoria jurídica da SES possui acesso livre a ambos os sistemas.';
+  const TEXTO_INSERCAO_SPA = 'O envio de informação para a juntada no processo judicial pela PGE deve se dar por meio de inserção direta no sistema "SPA - Sistema de Processos Automatizados" pela assessoria jurídica competente, sem necessidade de tramitação do SIGADOC à PGE.';
+  const TEXTO_CONTATO = 'Caso tenha alguma dúvida adicional, queira reunião ou uma conversação informal e direta sobre este ou outros processos individuais da saúde, favor enviar mensagem ao WhatsApp nº (65) 9 9226-6963.';
+
+  const CONTEUDOS_PROPRIOS_OFICIOS = Object.freeze({
+    CUMP: {
+      titulo: 'CUMPRIMENTO DE DECISÃO JUDICIAL',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado a respeito da recente decisão judicial proferida no processo acima descrito, que determinou o fornecimento de produto ou serviço de saúde, ou confirmou determinação anterior, a ser cumprida no prazo estabelecido pelo Judiciário.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'CUMP MULTA': {
+      titulo: 'CUMPRIMENTO DE DECISÃO JUDICIAL C/ INCIDÊNCIA DE MULTA',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado a respeito da recente decisão judicial proferida no processo acima descrito, que determinou o fornecimento de produto ou serviço de saúde, ou confirmou determinação anterior, a ser cumprida no prazo estabelecido pelo Judiciário.',
+        'A decisão impõe incidência de multa diária ao Estado em caso de descumprimento, de modo que a mora da SES pode gerar ônus patrimonial ou financeiro relevante em favor da parte autora.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'CUMP SANÇÕES': {
+      titulo: 'CUMPRIMENTO DE DECISÃO JUDICIAL C/ SANÇÕES PESSOAIS',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado a respeito da recente decisão judicial proferida no processo acima descrito, que determinou o fornecimento de produto ou serviço de saúde, ou confirmou determinação anterior, a ser cumprida no prazo estabelecido pelo Judiciário.',
+        'A decisão impõe incidência de sanções pessoais, como multa, prisão ou afastamento do cargo, a agentes públicos e/ou ao Secretário de Estado de Saúde.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    SINF: {
+      titulo: 'COMUNICAÇÃO DE PROCESSO JUDICIAL E SOLICITAÇÃO DE INFORMAÇÕES PARA A DEFESA',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado no processo acima descrito em que a pessoa solicita o fornecimento de produto ou serviço de saúde pela SES.',
+        'Como ainda não houve decisão judicial determinando que o Estado faça, deixe de fazer, pague ou forneça o produto ou serviço de saúde solicitado pela pessoa, a presente comunicação é para ciência da SES sobre o processo judicial e para que forneça informações à PGE, no prazo de 10 (dez) dias corridos, para fins de defesa do Estado.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    REQ: {
+      titulo: 'INFORMAÇÃO REQUISITADA PELO JUDICIÁRIO',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado no processo acima descrito para prestar informações, no prazo fixado pelo Poder Judiciário, em ação que versa sobre o fornecimento de produto ou serviço de saúde pela SES.',
+        'A omissão da SES poderá ensejar a aplicação de multa ou sanção ao Estado ou a agentes públicos, o bloqueio de verbas públicas da SES ou a aceitação da alegação do particular como verdadeira.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'PREST CONTAS': {
+      titulo: 'PRESTAÇÃO DE CONTAS',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado para que, no prazo estabelecido pelo Judiciário, manifeste-se sobre a “prestação de contas” apresentada pelo particular, pessoa e/ou fornecedor, relativamente ao processo acima descrito, que determinou o fornecimento de produto ou serviço de saúde até hoje não cumprido pela SES.',
+        'A omissão da SES em impugnar a “prestação de contas” permitirá que ela venha a ser admitida como justa e suficiente pelo Judiciário, de modo que a SES assumirá o risco de aquiescer com documentos insuficientes juntados ao processo judicial.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    EXME: {
+      titulo: 'MODIFICAÇÃO DE DECISÃO JUDICIAL PRETÉRITA',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado de decisão que acarreta a modificação, alteração, revogação, suspensão ou extinção de decisão anterior relativa ao processo acima descrito, que determinava o fornecimento de produto ou serviço de saúde pela SES. Com isso, não há mais ordem judicial para que a SES faça, deixe de fazer, pague ou forneça o que quer que seja no referido processo.',
+        'A modificação pode ter ocorrido pela morte do particular, desistência do processo, alteração ou revogação pelo juiz ou pelos Tribunais, em atendimento a defesas ou recursos da PGE, ou por fatos supervenientes.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    DESCUMP: {
+      titulo: 'NOTÍCIA DE DESCUMPRIMENTO DE DECISÃO JUDICIAL E CONSEQUÊNCIAS',
+      paragrafos: [
+        'O Estado foi intimado para se manifestar a respeito de possível descumprimento de ordem judicial pela Secretaria de Estado de Saúde.',
+        'Se confirmada a hipótese, a SES deve apresentar justificativa concreta e, se possível, estimar o modo e a data provável para o cumprimento.',
+        'A omissão da SES em apresentar informações concretas poderá levar à admissão judicial de orçamentos de fornecedores privados, com risco de preços superestimados, direcionamento a grupos econômicos ou contratação de profissionais sem capacitação técnica adequada. Também poderá ensejar multa ou sanção ao Estado ou a agentes públicos e bloqueio de verbas públicas da SES.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    SECUND: {
+      titulo: 'RESPONSABILIDADE SECUNDÁRIA AO ESTADO',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado a respeito da recente decisão judicial proferida no processo acima descrito, que determinou o fornecimento de produto ou serviço de saúde, ou confirmou determinação anterior, a ser cumprida no prazo estabelecido pelo Judiciário.',
+        'A responsabilidade do Estado foi fixada de maneira secundária, de modo que somente será obrigado a fornecer se o ente primariamente responsável, Município ou União, não vier a cumprir. Por isso, convém a comunicação e a articulação com o ente responsável para o fornecimento do produto ou serviço de saúde.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'HOME CARE': {
+      titulo: 'VISITA DOMICILIAR PARA AVALIAÇÃO DE HOME CARE',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado no processo acima descrito, no prazo fixado pelo Poder Judiciário, para realizar visita domiciliar para avaliação da parte autora quanto à elegibilidade aos serviços de atendimento domiciliar de saúde, home care, e à modalidade ou complexidade adequada.',
+        'A omissão da SES poderá ensejar a aplicação de penalidades ao Estado ou a agentes públicos, o bloqueio de verbas públicas da SES para custeamento de serviços desnecessários ou a aceitação da alegação do particular como verdadeira.',
+        TEXTO_ACESSO_SES, TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'AUDIÊNCIA': {
+      titulo: 'DESIGNAÇÃO DE AUDIÊNCIA',
+      paragrafos: [
+        'Foi designada audiência para o dia XX/XX/XXXX, às XXhXXmin, de interesse da SES, na modalidade XXXXXXXXXX. Se for telepresencial e já existir link, informe-o no próprio ofício ou anexe a respectiva imagem.',
+        'A audiência foi solicitada ou designada com o propósito de XXXXXXXXXX. O tema em questão diz respeito ao fornecimento de XXXXXXXXXX.',
+        'A íntegra do processo segue em anexo.', TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+    'SINF DANO MORAL': {
+      titulo: 'COMUNICAÇÃO DE PROCESSO JUDICIAL E SOLICITAÇÃO DE INFORMAÇÕES PARA A DEFESA SOBRE DANOS MORAIS',
+      paragrafos: [
+        'Informa-se que o Estado de Mato Grosso foi citado no processo acima descrito, em que a parte autora pleiteia indenização por danos morais, alegando suposta falha na prestação do serviço público de saúde.',
+        'Por isso, requisita-se, no prazo de 10 (dez) dias corridos, o fornecimento de informações técnicas e administrativas aptas a subsidiar a defesa do Estado, especialmente quanto a DESCREVER AQUI O QUE VOCÊ PRECISA, e quaisquer outros elementos que demonstrem as providências adotadas pela Administração Pública em relação ao caso.',
+        'A íntegra do processo segue em anexo.', 'Por fim, solicita-se o encaminhamento das informações e das providências adotadas ou passíveis de adoção exclusivamente por meio do SIGADOC.', TEXTO_CONTATO,
+      ],
+    },
+    'AVALIAÇÃO PSICOPEDAGÓGICA': {
+      titulo: 'AVALIAÇÃO PSICOPEDAGÓGICA',
+      paragrafos: [
+        'Informa-se que o Estado de Mato Grosso foi citado/intimado, no processo judicial acima identificado, em que a parte autora deseja a realização de avaliação psicopedagógica do(a) estudante indicado(a) na documentação anexa, por profissional devidamente habilitado, a fim de verificar dificuldades de aprendizagem e a necessidade de acompanhamento contínuo por psicopedagogo.',
+        'A íntegra do processo segue em anexo.',
+        'A ausência de resposta poderá acarretar prejuízos à defesa do Estado no processo judicial, inclusive com a adoção de medidas judiciais em desfavor da Administração Pública.',
+        'Solicita-se, com máxima urgência, a indicação da unidade escolar, rede de ensino, etapa ou ano escolar e turno. Caso o(a) estudante esteja na rede estadual, deverá ser providenciada a avaliação psicopedagógica, se determinada judicialmente, com relatório técnico conclusivo e documentos comprobatórios.',
+        'O relatório técnico deverá informar as dificuldades eventualmente identificadas, a necessidade ou não de acompanhamento contínuo, a modalidade e periodicidade recomendadas e o órgão ou instituição responsável pelo atendimento. Caso a atribuição seja do Estado de Mato Grosso, devem ser indicadas as providências adotadas ou necessárias.',
+        'Caso o(a) estudante esteja em rede diversa da estadual, identifique-se o órgão ou entidade responsável pela avaliação e eventual acompanhamento, bem como as medidas de encaminhamento adotadas ou cabíveis.',
+        'As informações e documentos comprobatórios devem ser enviados no prazo necessário pelo SIGADOC à lotação PGE-CPA, com o assunto “Envio ao NCCV-PGE para inserção no SPA”.', TEXTO_CONTATO,
+      ],
+    },
+    'MED ESCOLAR': {
+      titulo: 'ADMINISTRAÇÃO DE MEDICAMENTO EM AMBIENTE ESCOLAR',
+      paragrafos: [
+        'Informa-se que o Estado de Mato Grosso foi citado/intimado, no processo judicial acima identificado, em que a parte autora deseja a disponibilização de profissional habilitado para administrar medicamento prescrito a estudante durante o período escolar.',
+        'A íntegra do processo segue em anexo.',
+        'A ausência de resposta poderá acarretar prejuízos à defesa do Estado no processo judicial, inclusive com a adoção de medidas judiciais em desfavor da Administração Pública.',
+        'Solicita-se que essa Secretaria informe se o estudante está regularmente matriculado e frequenta unidade da rede estadual; se houve requerimento administrativo prévio e suas providências; se há profissional habilitado para administrar medicamentos; se a administração exige profissional de saúde, prescrição, termo de autorização, protocolo ou acompanhamento clínico; se há impedimento técnico, administrativo, funcional ou normativo; qual órgão possui atribuição para o atendimento; se é necessária atuação conjunta entre educação e saúde; quais normas ou protocolos internos existem; e quais providências foram ou poderão ser adotadas.',
+        'Caso existam normas, orientações ou protocolos internos sobre guarda, controle, manuseio ou administração de medicamentos no ambiente escolar, solicita-se a respectiva documentação.',
+        'As informações e documentos comprobatórios devem ser enviados no prazo necessário pelo SIGADOC à lotação PGE-CPA, com o assunto “Envio ao NCCV-PGE para inserção no SPA”.', TEXTO_CONTATO,
+      ],
+    },
+    'SETASC IDOSO': {
+      titulo: 'INFORMAÇÃO REQUISITADA PELO JUDICIÁRIO',
+      paragrafos: [
+        'Informa-se que o Estado de Mato Grosso foi citado/intimado, no processo judicial acima identificado, em que a parte autora deseja acolhimento em Instituição de Longa Permanência para Idosos, com disponibilidade imediata de vaga ou, alternativamente, assistência domiciliar temporária privada custeada pelo Poder Público.',
+        'A íntegra do processo segue em anexo.',
+        'A ausência de resposta no prazo assinalado poderá acarretar prejuízos à defesa do Estado, inclusive com a possibilidade de presunção de veracidade das alegações da parte autora e adoção de medidas judiciais em desfavor da Administração Pública.',
+        'Solicita-se que a Secretaria de Estado de Assistência Social informe, com máxima urgência, se existe processo administrativo em nome da parte autora para ingresso em ILPI e seu estágio; se há vaga imediata; e, na ausência de vaga, se é possível assistência domiciliar temporária ou outra medida socioassistencial adequada. O envio deve ser feito pelo SIGADOC à lotação PGE-CPA, com o assunto “Envio ao NCCV-PGE para inserção no SPA”.',
+        'Caso haja necessidade de esclarecimentos adicionais ou alinhamento quanto às informações requisitadas, favor entrar em contato pelo WhatsApp nº (65) 9 9226-6963.',
+      ],
+    },
+    'INFOR SEDUC': {
+      titulo: 'SOLICITAÇÃO DE INFORMAÇÕES E PROVIDÊNCIAS',
+      paragrafos: [
+        'Informa-se que o Estado de Mato Grosso foi citado/intimado nos autos do processo judicial acima identificado, que envolve demanda relacionada a estudante indicado(a) na documentação anexa, cuja análise e eventual adoção de providências inserem-se no âmbito das atribuições dessa Secretaria de Estado de Educação.',
+        'A íntegra do processo e a respectiva decisão judicial seguem em anexo.',
+        'Considerando que a ausência de resposta poderá acarretar prejuízos à defesa do Estado, bem como a adoção de medidas judiciais em desfavor da Administração Pública, solicita-se que essa Secretaria, com a máxima urgência, analise a documentação encaminhada e apresente as informações necessárias ao cumprimento da determinação judicial.',
+        'Deverá ser informado se o(a) estudante se encontra regularmente matriculado(a), com indicação da unidade escolar, rede de ensino, etapa ou ano escolar e turno. Caso esteja matriculado(a) na rede estadual, solicita-se a adoção das providências necessárias ao atendimento da ordem judicial, com relatório técnico e documentos comprobatórios.',
+        'A resposta deverá esclarecer objetivamente a situação apresentada, a possibilidade de atendimento da medida, as providências adotadas ou ainda necessárias, o prazo estimado, e a unidade, o setor ou o profissional responsável pelo caso.',
+        'Caso a medida não seja atribuição da rede estadual, a circunstância deve ser justificada, com identificação do órgão, entidade ou rede responsável e das medidas de encaminhamento adotadas ou cabíveis.',
+        'Na hipótese de impossibilidade total ou parcial de cumprimento, deverão ser apresentados fundamentos técnicos e administrativos, documentação pertinente e eventual medida alternativa apta a atender à necessidade do(a) estudante.',
+        'As informações e documentos comprobatórios devem ser enviados pelo SIGADOC à lotação PGE-CPA, com o assunto “Envio ao NCCV-PGE para inserção no SPA”.',
+        'Em caso de dúvida, necessidade de reunião ou contato direto, poderá ser encaminhada mensagem ao WhatsApp nº (65) 9 9226-6963.',
+      ],
+    },
+    ALTA: {
+      titulo: 'ALTA MÉDICA EM SERVIÇO DE HOME CARE',
+      paragrafos: [
+        'Informa-se que o Estado foi intimado no processo acima descrito de decisão judicial que deferiu a realização de alta médica em serviço de atendimento domiciliar de saúde, home care, prestado pela Secretaria de Estado de Saúde.',
+        'Por isso, a SES pode cessar imediatamente a prestação do serviço, se tal ocorrer exclusivamente em razão da existência de ordem judicial anterior.',
+        'A íntegra do processo judicial pode ser acessada pelos sistemas SPA - Sistema de Processos Automatizados da PGE ou PJe - Processo Judicial eletrônico, pelos dados constantes da tabela acima. A assessoria jurídica da SES possui acesso livre a ambos os sistemas.',
+        TEXTO_INSERCAO_SPA, TEXTO_CONTATO,
+      ],
+    },
+  });
+
+  function montarConteudoProprioOficio(pacote) {
+    const tipo = obterTipoNormalizadoDoPacote(pacote);
+    const modelo = CONTEUDOS_PROPRIOS_OFICIOS[tipo];
+    if (!modelo) return '';
+
+    const estilo = "font-family:'Times New Roman',serif;font-size:12pt;line-height:1.15;margin:12pt 0 0 0;";
+    const titulo = `<p data-cdsp-conteudo-oficio="${escaparHtml(tipo)}" style="${estilo}font-weight:bold;">${escaparHtml(modelo.titulo)}</p>`;
+    const paragrafos = modelo.paragrafos.map((texto) => `<p style="${estilo}">${escaparHtml(texto)}</p>`).join('');
+    return `${titulo}${paragrafos}`;
   }
 
   function montarTextoPlano(linhas) {
@@ -2053,6 +2267,11 @@
   }
 
   function selecionarTextoPadraoSeNecessario(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao);
+    if (modelo && modelo.conteudoProprio) {
+      return { mudou: false, mensagem: 'Conteúdo próprio configurado para este tipo de ofício.' };
+    }
+
     const select = document.getElementById('preenchimento');
     if (!select) return { mudou: false, mensagem: 'Campo Texto padrão não encontrado.' };
 
@@ -2118,17 +2337,28 @@
       texto.includes('numero do processo'));
   }
 
+  function conteudoJaTemTextoProprio(conteudo, pacote) {
+    const tipo = obterTipoNormalizadoDoPacote(pacote);
+    if (!CONTEUDOS_PROPRIOS_OFICIOS[tipo]) return true;
+    return String(conteudo || '').includes(`data-cdsp-conteudo-oficio="${tipo}"`);
+  }
+
   async function inserirTabelaNoEditor(pacote) {
     const areaEditavel = await aguardarAreaEditavelSigadoc();
     const textarea = obterTextareaConteudoSigadoc();
     const blocoTabelaELinks = `${pacote.htmlTabela}${montarLinksSpaHtml(pacote)}`;
+    const conteudoProprio = montarConteudoProprioOficio(pacote);
 
     if (areaEditavel) {
       const atual = areaEditavel.innerHTML || '';
-      if (conteudoJaTemTabela(atual, pacote)) return 'Tabela já estava no conteúdo.';
+      const jaTemTabela = conteudoJaTemTabela(atual, pacote);
+      const jaTemTextoProprio = conteudoJaTemTextoProprio(atual, pacote);
+      if (jaTemTabela && jaTemTextoProprio) return 'Tabela e conteúdo próprio já estavam no editor.';
 
       const corpoAtual = atual.replace(/^\s*<p[^>]*>(?:&nbsp;|\s|<br\s*\/?>)*<\/p>\s*/i, '');
-      const novoConteudo = `${blocoTabelaELinks}<p>&nbsp;</p>${corpoAtual}`;
+      const cabecalho = jaTemTabela ? '' : `${blocoTabelaELinks}<p>&nbsp;</p>`;
+      const texto = jaTemTextoProprio ? '' : conteudoProprio;
+      const novoConteudo = `${cabecalho}${texto}${corpoAtual}`;
       const EventCtor = areaEditavel.ownerDocument.defaultView.Event;
       areaEditavel.innerHTML = novoConteudo;
       areaEditavel.dispatchEvent(new EventCtor('input', { bubbles: true }));
@@ -2140,15 +2370,18 @@
         textarea.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
-      return 'Tabela inserida no editor.';
+      return jaTemTabela ? 'Conteúdo próprio inserido no editor.' : 'Tabela e conteúdo inseridos no editor.';
     }
 
     if (textarea) {
-      if (conteudoJaTemTabela(textarea.value, pacote)) return 'Tabela já estava no conteúdo.';
-      textarea.value = `${blocoTabelaELinks}\n${textarea.value || ''}`;
+      const atual = textarea.value || '';
+      const jaTemTabela = conteudoJaTemTabela(atual, pacote);
+      const jaTemTextoProprio = conteudoJaTemTextoProprio(atual, pacote);
+      if (jaTemTabela && jaTemTextoProprio) return 'Tabela e conteúdo próprio já estavam no campo de conteúdo.';
+      textarea.value = `${jaTemTabela ? '' : blocoTabelaELinks}${jaTemTextoProprio ? '' : conteudoProprio}\n${atual}`;
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
-      return 'Tabela inserida no campo de conteúdo.';
+      return jaTemTabela ? 'Conteúdo próprio inserido no campo de conteúdo.' : 'Tabela e conteúdo inseridos no campo de conteúdo.';
     }
 
     return 'Campo de conteúdo não encontrado.';
