@@ -2439,6 +2439,19 @@
     script.remove();
   }
 
+  function clicarNoContextoDaPaginaSigadoc(elemento) {
+    if (!elemento) return false;
+    const token = `cdsp-click-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    elemento.setAttribute('data-cdsp-click-token', token);
+    executarNoContextoDaPagina(`
+      (function () {
+        var elemento = document.querySelector('[data-cdsp-click-token="${token}"]');
+        if (elemento) elemento.click();
+      })();
+    `);
+    return true;
+  }
+
   function obterDestinatarioSigadoc(pacote) {
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     return (modelo && modelo.destinatario) || DESTINATARIO_PADRAO_SIGADOC;
@@ -3072,7 +3085,7 @@
 
       await aguardar(1200);
       await storageRemove([PENDING_TRAMITACAO_KEY]);
-      ok.click();
+      clicarNoContextoDaPaginaSigadoc(ok);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
       await storageRemove([PENDING_TRAMITACAO_KEY]);
@@ -3301,7 +3314,7 @@
       processo: pendente.processo || '',
       anexoExpediente: true,
     });
-    gravar.click();
+    clicarNoContextoDaPaginaSigadoc(gravar);
     return true;
   }
 
@@ -3405,7 +3418,7 @@
       setValorCampo(matricula, credencial.matricula);
       setValorCampo(senha, tentativa.senha);
       await aguardar(250);
-      ok.click();
+      clicarNoContextoDaPaginaSigadoc(ok);
 
       // Em caso de senha incorreta, o SIGADOC mantém o modal aberto. Somente
       // nessa situação a senha opcional da sessão é usada como contingência.
@@ -3439,7 +3452,25 @@
 
     atualizarBotao(btn, 'copiando', '...', 'Gravando...');
     await aguardar(300);
-    gravar.click();
+    // O botao OK do SIGADOC chama gravarDoc(), que pertence ao contexto da
+    // pagina. Aciona-se a rotina nativa para evitar que um clique sintetico
+    // seja ignorado por validacoes ou atualizacoes internas do formulario.
+    executarNoContextoDaPagina(`
+      (function () {
+        var botao = document.getElementById('btnGravar');
+        try {
+          if (typeof gravarDoc === 'function') {
+            gravarDoc();
+            return;
+          }
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao gravar pelo fluxo nativo:', erro);
+        }
+        if (botao) botao.click();
+      })();
+    `);
+    atualizarStatusMenuSigadoc('Oficio gravado. Aguardando a tela de assinatura...', 'alerta');
+    agendarVerificacaoFluxoAssinaturaSigadoc(700);
   }
 
   async function iniciarFluxoAssinaturaComExpedienteSigadoc(pacote, btn) {
@@ -3452,6 +3483,15 @@
     }
 
     await iniciarFluxoAssinaturaSigadoc(pacote, btn);
+  }
+
+  function telaAutenticacaoSigadocEstaVisivel() {
+    return Boolean(
+      document.getElementById('ad_password_0') ||
+      document.querySelector('input[name="radioProviderAssinatura"]') ||
+      document.getElementById('bot-autenticar') ||
+      document.getElementById('bot-assinar')
+    );
   }
 
   function encontrarAcaoAutenticarSigadoc() {
@@ -3468,7 +3508,11 @@
   }
 
   function encontrarBotaoConfirmarAutenticacaoSigadoc() {
-    return document.getElementById('bot-autenticar') || document.getElementById('bot-assinar') ||
+    const botaoConhecido = document.getElementById('bot-autenticar') || document.getElementById('bot-assinar');
+    if (botaoConhecido) return botaoConhecido;
+    if (!telaAutenticacaoSigadocEstaVisivel()) return null;
+
+    return
       Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find((elemento) => {
         const texto = normalizarTexto([elemento.textContent, elemento.value, elemento.getAttribute('title')].filter(Boolean).join(' '));
         return texto === 'autenticar' || texto === 'assinar';
@@ -3487,7 +3531,7 @@
     await salvarFluxoAssinaturaSigadoc('aguardando-tela-assinatura', {
       ...anterior,
     });
-    link.click();
+    clicarNoContextoDaPaginaSigadoc(link);
     return true;
   }
 
@@ -3506,12 +3550,20 @@
       ...anterior,
     });
     await aguardar(250);
-    botaoAssinar.click();
+    clicarNoContextoDaPaginaSigadoc(botaoAssinar);
     await preencherModalSenhaAssinaturaSigadoc();
     return true;
   }
 
   let fluxoAssinaturaEmAndamento = false;
+  let timerVerificacaoAssinaturaSigadoc = null;
+
+  function agendarVerificacaoFluxoAssinaturaSigadoc(atrasoMs = 700) {
+    clearTimeout(timerVerificacaoAssinaturaSigadoc);
+    timerVerificacaoAssinaturaSigadoc = setTimeout(() => {
+      verificarFluxoAssinaturaPendente();
+    }, atrasoMs);
+  }
 
   async function verificarFluxoAssinaturaPendente() {
     if (fluxoAssinaturaEmAndamento) return;
@@ -3534,8 +3586,7 @@
         return;
       }
 
-      if (encontrarBotaoConfirmarAutenticacaoSigadoc() ||
-          document.getElementById('ad_password_0')) {
+      if (telaAutenticacaoSigadocEstaVisivel()) {
         const executou = await executarTelaAssinaturaSigadoc();
         if (executou) return;
       }
@@ -3544,6 +3595,9 @@
         const executou = await clicarAutenticarNaExibicaoSigadoc();
         if (executou) return;
       }
+
+      atualizarStatusMenuSigadoc('Aguardando o SIGADOC disponibilizar a assinatura...', 'alerta');
+      agendarVerificacaoFluxoAssinaturaSigadoc(900);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha no fluxo de assinatura SIGADOC:', erro);
       await limparFluxoAssinaturaSigadoc();
