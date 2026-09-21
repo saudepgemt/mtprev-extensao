@@ -14,6 +14,7 @@
   const STORAGE_KEY = 'spaExtratorUltimoOficio';
   const PENDING_SIGADOC_KEY = 'spaExtratorPreenchimentoSigadocPendente';
   const PENDING_ASSINATURA_KEY = 'spaExtratorAssinaturaSigadocPendente';
+  const PENDING_ASSINATURA_SESSION_KEY = 'cdspSigadocAssinaturaPendente';
   const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   let preenchimentoSigadocPendenteEmAndamento = false;
@@ -2757,17 +2758,40 @@
   }
 
   async function salvarFluxoAssinaturaSigadoc(etapa, extra = {}) {
+    const pendente = {
+      criadoEm: new Date().toISOString(),
+      etapa,
+      ...extra,
+    };
     await storageSet({
-      [PENDING_ASSINATURA_KEY]: {
-        criadoEm: new Date().toISOString(),
-        etapa,
-        ...extra,
-      },
+      [PENDING_ASSINATURA_KEY]: pendente,
     });
+    try {
+      sessionStorage.setItem(PENDING_ASSINATURA_SESSION_KEY, JSON.stringify(pendente));
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível salvar contingência da assinatura na sessão:', erro);
+    }
   }
 
   async function limparFluxoAssinaturaSigadoc() {
     await storageRemove([PENDING_ASSINATURA_KEY]);
+    try {
+      sessionStorage.removeItem(PENDING_ASSINATURA_SESSION_KEY);
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível limpar contingência da assinatura na sessão:', erro);
+    }
+  }
+
+  function lerFluxoAssinaturaDaSessaoSigadoc() {
+    try {
+      const bruto = sessionStorage.getItem(PENDING_ASSINATURA_SESSION_KEY);
+      if (!bruto) return null;
+      const pendente = JSON.parse(bruto);
+      return pendente && pendente.criadoEm ? pendente : null;
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível ler contingência da assinatura na sessão:', erro);
+      return null;
+    }
   }
 
   async function salvarFluxoPosAssinaturaSigadoc(pacote) {
@@ -3541,7 +3565,14 @@
     if (fluxoAssinaturaEmAndamento) return;
 
     const resultado = await storageGet([PENDING_ASSINATURA_KEY]);
-    const pendente = resultado[PENDING_ASSINATURA_KEY];
+    let pendente = resultado[PENDING_ASSINATURA_KEY];
+    if (!pendente) {
+      pendente = lerFluxoAssinaturaDaSessaoSigadoc();
+      if (pendente) {
+        await storageSet({ [PENDING_ASSINATURA_KEY]: pendente });
+        atualizarStatusMenuSigadoc('Retomando assinatura do ofício...', 'alerta');
+      }
+    }
     if (!pendente) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();

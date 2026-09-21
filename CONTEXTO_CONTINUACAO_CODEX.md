@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.08`
-- Ultima tag publicada no repositorio: `v2.08`
+- Versao atual da extensao: `2.09`
+- Ultima tag publicada no repositorio: `v2.09`
 
 ## Como retomar no notebook
 
@@ -334,6 +334,12 @@ Versao `2.08`:
 - Corrigidos os cliques da sequencia de oficios apos navegacao entre telas: assinatura, confirmacao de senha, inclusao do expediente e tramitacao voltaram a usar os controles reais do DOM do SIGADOC.
 - Corrigido o retorno da busca do botao de confirmacao de autenticacao. A quebra de linha apos `return` fazia o JavaScript devolver valor vazio e impedia a continuacao da assinatura na nova pagina.
 - O estado pendente continua em `chrome.storage` durante toda a sequencia `Preencher > OK > Assinar > Incluir documento > Tramitar`.
+
+Versao `2.09`:
+
+- A assinatura pendente passou a ter contingencia em `sessionStorage` da propria aba do SIGADOC, alem de `chrome.storage`.
+- Ao chegar na pagina temporaria `TMP-...`, se a memoria principal nao estiver disponivel, a extensao restaura automaticamente a pendencia da sessao e continua pelo link real `#assinar`.
+- A contingencia e removida somente ao concluir ou expirar a assinatura, e e criada apenas pelo comando `Preencher + Assinar`.
 
 ## Regras permanentes combinadas
 
