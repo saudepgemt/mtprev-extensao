@@ -3120,14 +3120,32 @@
   }
 
   function montarUrlInclusaoDiretaSigadoc() {
-    const numeroDocumento = extrairNumeroSigadocDaPagina();
-    const sigla = String(numeroDocumento || '').replace(/[^a-z0-9]/gi, '');
+    const siglaDaPagina = Array.from(document.querySelectorAll('input[name="sigla"]'))
+      .map((campo) => limparValorExtraido(campo.value))
+      .find((valor) => /^PGE-/i.test(valor));
+    const numeroDocumento = siglaDaPagina || extrairNumeroSigadocDaPagina();
+    let sigla = String(numeroDocumento || '').replace(/[^a-z0-9]/gi, '');
+    // A rota de inclusao usa a via do documento pai. O cabecalho normalmente
+    // omite esse sufixo, embora o SIGADOC o exija no parametro mobilPaiSel.
+    if (sigla && !/[A-Z]$/i.test(sigla)) sigla += 'A';
     if (!sigla) return '';
 
     const url = new URL('/sigaex/app/expediente/doc/editar', window.location.origin);
     url.searchParams.set('mobilPaiSel.sigla', sigla);
     url.searchParams.set('criandoAnexo', 'true');
     return url.href;
+  }
+
+  function navegarParaUrlSigadoc(url) {
+    if (!url) return;
+
+    const linkTemporario = document.createElement('a');
+    linkTemporario.href = url;
+    linkTemporario.target = '_self';
+    linkTemporario.style.display = 'none';
+    (document.body || document.documentElement).appendChild(linkTemporario);
+    linkTemporario.click();
+    linkTemporario.remove();
   }
 
   function paginaNovoDocumentoSigadoc() {
@@ -3328,7 +3346,7 @@
     // A tela do SIGADOC pode exibir #incluir-documento sem href e oculta.
     // A rota oficial usa a sigla do ofício assinado como documento pai.
     atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
-    executarNoContextoDaPagina(`window.location.assign(${JSON.stringify(urlInclusao)});`);
+    navegarParaUrlSigadoc(urlInclusao);
     await aguardar(700);
     const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
     if (window.location.href === urlOficio) {

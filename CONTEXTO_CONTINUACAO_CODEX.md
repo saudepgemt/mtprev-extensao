@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.14`
-- Ultima tag publicada no repositorio: `v2.14`
+- Versao atual da extensao: `2.15`
+- Ultima tag publicada no repositorio: `v2.15`
 
 ## Como retomar no notebook
 
@@ -367,6 +367,11 @@ Versao `2.14`:
 
 - Corrigida a retomada do estado `anexo-selecionar-modelo`: se a tela ainda for a do oficio assinado, a extensao tenta novamente abrir `Incluir Documento`, em vez de permanecer parada.
 - Em documentos assinados, o SIGADOC pode renderizar `#incluir-documento` oculto e sem `href`. A extensao monta a rota oficial de inclusao a partir da sigla do oficio pai e a abre no contexto da pagina; quando houver `href`, o clique nativo continua sendo usado primeiro.
+
+Versao `2.15`:
+
+- Corrigida a sigla da rota de inclusao: o SIGADOC exige a via do oficio pai, como `PGEOFI202640789A`; o cabecalho sem sufixo e insuficiente para criar anexo vinculado.
+- Quando o atalho nativo estiver oculto ou sem rota, a extensao cria um link temporario no DOM com a URL oficial e o aciona, preservando `window.location.assign` apenas como contingencia.
 
 ## Regras permanentes combinadas
 
