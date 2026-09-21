@@ -3452,24 +3452,10 @@
 
     atualizarBotao(btn, 'copiando', '...', 'Gravando...');
     await aguardar(300);
-    // O botao OK do SIGADOC chama gravarDoc(), que pertence ao contexto da
-    // pagina. Aciona-se a rotina nativa para evitar que um clique sintetico
-    // seja ignorado por validacoes ou atualizacoes internas do formulario.
-    executarNoContextoDaPagina(`
-      (function () {
-        var botao = document.getElementById('btnGravar');
-        try {
-          if (typeof gravarDoc === 'function') {
-            gravarDoc();
-            return;
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao gravar pelo fluxo nativo:', erro);
-        }
-        if (botao) botao.click();
-      })();
-    `);
-    atualizarStatusMenuSigadoc('Oficio gravado. Aguardando a tela de assinatura...', 'alerta');
+    // O handler do botao OK e o caminho que o SIGADOC usa para executar
+    // gravarDoc(). O clique direto preserva esse handler na tela atual.
+    gravar.click();
+    atualizarStatusMenuSigadoc('OK acionado. Aguardando a tela de assinatura...', 'alerta');
     agendarVerificacaoFluxoAssinaturaSigadoc(700);
   }
 

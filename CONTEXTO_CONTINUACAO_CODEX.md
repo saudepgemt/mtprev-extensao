@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.06`
-- Ultima tag publicada no repositorio: `v2.06`
+- Versao atual da extensao: `2.07`
+- Ultima tag publicada no repositorio: `v2.07`
 
 ## Como retomar no notebook
 
@@ -323,6 +323,11 @@ Versao `2.06`:
 - O passo `OK` do oficio chama `gravarDoc()` no contexto nativo do SIGADOC e mantem a assinatura pendente ate a pagina disponibilizar a proxima acao.
 - A extensao diferencia a acao `Assinar` da pagina do documento da confirmacao na tela de autenticacao, para so selecionar senha depois que os controles da assinatura estiverem realmente visiveis.
 - Quando o SIGADOC ainda estiver transitando entre as telas, a verificacao e reagendada automaticamente, sem exigir um segundo clique da pessoa usuaria.
+
+Versao `2.07`:
+
+- Corrigida a passagem do `OK` para assinatura: a extensao voltou a acionar diretamente o botao `btnGravar`, preservando o handler `gravarDoc()` do formulario do SIGADOC.
+- A verificacao posterior da assinatura permanece ativa, mas somente apos o `OK` ser efetivamente disparado pelo proprio controle da tela.
 
 ## Regras permanentes combinadas
 
