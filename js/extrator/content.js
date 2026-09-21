@@ -2521,7 +2521,7 @@
     `);
   }
 
-  async function preencherDestinatarioSigadoc(pacote) {
+  async function preencherDestinatarioSigadoc(pacote, destinoSobrescrito = null) {
     const sigla = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla');
     const span = document.getElementById('exDocumentoDTO.lotacaoDestinatarioSelSpan');
     const descricaoCampo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_descricao');
@@ -2579,7 +2579,7 @@
     const assunto = obterCampoAssuntoSigadoc();
     const areaEditavel = document.querySelector('[contenteditable="true"]');
     const textarea = obterTextareaConteudoSigadoc();
-    const destino = obterDestinatarioSigadoc(pacote);
+    const destino = destinoSobrescrito || obterDestinatarioSigadoc(pacote);
     const estadoDestinatario = estadoDestinatarioSigadoc(destino);
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     const classificacao = modelo && modelo.classificacao;
@@ -2788,6 +2788,7 @@
       nomeArquivo,
       destinatarioSigla: destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla,
       destinatarioDescricao: destino.descricao || '',
+      descricaoOficio: textoDescricaoAssunto(pacote),
       linkExpedienteSpa: pacote.linkExpedienteSpa || '',
       expedienteArquivoId: pacote.expedienteArquivoId || '',
       nomeArquivoExpediente: montarNomeArquivoExpediente(pacote),
@@ -3110,7 +3111,17 @@
   }
 
   function encontrarLinkAnexarSigadoc() {
-    return Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]')).find((elemento) => {
+    const elementos = Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]'));
+    return elementos.find((elemento) => {
+      const texto = normalizarTexto([
+        elemento.textContent,
+        elemento.value,
+        elemento.getAttribute('title'),
+        elemento.getAttribute('aria-label'),
+      ].filter(Boolean).join(' '));
+      const href = elemento.getAttribute('href') || '';
+      return texto === 'incluir documento' || /\/expediente\/doc\/incluir/i.test(href);
+    }) || elementos.find((elemento) => {
       const texto = normalizarTexto([
         elemento.textContent,
         elemento.value,
@@ -3181,8 +3192,10 @@
 
   function preencherDescricaoAnexoSigadoc(pendente) {
     const descricao = document.getElementById('descrDocumento');
-    if (!descricao || limparValorExtraido(descricao.value)) return;
-    setValorCampo(descricao, `Expediente do processo ${pendente.processo || ''}`.trim());
+    if (!descricao) throw new Error('O campo Descrição do documento capturado não foi encontrado.');
+    const descricaoOficio = limparValorExtraido(pendente.descricaoOficio || pendente.nomeOficioEnviado || '');
+    const prefixo = 'Expediente vinculado à pendência que gerou o ofício';
+    setValorCampo(descricao, descricaoOficio ? `${prefixo}: ${descricaoOficio}` : prefixo + '.');
   }
 
   async function abrirAnexacaoDoExpedienteSigadoc(pendente) {
@@ -3191,7 +3204,7 @@
       await aguardar(250);
       anexar = encontrarLinkAnexarSigadoc();
     }
-    if (!anexar) throw new Error('A ação Anexar não foi encontrada no ofício assinado.');
+    if (!anexar) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
 
     pendente.etapa = 'anexo-selecionar-modelo';
     pendente.urlOficio = pendente.urlOficio || window.location.href;
@@ -3255,6 +3268,25 @@
     if (!campoArquivo || !gravar) return true;
 
     const arquivo = await garantirArquivoExpedientePendenteSigadoc(pendente);
+    const pacoteOficio = {
+      processo: pendente.processo || '',
+      tipoOficio: pendente.tipoOficio || '',
+    };
+    const destinoDoOficio = {
+      sigla: pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla,
+      descricao: pendente.destinatarioDescricao || '',
+    };
+    await preencherDestinatarioSigadoc(pacoteOficio, destinoDoOficio);
+    if (!estadoDestinatarioSigadoc(destinoDoOficio).confirmed) {
+      throw new Error('O destinatário do documento capturado não foi confirmado pelo SIGADOC.');
+    }
+
+    await preencherClassificacaoSigadoc(pacoteOficio);
+    const modeloOficio = resolverModeloSigadoc(pacoteOficio.tipoOficio);
+    if (!modeloOficio || !modeloOficio.classificacao ||
+        !estadoClassificacaoSigadoc(modeloOficio.classificacao).confirmed) {
+      throw new Error('A classificação do documento capturado não foi confirmada pelo SIGADOC.');
+    }
     if (!preencherArquivoNoInputSigadoc(campoArquivo, arquivo)) {
       throw new Error('O SIGADOC não aceitou o arquivo do expediente para anexação.');
     }
@@ -3419,8 +3451,33 @@
     await iniciarFluxoAssinaturaSigadoc(pacote, btn);
   }
 
-  async function clicarAssinarNaExibicaoSigadoc() {
-    const link = await aguardarElemento('#assinar', 8000);
+  function encontrarAcaoAutenticarSigadoc() {
+    return document.getElementById('autenticar') || document.getElementById('assinar') ||
+      Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]')).find((elemento) => {
+        const texto = normalizarTexto([
+          elemento.textContent,
+          elemento.value,
+          elemento.getAttribute('title'),
+          elemento.getAttribute('aria-label'),
+        ].filter(Boolean).join(' '));
+        return texto === 'autenticar' || texto === 'assinar';
+      }) || null;
+  }
+
+  function encontrarBotaoConfirmarAutenticacaoSigadoc() {
+    return document.getElementById('bot-autenticar') || document.getElementById('bot-assinar') ||
+      Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find((elemento) => {
+        const texto = normalizarTexto([elemento.textContent, elemento.value, elemento.getAttribute('title')].filter(Boolean).join(' '));
+        return texto === 'autenticar' || texto === 'assinar';
+      }) || null;
+  }
+
+  async function clicarAutenticarNaExibicaoSigadoc() {
+    let link = encontrarAcaoAutenticarSigadoc();
+    for (let tentativa = 0; !link && tentativa < 32; tentativa += 1) {
+      await aguardar(250);
+      link = encontrarAcaoAutenticarSigadoc();
+    }
     if (!link) return false;
 
     const anterior = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY] || {};
@@ -3432,7 +3489,11 @@
   }
 
   async function executarTelaAssinaturaSigadoc() {
-    const botaoAssinar = await aguardarElemento('#bot-assinar', 8000);
+    let botaoAssinar = encontrarBotaoConfirmarAutenticacaoSigadoc();
+    for (let tentativa = 0; !botaoAssinar && tentativa < 32; tentativa += 1) {
+      await aguardar(250);
+      botaoAssinar = encontrarBotaoConfirmarAutenticacaoSigadoc();
+    }
     if (!botaoAssinar) return false;
 
     selecionarAssinaturaPorSenhaSigadoc();
@@ -3470,14 +3531,14 @@
         return;
       }
 
-      if (document.getElementById('bot-assinar') ||
+      if (encontrarBotaoConfirmarAutenticacaoSigadoc() ||
           document.getElementById('ad_password_0')) {
         const executou = await executarTelaAssinaturaSigadoc();
         if (executou) return;
       }
 
-      if (document.getElementById('assinar')) {
-        const executou = await clicarAssinarNaExibicaoSigadoc();
+      if (encontrarAcaoAutenticarSigadoc()) {
+        const executou = await clicarAutenticarNaExibicaoSigadoc();
         if (executou) return;
       }
     } catch (erro) {
