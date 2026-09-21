@@ -2073,31 +2073,6 @@
     const valor = item.getAttribute('data-value') || '';
     if (!valor) return false;
 
-    const hidden = document.querySelector('input[name="exDocumentoDTO.idMod"]');
-    const label = document.querySelector('#modelos-select .selected-label');
-    const textoLabel = limparValorExtraido(item.querySelector('a')?.childNodes?.[0]?.textContent || item.textContent || '');
-
-    Array.from(document.querySelectorAll('#ulmod .dropdown-item.active')).forEach((ativo) => {
-      ativo.classList.remove('active');
-    });
-    item.classList.add('active');
-
-    if (label && textoLabel) label.textContent = textoLabel;
-    if (hidden) setValorCampo(hidden, valor);
-
-    try {
-      item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      const link = item.querySelector('a');
-      if (link) {
-        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        link.click();
-      }
-    } catch (erro) {
-      console.warn('[CDSP - Extrator] Não foi possível simular clique no Modelo:', erro);
-    }
-
     executarNoContextoDaPagina(`
       (function(valor) {
         var item = document.querySelector('#ulmod .dropdown-item[data-value="' + valor + '"]');
@@ -2105,13 +2080,6 @@
         var label = document.querySelector('#modelos-select .selected-label');
 
         if (item) {
-          try {
-            item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-            item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-            item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-            var link = item.querySelector('a');
-            if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-          } catch (erro) {}
           try {
             var texto = item.querySelector('a') && item.querySelector('a').childNodes[0]
               ? item.querySelector('a').childNodes[0].textContent
@@ -3239,12 +3207,56 @@
     return campo.files && campo.files.length === 1;
   }
 
+  function textoIdentificacaoAnexoSigadoc(pendente) {
+    const descricaoOficio = limparValorExtraido(pendente.descricaoOficio || pendente.nomeOficioEnviado || '');
+    const prefixo = 'Expediente vinculado à pendência que gerou o ofício';
+    return descricaoOficio ? `${prefixo}: ${descricaoOficio}` : `${prefixo}.`;
+  }
+
   function preencherDescricaoAnexoSigadoc(pendente) {
     const descricao = document.getElementById('descrDocumento');
     if (!descricao) throw new Error('O campo Descrição do documento capturado não foi encontrado.');
-    const descricaoOficio = limparValorExtraido(pendente.descricaoOficio || pendente.nomeOficioEnviado || '');
-    const prefixo = 'Expediente vinculado à pendência que gerou o ofício';
-    setValorCampo(descricao, descricaoOficio ? `${prefixo}: ${descricaoOficio}` : prefixo + '.');
+    setValorCampo(descricao, textoIdentificacaoAnexoSigadoc(pendente));
+  }
+
+  function preencherAssuntoAnexoSigadoc(pendente) {
+    const assunto = obterCampoAssuntoSigadoc();
+    if (!assunto) throw new Error('O campo Assunto do documento capturado não foi encontrado.');
+    setValorCampo(assunto, textoIdentificacaoAnexoSigadoc(pendente));
+  }
+
+  async function validarFormularioAnexoSigadoc(campoArquivo) {
+    executarNoContextoDaPagina(`
+      (function () {
+        try {
+          if (typeof validarCamposEntrevista === 'function') validarCamposEntrevista();
+          if (typeof validarDocumentoCapturado === 'function') validarDocumentoCapturado();
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha na validacao nativa do documento capturado:', erro);
+        }
+      })();
+    `);
+    await aguardar(150);
+
+    const formulario = document.getElementById('frm');
+    const invalidos = Array.from(formulario ? formulario.querySelectorAll('.is-invalid') : [])
+      .filter((campo) => campo.type !== 'hidden')
+      .map((campo) => campo.id || campo.name || 'campo sem identificação');
+    if (invalidos.length) {
+      throw new Error(`O SIGADOC bloqueou a gravação do documento capturado. Campos obrigatórios pendentes: ${invalidos.join(', ')}.`);
+    }
+
+    const assunto = obterCampoAssuntoSigadoc();
+    const descricao = document.getElementById('descrDocumento');
+    if (!limparValorExtraido(assunto && assunto.value)) {
+      throw new Error('O Assunto obrigatório do documento capturado não foi preenchido.');
+    }
+    if (!limparValorExtraido(descricao && descricao.value)) {
+      throw new Error('A Descrição obrigatória do documento capturado não foi preenchida.');
+    }
+    if (!campoArquivo.files || !campoArquivo.files.length) {
+      throw new Error('O arquivo PDF do expediente não foi aceito pelo documento capturado.');
+    }
   }
 
   async function abrirAnexacaoDoExpedienteSigadoc(pendente) {
@@ -3357,6 +3369,8 @@
       throw new Error('O SIGADOC não aceitou o arquivo do expediente para anexação.');
     }
     preencherDescricaoAnexoSigadoc(pendente);
+    preencherAssuntoAnexoSigadoc(pendente);
+    await validarFormularioAnexoSigadoc(campoArquivo);
 
     pendente.etapa = 'anexo-aguardando-assinatura';
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });

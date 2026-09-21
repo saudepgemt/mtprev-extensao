@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.12`
-- Ultima tag publicada no repositorio: `v2.12`
+- Versao atual da extensao: `2.13`
+- Ultima tag publicada no repositorio: `v2.13`
 
 ## Como retomar no notebook
 
@@ -356,6 +356,12 @@ Versao `2.12`:
 
 - Corrigido o disparo de `Incluir documento` apos a assinatura: a extensao nao depende mais de uma mutacao posterior da pagina para iniciar o anexo.
 - Apos o fechamento confirmado do modal de senha, ela localiza o botao nativo `#incluir-documento`, preserva a URL do oficio para contingencia e segue o `href` real `doc/editar?...criandoAnexo=true` do SIGADOC.
+
+Versao `2.13`:
+
+- Identificado e corrigido o bloqueio da gravacao do documento Capturado: `gravarDoc()` interrompe a submissao quando `validar(false)` encontra campos obrigatorios invalidos.
+- O Assunto, que estava vazio na tela de anexo, agora recebe a identificacao do expediente. Antes do OK, a extensao executa a validacao nativa do SIGADOC para Assunto, Descricao e Arquivo PDF e informa os campos restantes caso haja bloqueio.
+- A selecao de `Capturado` foi reduzida a uma unica chamada nativa de `alterouModeloSelect()`, evitando cliques duplicados que podiam interromper o recarregamento para o formulario de arquivo.
 
 ## Regras permanentes combinadas
 
