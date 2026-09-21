@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.02`
-- Ultima tag publicada no repositorio: `v2.02`
+- Versao atual da extensao: `2.03`
+- Ultima tag publicada no repositorio: `v2.03`
 
 ## Como retomar no notebook
 
@@ -299,6 +299,12 @@ Versao `2.01`:
 Versao `2.02`:
 
 - Corrigida a perda de foco da `Senha do SIGADOC`: o menu proprio nao e reconstruido enquanto esse campo estiver ativo, permitindo digitacao continua mesmo com atualizacoes observadas na pagina.
+
+Versao `2.03`:
+
+- Em `Preencher + Assinar`, a extensao passou a anexar automaticamente ao oficio o PDF do expediente que originou a demanda no SPA.
+- Depois da assinatura do oficio, o fluxo abre `Anexar`, seleciona o modelo `Capturado`, preenche o arquivo do expediente, assina o documento `PGE-CAP` e retorna ao oficio para concluir o comportamento ja configurado de download ou tramitacao.
+- A anexacao tem uma segunda tentativa completa. Se as duas falharem, o menu registra o motivo e o oficio continua sem anexo, sem interromper a conclusao do fluxo principal.
 
 ## Regras permanentes combinadas
 
