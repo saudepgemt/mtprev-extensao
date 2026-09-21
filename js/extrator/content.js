@@ -2090,7 +2090,10 @@
       item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
       item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       const link = item.querySelector('a');
-      if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      if (link) {
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        link.click();
+      }
     } catch (erro) {
       console.warn('[CDSP - Extrator] Não foi possível simular clique no Modelo:', erro);
     }
@@ -3144,9 +3147,36 @@
   }
 
   function encontrarModeloCapturadoSigadoc() {
-    return Array.from(document.querySelectorAll('#ulmod .dropdown-item[data-value]')).find((item) =>
-      normalizarTexto(textoOpcaoModeloDocumentoSigadoc(item)).includes('capturado')
-    ) || null;
+    return Array.from(document.querySelectorAll('#ulmod .dropdown-item[data-value]')).find((item) => {
+      const texto = normalizarTexto(textoOpcaoModeloDocumentoSigadoc(item));
+      return texto === 'capturado' || (!item.hasAttribute('data-group') && texto.includes('capturado'));
+    }) || null;
+  }
+
+  function solicitarCarregamentoModelosSigadoc() {
+    executarNoContextoDaPagina(`
+      (function () {
+        try {
+          if (typeof getListaModelos === 'function') getListaModelos();
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha ao carregar os modelos do SIGADOC:', erro);
+        }
+      })();
+    `);
+  }
+
+  async function aguardarModeloCapturadoSigadoc(timeoutMs = 15000) {
+    let modelo = encontrarModeloCapturadoSigadoc();
+    if (modelo) return modelo;
+
+    solicitarCarregamentoModelosSigadoc();
+    const inicio = Date.now();
+    while (!modelo && Date.now() - inicio < timeoutMs) {
+      await aguardar(250);
+      modelo = encontrarModeloCapturadoSigadoc();
+    }
+
+    return modelo;
   }
 
   async function obterArquivoInternoSigadoc(id) {
@@ -3190,6 +3220,19 @@
     campo.files = transferencia.files;
     campo.dispatchEvent(new Event('input', { bubbles: true }));
     campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // O SIGADOC valida o PDF no onchange. A chamada nativa cobre telas em que
+    // o handler nao e acionado pelo evento disparado pela extensao.
+    executarNoContextoDaPagina(`
+      (function () {
+        var campo = document.getElementById(${JSON.stringify(campo.id || 'arquivo')});
+        try {
+          if (campo && typeof testpdf === 'function') testpdf(campo.form, 26214400);
+        } catch (erro) {
+          console.warn('[CDSP - Extrator] Falha na validacao do PDF capturado:', erro);
+        }
+      })();
+    `);
     return campo.files && campo.files.length === 1;
   }
 
@@ -3250,25 +3293,28 @@
     if (!paginaNovoDocumentoSigadoc()) return false;
 
     if (pendente.etapa === 'anexo-selecionar-modelo') {
-      let modelo = encontrarModeloCapturadoSigadoc();
-      for (let tentativa = 0; !modelo && tentativa < 16; tentativa += 1) {
-        await aguardar(250);
-        modelo = encontrarModeloCapturadoSigadoc();
-      }
+      const modelo = await aguardarModeloCapturadoSigadoc();
       if (!modelo) throw new Error('O modelo Capturado não foi encontrado no SIGADOC.');
-      if (!aplicarSelecaoModeloDocumentoSigadoc(modelo)) {
-        throw new Error('Não foi possível selecionar o modelo Capturado.');
-      }
+
+      // A selecao do modelo chama sbmt() e pode recarregar a pagina no mesmo
+      // instante. A proxima etapa precisa estar persistida antes desse clique.
       pendente.etapa = 'anexo-enviar-arquivo';
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      if (!aplicarSelecaoModeloDocumentoSigadoc(modelo)) {
+        pendente.etapa = 'anexo-selecionar-modelo';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        throw new Error('Não foi possível selecionar o modelo Capturado.');
+      }
       return true;
     }
 
     if (pendente.etapa !== 'anexo-enviar-arquivo') return false;
 
-    const campoArquivo = document.querySelector('input[type="file"]');
-    const gravar = document.getElementById('btnGravar');
-    if (!campoArquivo || !gravar) return true;
+    const campoArquivo = await aguardarElemento('#arquivo, input[type="file"]', 12000);
+    const gravar = await aguardarElemento('#btnGravar', 12000);
+    if (!campoArquivo || !gravar) {
+      throw new Error('O formulário do documento Capturado não carregou os campos Arquivo PDF e OK.');
+    }
 
     const arquivo = await garantirArquivoExpedientePendenteSigadoc(pendente);
     const pacoteOficio = {
