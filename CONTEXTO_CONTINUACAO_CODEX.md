@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.15`
-- Ultima tag publicada no repositorio: `v2.15`
+- Versao atual da extensao: `2.16`
+- Ultima tag publicada no repositorio: `v2.16`
 
 ## Como retomar no notebook
 
@@ -372,6 +372,11 @@ Versao `2.15`:
 
 - Corrigida a sigla da rota de inclusao: o SIGADOC exige a via do oficio pai, como `PGEOFI202640789A`; o cabecalho sem sufixo e insuficiente para criar anexo vinculado.
 - Quando o atalho nativo estiver oculto ou sem rota, a extensao cria um link temporario no DOM com a URL oficial e o aciona, preservando `window.location.assign` apenas como contingencia.
+
+Versao `2.16`:
+
+- A abertura de `Incluir Documento` passou a usar o mesmo padrao de `Assinar` e `Tramitar`: a extensao chama diretamente `anexar.click()` no elemento ativo localizado na pagina.
+- A navegacao por `chrome.tabs.update` no service worker e usada somente se o clique direto nao mudar a pagina ou quando o SIGADOC nao expuser o link utilizavel.
 
 ## Regras permanentes combinadas
 

@@ -3107,15 +3107,6 @@
       ].filter(Boolean).join(' '));
       const href = elemento.getAttribute('href') || '';
       return texto === 'incluir documento' || /\/expediente\/doc\/incluir/i.test(href);
-    }) || elementos.find((elemento) => {
-      const texto = normalizarTexto([
-        elemento.textContent,
-        elemento.value,
-        elemento.getAttribute('title'),
-        elemento.getAttribute('aria-label'),
-      ].filter(Boolean).join(' '));
-      const href = elemento.getAttribute('href') || '';
-      return texto === 'anexar' || /\/expediente\/doc\/anexar/i.test(href);
     }) || null;
   }
 
@@ -3136,16 +3127,14 @@
     return url.href;
   }
 
-  function navegarParaUrlSigadoc(url) {
-    if (!url) return;
-
-    const linkTemporario = document.createElement('a');
-    linkTemporario.href = url;
-    linkTemporario.target = '_self';
-    linkTemporario.style.display = 'none';
-    (document.body || document.documentElement).appendChild(linkTemporario);
-    linkTemporario.click();
-    linkTemporario.remove();
+  async function navegarAbaAtualSigadoc(url) {
+    const resposta = await enviarMensagemExtensao({
+      type: 'CDSP_SIGADOC_NAVIGATE_CURRENT_TAB',
+      url,
+    });
+    if (!resposta || !resposta.ok) {
+      throw new Error(resposta && resposta.error ? resposta.error : 'A extensão não conseguiu navegar para a tela de inclusão do SIGADOC.');
+    }
   }
 
   function paginaNovoDocumentoSigadoc() {
@@ -3322,19 +3311,13 @@
     if (href && anexar) {
       atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
 
-      // O clique e executado no mesmo contexto do SIGADOC para preservar o
-      // comportamento nativo do link. A navegacao pelo href e contingencia
-      // caso algum handler visual nao consiga concluir a transicao.
-      executarNoContextoDaPagina(`
-        (function () {
-          var link = document.getElementById('incluir-documento');
-          if (link) link.click();
-        })();
-      `);
+      // Igual ao fluxo de assinatura e tramitação: clicar diretamente no
+      // controle que foi localizado no DOM do SIGADOC.
+      anexar.click();
       await aguardar(700);
       const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
       if (window.location.href === urlOficio) {
-        window.location.assign(urlInclusao);
+        await navegarAbaAtualSigadoc(urlInclusao);
       }
       await aguardar(700);
       if (window.location.href === urlOficio) {
@@ -3346,12 +3329,7 @@
     // A tela do SIGADOC pode exibir #incluir-documento sem href e oculta.
     // A rota oficial usa a sigla do ofício assinado como documento pai.
     atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
-    navegarParaUrlSigadoc(urlInclusao);
-    await aguardar(700);
-    const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
-    if (window.location.href === urlOficio) {
-      window.location.assign(urlInclusao);
-    }
+    await navegarAbaAtualSigadoc(urlInclusao);
   }
 
   async function concluirTentativaDeAnexoComFalhaSigadoc(pendente, erro) {

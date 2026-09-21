@@ -4999,6 +4999,27 @@ async function injectPanel(sender) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
 
+  if (message.type === "CDSP_SIGADOC_NAVIGATE_CURRENT_TAB") {
+    const tabId = _sender && _sender.tab ? _sender.tab.id : null;
+    let url = null;
+    try {
+      url = new URL(message.url || "");
+    } catch (_error) {
+      sendResponse({ ok: false, error: "URL de navegação do SIGADOC inválida." });
+      return false;
+    }
+
+    if (!tabId || !/^https:\/\/(www\.)?sigadoc\.mt\.gov\.br\//i.test(url.href)) {
+      sendResponse({ ok: false, error: "Aba ou destino SIGADOC não autorizado para navegação." });
+      return false;
+    }
+
+    chrome.tabs.update(tabId, { url: url.href })
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error && error.message ? error.message : String(error) }));
+    return true;
+  }
+
   if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT") {
     insertSimpleClosureIntoCurrentDocument(_sender, message.payload)
       .then(sendResponse)
