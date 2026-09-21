@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.07`
-- Ultima tag publicada no repositorio: `v2.07`
+- Versao atual da extensao: `2.08`
+- Ultima tag publicada no repositorio: `v2.08`
 
 ## Como retomar no notebook
 
@@ -328,6 +328,12 @@ Versao `2.07`:
 
 - Corrigida a passagem do `OK` para assinatura: a extensao voltou a acionar diretamente o botao `btnGravar`, preservando o handler `gravarDoc()` do formulario do SIGADOC.
 - A verificacao posterior da assinatura permanece ativa, mas somente apos o `OK` ser efetivamente disparado pelo proprio controle da tela.
+
+Versao `2.08`:
+
+- Corrigidos os cliques da sequencia de oficios apos navegacao entre telas: assinatura, confirmacao de senha, inclusao do expediente e tramitacao voltaram a usar os controles reais do DOM do SIGADOC.
+- Corrigido o retorno da busca do botao de confirmacao de autenticacao. A quebra de linha apos `return` fazia o JavaScript devolver valor vazio e impedia a continuacao da assinatura na nova pagina.
+- O estado pendente continua em `chrome.storage` durante toda a sequencia `Preencher > OK > Assinar > Incluir documento > Tramitar`.
 
 ## Regras permanentes combinadas
 

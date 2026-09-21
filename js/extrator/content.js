@@ -2439,19 +2439,6 @@
     script.remove();
   }
 
-  function clicarNoContextoDaPaginaSigadoc(elemento) {
-    if (!elemento) return false;
-    const token = `cdsp-click-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    elemento.setAttribute('data-cdsp-click-token', token);
-    executarNoContextoDaPagina(`
-      (function () {
-        var elemento = document.querySelector('[data-cdsp-click-token="${token}"]');
-        if (elemento) elemento.click();
-      })();
-    `);
-    return true;
-  }
-
   function obterDestinatarioSigadoc(pacote) {
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     return (modelo && modelo.destinatario) || DESTINATARIO_PADRAO_SIGADOC;
@@ -3085,7 +3072,7 @@
 
       await aguardar(1200);
       await storageRemove([PENDING_TRAMITACAO_KEY]);
-      clicarNoContextoDaPaginaSigadoc(ok);
+      ok.click();
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
       await storageRemove([PENDING_TRAMITACAO_KEY]);
@@ -3314,7 +3301,7 @@
       processo: pendente.processo || '',
       anexoExpediente: true,
     });
-    clicarNoContextoDaPaginaSigadoc(gravar);
+    gravar.click();
     return true;
   }
 
@@ -3418,7 +3405,7 @@
       setValorCampo(matricula, credencial.matricula);
       setValorCampo(senha, tentativa.senha);
       await aguardar(250);
-      clicarNoContextoDaPaginaSigadoc(ok);
+      ok.click();
 
       // Em caso de senha incorreta, o SIGADOC mantém o modal aberto. Somente
       // nessa situação a senha opcional da sessão é usada como contingência.
@@ -3498,8 +3485,7 @@
     if (botaoConhecido) return botaoConhecido;
     if (!telaAutenticacaoSigadocEstaVisivel()) return null;
 
-    return
-      Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find((elemento) => {
+    return Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find((elemento) => {
         const texto = normalizarTexto([elemento.textContent, elemento.value, elemento.getAttribute('title')].filter(Boolean).join(' '));
         return texto === 'autenticar' || texto === 'assinar';
       }) || null;
@@ -3517,7 +3503,7 @@
     await salvarFluxoAssinaturaSigadoc('aguardando-tela-assinatura', {
       ...anterior,
     });
-    clicarNoContextoDaPaginaSigadoc(link);
+    link.click();
     return true;
   }
 
@@ -3536,7 +3522,7 @@
       ...anterior,
     });
     await aguardar(250);
-    clicarNoContextoDaPaginaSigadoc(botaoAssinar);
+    botaoAssinar.click();
     await preencherModalSenhaAssinaturaSigadoc();
     return true;
   }
