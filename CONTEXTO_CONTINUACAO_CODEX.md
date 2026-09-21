@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.16`
-- Ultima tag publicada no repositorio: `v2.16`
+- Versao atual da extensao: `2.17`
+- Ultima tag publicada no repositorio: `v2.17`
 
 ## Como retomar no notebook
 
@@ -377,6 +377,11 @@ Versao `2.16`:
 
 - A abertura de `Incluir Documento` passou a usar o mesmo padrao de `Assinar` e `Tramitar`: a extensao chama diretamente `anexar.click()` no elemento ativo localizado na pagina.
 - A navegacao por `chrome.tabs.update` no service worker e usada somente se o clique direto nao mudar a pagina ou quando o SIGADOC nao expuser o link utilizavel.
+
+Versao `2.17`:
+
+- Na tela de inclusao, a extensao abre o seletor nativo de modelos e clica diretamente em `Capturado`, aguardando a confirmacao do valor antes de seguir para o formulario de arquivo.
+- Mantida a contingencia por `alterouModeloSelect()` apenas quando o componente visual do SIGADOC nao registrar a escolha.
 
 ## Regras permanentes combinadas
 

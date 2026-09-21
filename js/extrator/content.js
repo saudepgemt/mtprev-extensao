@@ -2067,12 +2067,30 @@
     };
   }
 
-  function aplicarSelecaoModeloDocumentoSigadoc(item) {
+  async function aplicarSelecaoModeloDocumentoSigadoc(item) {
     if (!item) return false;
 
     const valor = item.getAttribute('data-value') || '';
     if (!valor) return false;
 
+    // O componente hierarchySelect registra a escolha no clique do item
+    // visivel. Este e o mesmo caminho usado pela pessoa no SIGADOC.
+    const botaoMenu = document.getElementById('dropdownMenuButton');
+    if (botaoMenu) botaoMenu.click();
+    await aguardar(80);
+
+    const seletor = '#ulmod .dropdown-item[data-value="' + CSS.escape(valor) + '"]';
+    const opcaoVisivel = document.querySelector(seletor);
+    const alvoClique = opcaoVisivel && (opcaoVisivel.querySelector('a') || opcaoVisivel);
+    if (alvoClique) {
+      alvoClique.click();
+      await aguardar(180);
+
+      if (obterModeloDocumentoAtualSigadoc().valor === valor) return true;
+    }
+
+    // Contingencia para uma eventual falha do componente visual. Esta rotina
+    // reproduz a alteracao que o proprio SIGADOC executa ao escolher o item.
     executarNoContextoDaPagina(`
       (function(valor) {
         var item = document.querySelector('#ulmod .dropdown-item[data-value="' + valor + '"]');
@@ -2106,7 +2124,8 @@
       })(${JSON.stringify(valor)});
     `);
 
-    return true;
+    await aguardar(120);
+    return obterModeloDocumentoAtualSigadoc().valor === valor;
   }
 
   async function selecionarModeloDocumentoSeNecessario(pacote) {
@@ -2123,7 +2142,7 @@
       return { mudou: false, mensagem: `Modelo já selecionado: ${modeloDocumento}.` };
     }
 
-    const mudou = aplicarSelecaoModeloDocumentoSigadoc(option);
+    const mudou = await aplicarSelecaoModeloDocumentoSigadoc(option);
     if (mudou) await aguardar(1400);
 
     return {
@@ -3374,7 +3393,7 @@
       // instante. A proxima etapa precisa estar persistida antes desse clique.
       pendente.etapa = 'anexo-enviar-arquivo';
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
-      if (!aplicarSelecaoModeloDocumentoSigadoc(modelo)) {
+      if (!await aplicarSelecaoModeloDocumentoSigadoc(modelo)) {
         pendente.etapa = 'anexo-selecionar-modelo';
         await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         throw new Error('Não foi possível selecionar o modelo Capturado.');
