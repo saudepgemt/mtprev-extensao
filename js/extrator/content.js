@@ -3117,6 +3117,9 @@
   }
 
   function encontrarLinkAnexarSigadoc() {
+    const botaoNativo = document.querySelector('#incluir-documento[href*="/expediente/doc/editar"][href*="criandoAnexo=true"]');
+    if (botaoNativo) return botaoNativo;
+
     const elementos = Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]'));
     return elementos.find((elemento) => {
       const texto = normalizarTexto([
@@ -3245,16 +3248,30 @@
   }
 
   async function abrirAnexacaoDoExpedienteSigadoc(pendente) {
+    // A URL precisa existir antes da busca pelo botao: se o SIGADOC ainda
+    // estiver terminando de renderizar, a tentativa seguinte deve voltar para
+    // este oficio em vez de abandonar a inclusao do expediente.
+    pendente.urlOficio = pendente.urlOficio || window.location.href;
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+
     let anexar = encontrarLinkAnexarSigadoc();
-    for (let tentativa = 0; !anexar && tentativa < 16; tentativa += 1) {
+    for (let tentativa = 0; !anexar && tentativa < 40; tentativa += 1) {
       await aguardar(250);
       anexar = encontrarLinkAnexarSigadoc();
     }
     if (!anexar) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
 
     pendente.etapa = 'anexo-selecionar-modelo';
-    pendente.urlOficio = pendente.urlOficio || window.location.href;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+
+    const href = anexar.getAttribute('href') || '';
+    if (href) {
+      // O HTML do SIGADOC expõe a rota completa do botão. Navegar por ela
+      // evita depender do handler visual e leva ao mesmo formulário nativo.
+      window.location.assign(new URL(href, window.location.href).href);
+      return;
+    }
+
     anexar.click();
   }
 
@@ -3460,6 +3477,11 @@
           await salvarFluxoPosAssinaturaSigadoc(pacote);
         }
         await limparFluxoAssinaturaSigadoc();
+        // O fechamento do modal de senha nao necessariamente altera o DOM do
+        // documento assinado. Inicia o proximo passo explicitamente, sem
+        // depender do MutationObserver para abrir Incluir documento.
+        await aguardar(250);
+        await verificarFluxoPosAssinaturaSigadocPendente();
         return;
       }
 

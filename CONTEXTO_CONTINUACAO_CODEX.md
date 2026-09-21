@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.11`
-- Ultima tag publicada no repositorio: `v2.11`
+- Versao atual da extensao: `2.12`
+- Ultima tag publicada no repositorio: `v2.12`
 
 ## Como retomar no notebook
 
@@ -351,6 +351,11 @@ Versao `2.11`:
 
 - Corrigida a transicao do anexo do expediente no SIGADOC: `anexo-enviar-arquivo` e gravado antes da selecao do modelo `Capturado`, que recarrega a pagina.
 - A extensao aguarda a lista nativa de modelos, confirma os controles Arquivo PDF e OK e executa a validacao nativa do PDF antes de gravar o documento capturado.
+
+Versao `2.12`:
+
+- Corrigido o disparo de `Incluir documento` apos a assinatura: a extensao nao depende mais de uma mutacao posterior da pagina para iniciar o anexo.
+- Apos o fechamento confirmado do modal de senha, ela localiza o botao nativo `#incluir-documento`, preserva a URL do oficio para contingencia e segue o `href` real `doc/editar?...criandoAnexo=true` do SIGADOC.
 
 ## Regras permanentes combinadas
 
