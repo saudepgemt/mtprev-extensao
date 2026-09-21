@@ -2859,6 +2859,15 @@
         const configurou = await configurarAnexoDoExpedienteSigadoc(pendente);
         if (configurou) return;
 
+        // Se a primeira navegacao nao ocorreu, o estado ja esta como
+        // anexo-selecionar-modelo, mas a tela ainda e a do oficio assinado.
+        // Retomar daqui evita que o fluxo fique parado sem tentar o botao.
+        if (pendente.etapa === 'anexo-selecionar-modelo' &&
+            (encontrarLinkAnexarSigadoc() || montarUrlInclusaoDiretaSigadoc())) {
+          await abrirAnexacaoDoExpedienteSigadoc(pendente);
+          return;
+        }
+
         if (pendente.etapa === 'anexo-aguardando-assinatura') {
           const retornou = await retornarDoAnexoParaOficioSigadoc(pendente);
           if (retornou) return;
@@ -3110,6 +3119,17 @@
     }) || null;
   }
 
+  function montarUrlInclusaoDiretaSigadoc() {
+    const numeroDocumento = extrairNumeroSigadocDaPagina();
+    const sigla = String(numeroDocumento || '').replace(/[^a-z0-9]/gi, '');
+    if (!sigla) return '';
+
+    const url = new URL('/sigaex/app/expediente/doc/editar', window.location.origin);
+    url.searchParams.set('mobilPaiSel.sigla', sigla);
+    url.searchParams.set('criandoAnexo', 'true');
+    return url.href;
+  }
+
   function paginaNovoDocumentoSigadoc() {
     return Boolean(
       document.querySelector('form#frm input[name="exDocumentoDTO.idMod"]') &&
@@ -3271,20 +3291,49 @@
       await aguardar(250);
       anexar = encontrarLinkAnexarSigadoc();
     }
-    if (!anexar) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
+    const href = anexar ? anexar.getAttribute('href') || '' : '';
+    const urlInclusao = href
+      ? new URL(href, window.location.href).href
+      : montarUrlInclusaoDiretaSigadoc();
+    if (!urlInclusao) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
 
     pendente.etapa = 'anexo-selecionar-modelo';
+    pendente.tentativasAberturaAnexo = Number(pendente.tentativasAberturaAnexo || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
 
-    const href = anexar.getAttribute('href') || '';
-    if (href) {
-      // O HTML do SIGADOC expõe a rota completa do botão. Navegar por ela
-      // evita depender do handler visual e leva ao mesmo formulário nativo.
-      window.location.assign(new URL(href, window.location.href).href);
+    if (href && anexar) {
+      atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
+
+      // O clique e executado no mesmo contexto do SIGADOC para preservar o
+      // comportamento nativo do link. A navegacao pelo href e contingencia
+      // caso algum handler visual nao consiga concluir a transicao.
+      executarNoContextoDaPagina(`
+        (function () {
+          var link = document.getElementById('incluir-documento');
+          if (link) link.click();
+        })();
+      `);
+      await aguardar(700);
+      const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
+      if (window.location.href === urlOficio) {
+        window.location.assign(urlInclusao);
+      }
+      await aguardar(700);
+      if (window.location.href === urlOficio) {
+        throw new Error('O SIGADOC manteve a tela do ofício após o clique em Incluir Documento.');
+      }
       return;
     }
 
-    anexar.click();
+    // A tela do SIGADOC pode exibir #incluir-documento sem href e oculta.
+    // A rota oficial usa a sigla do ofício assinado como documento pai.
+    atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
+    executarNoContextoDaPagina(`window.location.assign(${JSON.stringify(urlInclusao)});`);
+    await aguardar(700);
+    const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
+    if (window.location.href === urlOficio) {
+      window.location.assign(urlInclusao);
+    }
   }
 
   async function concluirTentativaDeAnexoComFalhaSigadoc(pendente, erro) {
