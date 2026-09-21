@@ -14,7 +14,6 @@
   const STORAGE_KEY = 'spaExtratorUltimoOficio';
   const PENDING_SIGADOC_KEY = 'spaExtratorPreenchimentoSigadocPendente';
   const PENDING_ASSINATURA_KEY = 'spaExtratorAssinaturaSigadocPendente';
-  const PENDING_ASSINATURA_SESSION_KEY = 'cdspSigadocAssinaturaPendente';
   const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   let preenchimentoSigadocPendenteEmAndamento = false;
@@ -2758,40 +2757,17 @@
   }
 
   async function salvarFluxoAssinaturaSigadoc(etapa, extra = {}) {
-    const pendente = {
-      criadoEm: new Date().toISOString(),
-      etapa,
-      ...extra,
-    };
     await storageSet({
-      [PENDING_ASSINATURA_KEY]: pendente,
+      [PENDING_ASSINATURA_KEY]: {
+        criadoEm: new Date().toISOString(),
+        etapa,
+        ...extra,
+      },
     });
-    try {
-      sessionStorage.setItem(PENDING_ASSINATURA_SESSION_KEY, JSON.stringify(pendente));
-    } catch (erro) {
-      console.warn('[CDSP - Extrator] Não foi possível salvar contingência da assinatura na sessão:', erro);
-    }
   }
 
   async function limparFluxoAssinaturaSigadoc() {
     await storageRemove([PENDING_ASSINATURA_KEY]);
-    try {
-      sessionStorage.removeItem(PENDING_ASSINATURA_SESSION_KEY);
-    } catch (erro) {
-      console.warn('[CDSP - Extrator] Não foi possível limpar contingência da assinatura na sessão:', erro);
-    }
-  }
-
-  function lerFluxoAssinaturaDaSessaoSigadoc() {
-    try {
-      const bruto = sessionStorage.getItem(PENDING_ASSINATURA_SESSION_KEY);
-      if (!bruto) return null;
-      const pendente = JSON.parse(bruto);
-      return pendente && pendente.criadoEm ? pendente : null;
-    } catch (erro) {
-      console.warn('[CDSP - Extrator] Não foi possível ler contingência da assinatura na sessão:', erro);
-      return null;
-    }
   }
 
   async function salvarFluxoPosAssinaturaSigadoc(pacote) {
@@ -3412,11 +3388,7 @@
       throw new Error('Modal de senha do SIGADOC não apareceu com os campos esperados.');
     }
 
-    const assinaturaPendente = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY];
     const pacote = await obterPacoteSalvo();
-    if (pacote && !(assinaturaPendente && assinaturaPendente.anexoExpediente)) {
-      await salvarFluxoPosAssinaturaSigadoc(pacote);
-    }
 
     const senhaDaSessao = obterSenhaDaSessaoSigadoc();
     const tentativas = [{ origem: 'credencial interna', senha: credencial.senha }];
@@ -3435,6 +3407,12 @@
       // nessa situação a senha opcional da sessão é usada como contingência.
       await aguardar(1600);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
+        const assinaturaPendente = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY];
+        // A inclusao do expediente so pode iniciar depois que o SIGADOC
+        // confirmou a assinatura do oficio principal pelo fechamento do modal.
+        if (pacote && !(assinaturaPendente && assinaturaPendente.anexoExpediente)) {
+          await salvarFluxoPosAssinaturaSigadoc(pacote);
+        }
         await limparFluxoAssinaturaSigadoc();
         return;
       }
@@ -3463,116 +3441,37 @@
 
     atualizarBotao(btn, 'copiando', '...', 'Gravando...');
     await aguardar(300);
-    // O handler do botao OK e o caminho que o SIGADOC usa para executar
-    // gravarDoc(). O clique direto preserva esse handler na tela atual.
     gravar.click();
-    atualizarStatusMenuSigadoc('OK acionado. Aguardando a tela de assinatura...', 'alerta');
-    agendarVerificacaoFluxoAssinaturaSigadoc(700);
   }
 
-  async function iniciarFluxoAssinaturaComExpedienteSigadoc(pacote, btn) {
-    try {
-      await prepararExpedienteParaAnexoSigadoc(pacote);
-    } catch (erro) {
-      // A anexação possui duas novas tentativas após a assinatura. Não impede a
-      // criação do ofício quando o SPA estiver momentaneamente indisponível.
-      console.warn('[CDSP - Extrator] Não foi possível preparar o expediente antes da assinatura:', erro);
-    }
-
-    await iniciarFluxoAssinaturaSigadoc(pacote, btn);
-  }
-
-  function telaAutenticacaoSigadocEstaVisivel() {
-    return Boolean(
-      document.getElementById('ad_password_0') ||
-      document.querySelector('input[name="radioProviderAssinatura"]') ||
-      document.getElementById('bot-autenticar') ||
-      document.getElementById('bot-assinar')
-    );
-  }
-
-  function encontrarAcaoAutenticarSigadoc() {
-    return document.getElementById('autenticar') || document.getElementById('assinar') ||
-      Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]')).find((elemento) => {
-        const texto = normalizarTexto([
-          elemento.textContent,
-          elemento.value,
-          elemento.getAttribute('title'),
-          elemento.getAttribute('aria-label'),
-        ].filter(Boolean).join(' '));
-        return texto === 'autenticar' || texto === 'assinar';
-      }) || null;
-  }
-
-  function encontrarBotaoConfirmarAutenticacaoSigadoc() {
-    const botaoConhecido = document.getElementById('bot-autenticar') || document.getElementById('bot-assinar');
-    if (botaoConhecido) return botaoConhecido;
-    if (!telaAutenticacaoSigadocEstaVisivel()) return null;
-
-    return Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find((elemento) => {
-        const texto = normalizarTexto([elemento.textContent, elemento.value, elemento.getAttribute('title')].filter(Boolean).join(' '));
-        return texto === 'autenticar' || texto === 'assinar';
-      }) || null;
-  }
-
-  async function clicarAutenticarNaExibicaoSigadoc() {
-    let link = encontrarAcaoAutenticarSigadoc();
-    for (let tentativa = 0; !link && tentativa < 32; tentativa += 1) {
-      await aguardar(250);
-      link = encontrarAcaoAutenticarSigadoc();
-    }
+  async function clicarAssinarNaExibicaoSigadoc() {
+    const link = await aguardarElemento('#assinar', 8000);
     if (!link) return false;
 
-    const anterior = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY] || {};
-    await salvarFluxoAssinaturaSigadoc('aguardando-tela-assinatura', {
-      ...anterior,
-    });
+    await salvarFluxoAssinaturaSigadoc('aguardando-tela-assinatura');
     link.click();
     return true;
   }
 
   async function executarTelaAssinaturaSigadoc() {
-    let botaoAssinar = encontrarBotaoConfirmarAutenticacaoSigadoc();
-    for (let tentativa = 0; !botaoAssinar && tentativa < 32; tentativa += 1) {
-      await aguardar(250);
-      botaoAssinar = encontrarBotaoConfirmarAutenticacaoSigadoc();
-    }
+    const botaoAssinar = await aguardarElemento('#bot-assinar', 8000);
     if (!botaoAssinar) return false;
 
     selecionarAssinaturaPorSenhaSigadoc();
     desmarcarAcoesExtrasAssinaturaSigadoc();
-    const anterior = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY] || {};
-    await salvarFluxoAssinaturaSigadoc('aguardando-modal-senha', {
-      ...anterior,
-    });
+    await salvarFluxoAssinaturaSigadoc('aguardando-modal-senha');
     await aguardar(250);
     botaoAssinar.click();
-    await preencherModalSenhaAssinaturaSigadoc();
     return true;
   }
 
   let fluxoAssinaturaEmAndamento = false;
-  let timerVerificacaoAssinaturaSigadoc = null;
-
-  function agendarVerificacaoFluxoAssinaturaSigadoc(atrasoMs = 700) {
-    clearTimeout(timerVerificacaoAssinaturaSigadoc);
-    timerVerificacaoAssinaturaSigadoc = setTimeout(() => {
-      verificarFluxoAssinaturaPendente();
-    }, atrasoMs);
-  }
 
   async function verificarFluxoAssinaturaPendente() {
     if (fluxoAssinaturaEmAndamento) return;
 
     const resultado = await storageGet([PENDING_ASSINATURA_KEY]);
-    let pendente = resultado[PENDING_ASSINATURA_KEY];
-    if (!pendente) {
-      pendente = lerFluxoAssinaturaDaSessaoSigadoc();
-      if (pendente) {
-        await storageSet({ [PENDING_ASSINATURA_KEY]: pendente });
-        atualizarStatusMenuSigadoc('Retomando assinatura do ofício...', 'alerta');
-      }
-    }
+    const pendente = resultado[PENDING_ASSINATURA_KEY];
     if (!pendente) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
@@ -3589,18 +3488,16 @@
         return;
       }
 
-      if (telaAutenticacaoSigadocEstaVisivel()) {
+      if (document.getElementById('bot-assinar') ||
+          document.getElementById('ad_password_0')) {
         const executou = await executarTelaAssinaturaSigadoc();
         if (executou) return;
       }
 
-      if (encontrarAcaoAutenticarSigadoc()) {
-        const executou = await clicarAutenticarNaExibicaoSigadoc();
+      if (document.getElementById('assinar')) {
+        const executou = await clicarAssinarNaExibicaoSigadoc();
         if (executou) return;
       }
-
-      atualizarStatusMenuSigadoc('Aguardando o SIGADOC disponibilizar a assinatura...', 'alerta');
-      agendarVerificacaoFluxoAssinaturaSigadoc(900);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha no fluxo de assinatura SIGADOC:', erro);
       await limparFluxoAssinaturaSigadoc();
@@ -3689,7 +3586,7 @@
       const mensagens = await preencherCamposSigadoc(pacote);
       if (assinar) {
         manterEstadoBotao = true;
-        await iniciarFluxoAssinaturaComExpedienteSigadoc(pacote, btn);
+        await iniciarFluxoAssinaturaSigadoc(pacote, btn);
         return;
       }
 

@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.09`
-- Ultima tag publicada no repositorio: `v2.09`
+- Versao atual da extensao: `2.10`
+- Ultima tag publicada no repositorio: `v2.10`
 
 ## Como retomar no notebook
 
@@ -340,6 +340,12 @@ Versao `2.09`:
 - A assinatura pendente passou a ter contingencia em `sessionStorage` da propria aba do SIGADOC, alem de `chrome.storage`.
 - Ao chegar na pagina temporaria `TMP-...`, se a memoria principal nao estiver disponivel, a extensao restaura automaticamente a pendencia da sessao e continua pelo link real `#assinar`.
 - A contingencia e removida somente ao concluir ou expirar a assinatura, e e criada apenas pelo comando `Preencher + Assinar`.
+
+Versao `2.10`:
+
+- A cadeia de assinatura dos Oficios foi restaurada ao comportamento da `v2.02`: usa exclusivamente `#assinar`, `#bot-assinar` e `#senhaOk`, sem deteccao ampla, tentativas agendadas ou memoria paralela.
+- A preparacao do expediente deixou de ocorrer antes da assinatura do oficio principal.
+- A etapa de `Incluir documento` so e registrada apos o SIGADOC fechar o modal de senha, confirmando que a assinatura do oficio foi aceita. A tramitacao permanece posterior a essa inclusao.
 
 ## Regras permanentes combinadas
 
