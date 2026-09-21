@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.04`
-- Ultima tag publicada no repositorio: `v2.04`
+- Versao atual da extensao: `2.05`
+- Ultima tag publicada no repositorio: `v2.05`
 
 ## Como retomar no notebook
 
@@ -310,6 +310,13 @@ Versao `2.04`:
 
 - A anexacao do expediente foi alinhada ao fluxo operacional do SIGADOC: apos o oficio assinado, a extensao prioriza `Incluir documento`, escolhe `Capturado`, replica o destinatario e a classificacao do oficio e usa uma descricao que identifica o PDF como expediente vinculado a pendencia geradora.
 - O PDF e inserido no campo `Arquivo PDF`, o documento capturado e gravado e a extensao reconhece `Autenticar` ou `Assinar` para repetir a senha usada no oficio antes de retornar ao fluxo normal de tramitacao.
+
+Versao `2.05`:
+
+- O detalhe de qualquer `Erro no SIGADOC`, inclusive em preenchimento, assinatura e pos-assinatura, passou a aparecer de forma persistente no status do menu e no tooltip do botao.
+- O botao em estado de erro nao e mais restaurado automaticamente, permitindo conferir a causa e tentar novamente pelo mesmo comando.
+- Corrigida a validacao final do SIGADOC, que usava uma referencia inexistente e podia informar erro mesmo com os campos visivelmente preenchidos.
+- A troca de Modelo e de Texto padrao agora aguarda a reconstrucao assincrona real do formulario antes de continuar; a extensao nao depende mais de um segundo clique nem de espera fixa para preencher, validar ou assinar.
 
 ## Regras permanentes combinadas
 

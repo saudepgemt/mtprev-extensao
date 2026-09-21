@@ -16,6 +16,7 @@
   const PENDING_ASSINATURA_KEY = 'spaExtratorAssinaturaSigadocPendente';
   const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
+  let preenchimentoSigadocPendenteEmAndamento = false;
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
@@ -2527,7 +2528,7 @@
     const descricaoCampo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_descricao');
     if (!sigla) return 'Campo de destinatário não encontrado.';
 
-    const destino = obterDestinatarioSigadoc(pacote);
+    const destino = destinoSobrescrito || obterDestinatarioSigadoc(pacote);
     const siglaDestino = destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
     const descricaoEsperada = destino.descricao || '';
 
@@ -2579,7 +2580,7 @@
     const assunto = obterCampoAssuntoSigadoc();
     const areaEditavel = document.querySelector('[contenteditable="true"]');
     const textarea = obterTextareaConteudoSigadoc();
-    const destino = destinoSobrescrito || obterDestinatarioSigadoc(pacote);
+    const destino = obterDestinatarioSigadoc(pacote);
     const estadoDestinatario = estadoDestinatarioSigadoc(destino);
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     const classificacao = modelo && modelo.classificacao;
@@ -2989,7 +2990,9 @@
       await storageRemove([PENDING_POS_ASSINATURA_KEY]);
       const btn = document.getElementById('spa-sigadoc-assinar-btn');
       atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
-      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+      const detalhe = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+      if (btn) btn.title = detalhe;
+      atualizarStatusMenuSigadoc(`Erro pós-assinatura: ${detalhe}`, 'alerta');
     } finally {
       fluxoPosAssinaturaEmAndamento = false;
     }
@@ -3547,7 +3550,9 @@
       await storageRemove([PENDING_POS_ASSINATURA_KEY]);
       const btn = document.getElementById('spa-sigadoc-assinar-btn');
       atualizarBotao(btn, 'erro', '!', 'Erro ao assinar');
-      if (btn) btn.title = erro.message || 'Falha ao assinar no SIGADOC.';
+      const detalhe = erro.message || 'Falha ao assinar no SIGADOC.';
+      if (btn) btn.title = detalhe;
+      atualizarStatusMenuSigadoc(`Erro ao assinar: ${detalhe}`, 'alerta');
     } finally {
       fluxoAssinaturaEmAndamento = false;
     }
@@ -3592,6 +3597,10 @@
           if (btn) {
             btn.title = `${modeloDocumento.mensagem} Aguardando o SIGADOC atualizar os textos padrão.`;
           }
+          // A troca de modelo submete o formulário. A continuação acontece somente
+          // após a nova tela informar que os controles foram reconstruídos.
+          manterEstadoBotao = true;
+          return;
         } else if (modeloDocumento.mensagem && btn) {
           btn.title = modeloDocumento.mensagem;
         }
@@ -3603,6 +3612,7 @@
               criadoEm: new Date().toISOString(),
               processo: pacote.processo,
               assinar,
+              fase: 'texto-padrao',
             },
           });
 
@@ -3610,24 +3620,9 @@
           if (btn) {
             btn.title = `${selecao.mensagem} Aguardando o SIGADOC carregar conteúdo e classificação antes dos campos finais.`;
           }
-          if (assinar) manterEstadoBotao = true;
-
-          setTimeout(async () => {
-            try {
-              const mensagens = await preencherCamposSigadoc(pacote);
-              if (assinar) {
-                await iniciarFluxoAssinaturaComExpedienteSigadoc(pacote, btn);
-                return;
-              }
-              atualizarBotao(btn, 'sucesso', 'OK', 'Pronto p/ conferir');
-              if (btn) btn.title = mensagens.join(' ');
-              setTimeout(() => restaurarBotaoPreenchimentoSigadoc(btn), 6000);
-            } catch (erro) {
-              console.error('[CDSP - Extrator] Falha ao finalizar preenchimento SIGADOC:', erro);
-              atualizarBotao(btn, 'erro', '!', 'Erro no SIGADOC');
-              if (btn) btn.title = erro.message || 'Falha ao finalizar preenchimento.';
-            }
-          }, 4500);
+          // O texto padrão preenche classificação e conteúdo por AJAX. Não usar
+          // tempo fixo: o observador retomará quando os campos estiverem prontos.
+          manterEstadoBotao = true;
           return;
         }
 
@@ -3646,7 +3641,9 @@
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha ao preencher SIGADOC:', erro);
       atualizarBotao(btn, 'erro', '!', 'Erro no SIGADOC');
-      if (btn) btn.title = erro.message || 'Falha ao preencher. Confira o console do navegador.';
+      const detalhe = erro.message || 'Falha ao preencher. Confira o console do navegador.';
+      if (btn) btn.title = detalhe;
+      atualizarStatusMenuSigadoc(`Erro no SIGADOC: ${detalhe}`, 'alerta');
     } finally {
       if (!manterEstadoBotao) {
         setTimeout(() => {
@@ -3657,6 +3654,7 @@
   }
 
   function restaurarBotaoPreenchimentoSigadoc(btn) {
+    if (btn && btn.classList.contains('erro')) return;
     if (btn && btn.id === 'spa-sigadoc-assinar-btn') {
       restaurarBotaoAssinarSigadoc(btn);
       return;
@@ -4054,7 +4052,35 @@
     renderizarMenuSigadoc();
   }
 
+  function formularioPendenteSigadocEstaPronto(pacote, fase) {
+    if (fase === 'modelo') {
+      const modelo = obterModeloDocumentoSigadoc(pacote);
+      return Boolean(encontrarOpcaoModeloDocumentoSigadoc(modelo));
+    }
+
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao);
+    const assunto = obterCampoAssuntoSigadoc();
+    const conteudo = obterTextareaConteudoSigadoc();
+    if (!assunto || !conteudo) return false;
+    if (modelo && modelo.conteudoProprio) return true;
+
+    const select = document.getElementById('preenchimento');
+    const { option } = encontrarOpcaoTextoPadrao(select, pacote);
+    return Boolean(select && option && String(select.value) === String(option.value));
+  }
+
+  async function aguardarFormularioPendenteSigadoc(pacote, fase, timeoutMs = 12000) {
+    const inicio = Date.now();
+    while (Date.now() - inicio < timeoutMs) {
+      if (formularioPendenteSigadocEstaPronto(pacote, fase)) return true;
+      await aguardar(250);
+    }
+    return false;
+  }
+
   async function verificarPreenchimentoPendente() {
+    if (preenchimentoSigadocPendenteEmAndamento) return;
+
     const resultado = await storageGet([PENDING_SIGADOC_KEY, STORAGE_KEY]);
     const pendente = resultado[PENDING_SIGADOC_KEY];
     const pacote = resultado[STORAGE_KEY];
@@ -4066,10 +4092,22 @@
       return;
     }
 
-    setTimeout(() => executarPreenchimentoSigadoc({
-      automatico: pendente.fase !== 'modelo',
-      assinar: Boolean(pendente.assinar),
-    }), 2500);
+    preenchimentoSigadocPendenteEmAndamento = true;
+    try {
+      const pronto = await aguardarFormularioPendenteSigadoc(pacote, pendente.fase || 'texto-padrao');
+      if (!pronto) {
+        atualizarStatusMenuSigadoc('Aguardando o SIGADOC concluir o carregamento do formulário...', 'alerta');
+        setTimeout(() => verificarPreenchimentoPendente(), 1000);
+        return;
+      }
+
+      await executarPreenchimentoSigadoc({
+        automatico: pendente.fase === 'texto-padrao',
+        assinar: Boolean(pendente.assinar),
+      });
+    } finally {
+      preenchimentoSigadocPendenteEmAndamento = false;
+    }
   }
 
   // ─── Finalização do ofício no SPA ──────────────────────────────────────────
@@ -4353,6 +4391,7 @@
       clearTimeout(timer);
       timer = setTimeout(() => {
         injetarBotaoSigadoc();
+        verificarPreenchimentoPendente();
         verificarFluxoAssinaturaPendente();
         verificarFluxoPosAssinaturaSigadocPendente();
         verificarTramitacaoSigadocPendente();

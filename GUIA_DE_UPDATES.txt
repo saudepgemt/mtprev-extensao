@@ -16,6 +16,7 @@ Padrao atual:
 - Extrator SIGADOC: AUDIENCIA e SINF DANO MORAL apenas preenchem a minuta, sem assinatura automatica.
 - Extrator SIGADOC: para o tipo `CUMP GERAL`, localizar o texto padrao por nome e aceitar tanto modelos com sufixo de subscritor quanto o modelo-base `SAUDE - CUMP` recriado, sem depender do ID interno do SIGADOC.
 - Extrator SIGADOC: antes de gravar ou assinar, aguardar a confirmacao assincrona do destinatario, incluindo ID, sigla e descricao da lotacao. Para `SES-UNIJUR`, nao tratar a mera digitacao da sigla como sucesso; repetir a confirmacao e interromper o fluxo caso os campos obrigatorios nao estejam confirmados.
+- Extrator SIGADOC: ao trocar Modelo ou Texto padrao, preservar a continuacao por estado pendente e observacao dos controles efetivamente carregados. Nao substituir essa confirmacao por temporizador fixo nem exigir novo clique para o preenchimento prosseguir.
 - Coordenacao/Gestao: setores dos assessores sao carregados da base interna data/equipe.xlsx, sem Google Sheets.
 - Base interna Excel: o background informa a URL interna e o painel da Coordenacao le o arquivo com ExcelJS; nao voltar a converter o XLSX no service worker.
 - Coordenacao/Gestao: preservar os botoes Cobrar Triagem, Cobrar Correcao e Cobrar Peca dentro do relatorio gerado, nunca no menu compacto.
