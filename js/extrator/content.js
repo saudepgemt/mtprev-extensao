@@ -958,15 +958,12 @@
       tipoTarefa: lerNoDocumento(['tipo de tarefa']),
       numeroOficio: lerNoDocumento(['numero do oficio', 'número do ofício']),
       numeroSigadoc: lerNoDocumento(['numero sigadoc', 'número sigadoc']),
+      idExpedienteSpa: lerNoDocumento(['id do expediente']),
       destinatario: lerNoDocumento(['destinatario', 'destinatário']),
       urlOrigem: urlBase,
       linkProcessoSpa: urlBase,
       linkAutosSpa: extrairLinkAutosProcessuaisSpa(raiz, urlBase, processo, htmlDocumento),
-      linkExpedienteSpa: extrairLinkExpedienteDeDocumentoSpa(
-        raiz,
-        urlBase,
-        htmlDocumento
-      ),
+      linkExpedienteSpa: '',
     };
   }
 
@@ -1016,26 +1013,26 @@
     return encontrarUrlProcessoPrincipalEmRaiz(document, window.location.href, campos);
   }
 
-  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, htmlBruto = '') {
-    const anchors = Array.from(doc.querySelectorAll('a[href]'));
-    const linkExpediente = anchors.find((link) => {
-      const href = link.getAttribute('href') || '';
-      return /\/coresigner\/info\/[^"'<>]+\.pdf(?:[?#].*)?$/i.test(href) ||
-        /\/coresigner\/info\/[^"'<>]+\.pdf/i.test(href);
+  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, idExpediente) {
+    const id = String(idExpediente || '').replace(/\D/g, '');
+    if (!id) return '';
+
+    const links = Array.from(doc.querySelectorAll('a[href]')).filter((link) => {
+      const rotulo = normalizarTexto([
+        link.getAttribute('title'),
+        link.getAttribute('data-original-title'),
+        link.textContent,
+      ].filter(Boolean).join(' '));
+      return new RegExp(`\\bexpediente\\s+${id}\\b`).test(rotulo);
     });
 
-    if (linkExpediente) {
-      return new URL(linkExpediente.getAttribute('href'), baseUrl).href;
+    for (const link of links) {
+      try {
+        const url = new URL(link.getAttribute('href'), baseUrl);
+        if (url.origin === 'https://spa.pge.mt.gov.br' &&
+            /^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname)) return url.href;
+      } catch (_erro) {}
     }
-
-    const regexAbsoluto = /https?:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
-    const matchAbsoluto = htmlBruto.match(regexAbsoluto);
-    if (matchAbsoluto) return matchAbsoluto[0].replace(/&amp;/g, '&');
-
-    const regexRelativo = /\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
-    const matchRelativo = htmlBruto.match(regexRelativo);
-    if (matchRelativo) return new URL(matchRelativo[0].replace(/&amp;/g, '&'), baseUrl).href;
-
     return '';
   }
 
@@ -1056,7 +1053,9 @@
   }
 
   async function enriquecerDadosPeloProcessoPrincipalEmRaiz(raiz, baseUrl, campos) {
-    const url = encontrarUrlProcessoPrincipalEmRaiz(raiz || document, baseUrl || window.location.href, campos);
+    const origem = baseUrl || window.location.href;
+    const url = encontrarUrlProcessoPrincipalEmRaiz(raiz || document, origem, campos) ||
+      (URL_PROCESSO.test(origem) ? origem : '');
     const linkAutosAtual =
       campos.linkAutosSpa ||
       extrairLinkAutosProcessuaisSpa(
@@ -1072,6 +1071,7 @@
         urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
         linkProcessoSpa: campos.linkProcessoSpa || baseUrl || window.location.href,
         linkAutosSpa: linkAutosAtual,
+        linkExpedienteSpa: '',
         assuntoAviso: campos.assuntoBruto ? '' : 'Link do Processo Principal não encontrado.',
       };
     }
@@ -1089,6 +1089,7 @@
           processoPrincipalUrl: url,
           linkProcessoSpa: url,
           linkAutosSpa: linkAutosAtual || extrairLinkAutosProcessuaisSpa(raiz || document, baseUrl || window.location.href, campos.processo),
+          linkExpedienteSpa: '',
           assuntoAviso: campos.assuntoBruto ? '' : `Não foi possível abrir o Processo Principal (${resposta.status}).`,
         };
       }
@@ -1096,7 +1097,7 @@
       const html = await resposta.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const assuntoPrincipal = extrairAssuntoDeDocumentoSpa(doc);
-      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, html);
+      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, campos.idExpedienteSpa);
       const linkAutosSpa = extrairLinkAutosProcessuaisSpa(doc, url, campos.processo, html) || linkAutosAtual;
 
       if (campos.assuntoBruto) {
@@ -1143,6 +1144,7 @@
         processoPrincipalUrl: url,
         linkProcessoSpa: url,
         linkAutosSpa: linkAutosAtual,
+        linkExpedienteSpa: '',
         assuntoAviso: campos.assuntoBruto ? '' : 'Erro ao buscar assunto no Processo Principal.',
       };
     }
@@ -1318,6 +1320,7 @@
       tipoTarefa: lerCampoDaLinha(row, mapa, ['Tipo de tarefa']),
       numeroOficio: lerCampoDaLinha(row, mapa, ['Número do ofício', 'Numero do oficio']),
       numeroSigadoc: lerCampoDaLinha(row, mapa, ['Número SIGADoc', 'Numero SIGADoc']),
+      idExpedienteSpa: lerCampoDaLinha(row, mapa, ['ID do expediente', 'ID do Expediente']),
       destinatario: lerCampoDaLinha(row, mapa, ['Destinatário', 'Destinatario']),
     };
   }
@@ -1362,21 +1365,21 @@
 
   async function prepararExpedienteParaAnexoSigadoc(pacote) {
     if (!pacote || pacote.expedienteArquivoId) return pacote && pacote.expedienteArquivoId;
-    if (!pacote.linkExpedienteSpa) {
-      throw new Error('Link do expediente não foi encontrado no SPA.');
+    if (!pacote.linkExpedienteSpa || !/^\d+$/.test(String(pacote.idExpedienteSpa || ''))) {
+      throw new Error('O link do expediente correspondente ao ID da pendência não foi encontrado no Processo Principal do SPA.');
     }
 
-    const arquivoId = await salvarPdfInterno(
-      pacote.linkExpedienteSpa,
-      montarNomeArquivoExpediente(pacote),
-      {
-        processo: pacote.processo || '',
-        tipo: 'expediente-para-anexo-sigadoc',
-      }
-    );
+    const arquivoId = gerarIdArquivoInterno();
+    await enviarMensagemExtensao({
+      type: 'cdspOficioSalvarExpedienteSpa',
+      id: arquivoId,
+      url: pacote.linkExpedienteSpa,
+      idExpediente: pacote.idExpedienteSpa,
+      processo: pacote.processo || '',
+      nomeArquivo: montarNomeArquivoExpediente(pacote),
+    });
 
     pacote.expedienteArquivoId = arquivoId;
-    await salvarPacote(pacote);
     return arquivoId;
   }
 
@@ -1577,6 +1580,7 @@
       tipoTarefa: campos.tipoTarefa || '',
       numeroOficio: campos.numeroOficio || '',
       numeroSigadoc: campos.numeroSigadoc || '',
+      idExpedienteSpa: campos.idExpedienteSpa || '',
       destinatario: campos.destinatario || '',
       linkProcessoSpa: campos.linkProcessoSpa || campos.processoPrincipalUrl || '',
       linkAutosSpa: campos.linkAutosSpa || '',
@@ -1727,7 +1731,7 @@
         pacote = null;
       }
 
-      if (!pacote || camposFaltantes(pacote).length) {
+      if (!pacote || camposFaltantes(pacote).length || !pacote.linkExpedienteSpa) {
         const camposLinha = extrairCamposDaLinhaCaixa(row);
         const pagina = await buscarDocumentoProcessoPorUrl(urlProcesso);
         if (btn) btn.title = 'Extraindo dados da página do processo...';
@@ -1740,7 +1744,10 @@
         if (btn) btn.title = campos.assuntoBruto ? 'Buscando links do processo...' : 'Buscando assunto do processo...';
         campos = await enriquecerDadosPeloProcessoPrincipalEmRaiz(pagina.doc, pagina.url, campos);
 
-        pacote = escolherPacoteMaisCompleto(pacote, criarPacote(campos, 'pagina-processo-via-caixa'));
+        const candidato = criarPacote(campos, 'pagina-processo-via-caixa');
+        pacote = escolherPacoteMaisCompleto(pacote, candidato);
+        pacote.idExpedienteSpa = candidato.idExpedienteSpa || pacote.idExpedienteSpa || '';
+        pacote.linkExpedienteSpa = candidato.linkExpedienteSpa || '';
       }
 
       if (!pacote || !pacote.processo) {
@@ -2781,6 +2788,7 @@
       destinatarioDescricao: destino.descricao || '',
       descricaoOficio: textoDescricaoAssunto(pacote),
       linkExpedienteSpa: pacote.linkExpedienteSpa || '',
+      idExpedienteSpa: pacote.idExpedienteSpa || '',
       expedienteArquivoId: pacote.expedienteArquivoId || '',
       nomeArquivoExpediente: montarNomeArquivoExpediente(pacote),
       etapa: 'oficio-assinado',
@@ -3207,15 +3215,18 @@
 
   async function garantirArquivoExpedientePendenteSigadoc(pendente) {
     let arquivo = await obterArquivoInternoSigadoc(pendente.expedienteArquivoId);
-    if (arquivo) return arquivo;
+    const metadados = arquivo && arquivo.metadados;
+    if (metadados && metadados.tipo === 'expediente-para-anexo-sigadoc' &&
+        metadados.origemUrl === pendente.linkExpedienteSpa &&
+        metadados.idExpedienteSpa === String(pendente.idExpedienteSpa || '') &&
+        arquivo.base64 && arquivo.nomeArquivo === pendente.nomeArquivoExpediente) return arquivo;
 
-    if (!pendente.linkExpedienteSpa) {
-      throw new Error('O expediente do processo não possui link para download.');
-    }
+    pendente.expedienteArquivoId = '';
 
     const pacote = {
       processo: pendente.processo || '',
       linkExpedienteSpa: pendente.linkExpedienteSpa,
+      idExpedienteSpa: pendente.idExpedienteSpa,
     };
     const arquivoId = await prepararExpedienteParaAnexoSigadoc(pacote);
     pendente.expedienteArquivoId = arquivoId;

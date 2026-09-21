@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.17`
-- Ultima tag publicada no repositorio: `v2.17`
+- Versao atual da extensao: `2.18`
+- Ultima tag publicada no repositorio: `v2.18`
 
 ## Como retomar no notebook
 
@@ -382,6 +382,12 @@ Versao `2.17`:
 
 - Na tela de inclusao, a extensao abre o seletor nativo de modelos e clica diretamente em `Capturado`, aguardando a confirmacao do valor antes de seguir para o formulario de arquivo.
 - Mantida a contingencia por `alterouModeloSelect()` apenas quando o componente visual do SIGADOC nao registrar a escolha.
+
+Versao `2.18`:
+
+- O link do expediente para o documento Capturado e extraido da pagina do Processo Principal do SPA, no mesmo acesso usado para ler o assunto, pela correspondencia exata com o ID do expediente da pendencia.
+- O service worker baixa e valida o PDF do SPA antes de guarda-lo com URL e ID de origem; arquivos temporarios antigos ou de outro oficio nao sao reutilizados como anexo.
+- O download do expediente nao substitui mais o pacote completo do oficio no armazenamento compartilhado. Quando nao houver correspondencia segura, o fluxo informa a falha e segue sem anexo.
 
 ## Regras permanentes combinadas
 

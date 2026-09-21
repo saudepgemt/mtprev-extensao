@@ -141,6 +141,49 @@ async function cdspOficiosApagarPdfInterno(id) {
   return cdspOficiosTransacao(CDSP_OFICIOS_STORE_PDFS, "readwrite", (store) => store.delete(id));
 }
 
+async function cdspOficiosSalvarExpedienteSpa(message) {
+  const url = new URL(message.url);
+  if (url.origin !== "https://spa.pge.mt.gov.br" ||
+      !/^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname) ||
+      !/^\d+$/.test(String(message.idExpediente || ""))) {
+    throw new Error("Link ou ID do expediente do SPA invalido.");
+  }
+
+  const response = await fetch(url.href, { credentials: "include", cache: "no-store" });
+  if (!response.ok) throw new Error(`Falha ao baixar o expediente do SPA (${response.status}).`);
+  const finalUrl = new URL(response.url);
+  if (finalUrl.origin !== url.origin || finalUrl.pathname !== url.pathname) {
+    throw new Error("O download do expediente foi redirecionado para outro arquivo.");
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 5 || bytes.length > 25 * 1024 * 1024 ||
+      String.fromCharCode(...bytes.subarray(0, 5)) !== "%PDF-") {
+    throw new Error("O link do expediente nao retornou um PDF valido de ate 25 MB.");
+  }
+
+  const partes = [];
+  for (let i = 0; i < bytes.length; i += 32768) {
+    partes.push(String.fromCharCode(...bytes.subarray(i, i + 32768)));
+  }
+  const arquivo = {
+    id: message.id,
+    nomeArquivo: message.nomeArquivo,
+    base64: btoa(partes.join("")),
+    mime: "application/pdf",
+    tamanho: bytes.length,
+    criadoEm: new Date().toISOString(),
+    metadados: {
+      tipo: "expediente-para-anexo-sigadoc",
+      origemUrl: url.href,
+      idExpedienteSpa: String(message.idExpediente),
+      processo: message.processo || ""
+    }
+  };
+  await cdspOficiosSalvarPdfInterno(arquivo);
+  return { ok: true, id: arquivo.id };
+}
+
 function cdspOficiosBaixarArquivo(url, filename) {
   return new Promise((resolve, reject) => {
     chrome.downloads.download(
@@ -163,6 +206,9 @@ function cdspOficiosBaixarArquivo(url, filename) {
 }
 
 async function cdspOficiosHandleMessage(message) {
+  if (message.type === "cdspOficioSalvarExpedienteSpa") {
+    return cdspOficiosSalvarExpedienteSpa(message);
+  }
   if (message.type === "cdspOficioSalvarPdf") {
     const id = await cdspOficiosSalvarPdfInterno(message.payload);
     return { ok: true, id };
@@ -5045,6 +5091,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (
     message.type === "cdspOficioSalvarPdf" ||
+    message.type === "cdspOficioSalvarExpedienteSpa" ||
     message.type === "cdspOficioObterPdf" ||
     message.type === "cdspOficioApagarPdf" ||
     message.type === "cdspOficioBaixarArquivo"
