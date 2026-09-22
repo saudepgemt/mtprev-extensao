@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.20`
-- Ultima tag publicada no repositorio: `v2.19`
+- Versao atual da extensao: `2.21`
+- Ultima tag publicada no repositorio: `v2.20`
 
 ## Como retomar no notebook
 
@@ -398,6 +398,11 @@ Versao `2.19`:
 Versao `2.20`:
 
 - O Link do expediente e preservado diretamente da pendencia quando o titulo "Ler Expediente <ID>" corresponde ao ID mostrado no processo. A consulta ao Processo Principal passa a complementar essa leitura, sem apagar o PDF ja encontrado quando a pagina principal falhar ou responder tardiamente.
+
+Versao `2.21`:
+
+- A extracao em aba auxiliar aguarda o PDF `Ler Expediente <ID>` alem dos campos textuais. Quando o SPA ainda nao exibiu o ID do campo, usa o unico expediente visivel; se houver mais de um, mantem a exigencia de correspondencia pelo ID.
+- A inclusao do documento e registrada antes da confirmacao da senha, mas so e disparada depois que o oficio assinado exibe o botao nativo `#incluir-documento`. Isso impede que a pagina de assinatura consuma ou descarte a etapa do anexo.
 
 ## Regras permanentes combinadas
 

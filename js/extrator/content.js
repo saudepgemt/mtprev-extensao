@@ -944,6 +944,8 @@
     const textoPagina = raiz.body ? (raiz.body.innerText || raiz.body.textContent || '') : '';
     const tipoOficio = normalizarTipoOficio(observacao) || normalizarTipoOficioTextoLivre(textoPagina);
     const htmlDocumento = htmlBruto || (raiz.documentElement ? raiz.documentElement.innerHTML : '');
+    const idExpedienteSpa = lerNoDocumento(['id do expediente']);
+    const referenciaExpediente = extrairReferenciaExpedienteDeDocumentoSpa(raiz, urlBase, idExpedienteSpa);
 
     return {
       processo,
@@ -958,12 +960,12 @@
       tipoTarefa: lerNoDocumento(['tipo de tarefa']),
       numeroOficio: lerNoDocumento(['numero do oficio', 'número do ofício']),
       numeroSigadoc: lerNoDocumento(['numero sigadoc', 'número sigadoc']),
-      idExpedienteSpa: lerNoDocumento(['id do expediente']),
+      idExpedienteSpa: idExpedienteSpa || referenciaExpediente.id,
       destinatario: lerNoDocumento(['destinatario', 'destinatário']),
       urlOrigem: urlBase,
       linkProcessoSpa: urlBase,
       linkAutosSpa: extrairLinkAutosProcessuaisSpa(raiz, urlBase, processo, htmlDocumento),
-      linkExpedienteSpa: '',
+      linkExpedienteSpa: referenciaExpediente.url,
     };
   }
 
@@ -1030,27 +1032,45 @@
     return encontrarUrlProcessoPrincipalEmRaiz(document, window.location.href, campos);
   }
 
-  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, idExpediente) {
+  function extrairReferenciaExpedienteDeDocumentoSpa(doc, baseUrl, idExpediente) {
     const id = String(idExpediente || '').replace(/\D/g, '');
-    if (!id) return '';
-
-    const links = Array.from(doc.querySelectorAll('a[href]')).filter((link) => {
+    const links = Array.from(doc.querySelectorAll('a[href]')).map((link) => {
       const rotulo = normalizarTexto([
         link.getAttribute('title'),
         link.getAttribute('data-original-title'),
         link.textContent,
       ].filter(Boolean).join(' '));
-      return new RegExp(`\\bexpediente\\s+${id}\\b`).test(rotulo);
-    });
+      const idNoRotulo = (rotulo.match(/\bexpediente\s+(\d+)\b/) || [])[1] || '';
+      if (!idNoRotulo) return null;
 
-    for (const link of links) {
       try {
         const url = new URL(link.getAttribute('href'), baseUrl);
-        if (url.origin === 'https://spa.pge.mt.gov.br' &&
-            /^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname)) return url.href;
-      } catch (_erro) {}
-    }
-    return '';
+        if (url.origin !== 'https://spa.pge.mt.gov.br' ||
+            !/^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname)) return null;
+        return { id: idNoRotulo, url: url.href };
+      } catch (_erro) {
+        return null;
+      }
+    }).filter(Boolean);
+
+    const correspondente = id ? links.find((item) => item.id === id) : null;
+    if (correspondente) return correspondente;
+
+    // Sem ID no DOM, somente a existencia de um unico expediente permite
+    // adotá-lo de forma segura. Mais de um PDF continua exigindo o ID.
+    return links.length === 1 ? links[0] : { id: '', url: '' };
+  }
+
+  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, idExpediente) {
+    return extrairReferenciaExpedienteDeDocumentoSpa(doc, baseUrl, idExpediente).url;
+  }
+
+  function encontrouExpedienteDaPendencia(campos) {
+    return Boolean(
+      campos &&
+      /^\d+$/.test(String(campos.idExpedienteSpa || '')) &&
+      /^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(String(campos.linkExpedienteSpa || ''))
+    );
   }
 
   function extrairAssuntoDeDocumentoSpa(doc) {
@@ -2905,6 +2925,11 @@
       return;
     }
 
+    if (pendente.etapa === 'oficio-assinado' && paginaDeInclusaoDoExpedienteSigadoc()) {
+      pendente.etapa = 'anexo-selecionar-modelo';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    }
+
     if (String(pendente.etapa || '').startsWith('anexo-')) {
       fluxoPosAssinaturaEmAndamento = true;
       try {
@@ -2915,7 +2940,7 @@
         // anexo-selecionar-modelo, mas a tela ainda e a do oficio assinado.
         // Retomar daqui evita que o fluxo fique parado sem tentar o botao.
         if (pendente.etapa === 'anexo-selecionar-modelo' &&
-            (encontrarLinkAnexarSigadoc() || montarUrlInclusaoDiretaSigadoc())) {
+            paginaOficioAssinadoProntaParaAnexoSigadoc()) {
           await abrirAnexacaoDoExpedienteSigadoc(pendente);
           return;
         }
@@ -2933,6 +2958,9 @@
     }
 
     if (pendente.etapa === 'oficio-assinado') {
+      // A assinatura troca de pagina de forma assincrona. O estado fica
+      // preservado ate o botao nativo realmente existir no oficio assinado.
+      if (!paginaOficioAssinadoProntaParaAnexoSigadoc()) return;
       fluxoPosAssinaturaEmAndamento = true;
       try {
         await abrirAnexacaoDoExpedienteSigadoc(pendente);
@@ -3145,6 +3173,14 @@
     }) || null;
   }
 
+  function paginaOficioAssinadoProntaParaAnexoSigadoc() {
+    const incluir = encontrarLinkAnexarSigadoc();
+    if (!incluir) return false;
+
+    const href = incluir.getAttribute('href') || '';
+    return /\/expediente\/doc\/editar/i.test(href) && /criandoAnexo=true/i.test(href);
+  }
+
   function encontrarLinkAnexarSigadoc() {
     const botaoNativo = document.getElementById('incluir-documento');
     if (botaoNativo) return botaoNativo;
@@ -3160,23 +3196,6 @@
       const href = elemento.getAttribute('href') || '';
       return texto === 'incluir documento' || /\/expediente\/doc\/incluir/i.test(href);
     }) || null;
-  }
-
-  function montarUrlInclusaoDiretaSigadoc() {
-    const siglaDaPagina = Array.from(document.querySelectorAll('input[name="sigla"]'))
-      .map((campo) => limparValorExtraido(campo.value))
-      .find((valor) => /^PGE-/i.test(valor));
-    const numeroDocumento = siglaDaPagina || extrairNumeroSigadocDaPagina();
-    let sigla = String(numeroDocumento || '').replace(/[^a-z0-9]/gi, '');
-    // A rota de inclusao usa a via do documento pai. O cabecalho normalmente
-    // omite esse sufixo, embora o SIGADOC o exija no parametro mobilPaiSel.
-    if (sigla && !/[A-Z]$/i.test(sigla)) sigla += 'A';
-    if (!sigla) return '';
-
-    const url = new URL('/sigaex/app/expediente/doc/editar', window.location.origin);
-    url.searchParams.set('mobilPaiSel.sigla', sigla);
-    url.searchParams.set('criandoAnexo', 'true');
-    return url.href;
   }
 
   async function navegarAbaAtualSigadoc(url) {
@@ -3364,42 +3383,21 @@
     pendente.urlOficio = pendente.urlOficio || window.location.href;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
 
-    let anexar = encontrarLinkAnexarSigadoc();
-    for (let tentativa = 0; !anexar && tentativa < 40; tentativa += 1) {
-      await aguardar(250);
-      anexar = encontrarLinkAnexarSigadoc();
-    }
+    const anexar = encontrarLinkAnexarSigadoc();
     const href = anexar ? anexar.getAttribute('href') || '' : '';
-    const urlInclusao = href
-      ? new URL(href, window.location.href).href
-      : montarUrlInclusaoDiretaSigadoc();
+    const urlInclusao = href ? new URL(href, window.location.href).href : '';
     if (!urlInclusao) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
 
-    pendente.etapa = 'anexo-selecionar-modelo';
     pendente.urlInclusao = urlInclusao;
     pendente.tentativasAberturaAnexo = Number(pendente.tentativasAberturaAnexo || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
 
-    if (href && anexar) {
-      atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
-
-      // Igual ao fluxo de assinatura e tramitação: clicar diretamente no
-      // controle que foi localizado no DOM do SIGADOC.
-      anexar.click();
-      if (await aguardarAberturaInclusaoSigadoc()) return;
-
-      // O href oficial e a retomada quando a pagina do SIGADOC nao responde
-      // ao clique, embora o botao esteja visivel e ativo para o usuario.
-      await navegarAbaAtualSigadoc(urlInclusao);
-      if (!await aguardarAberturaInclusaoSigadoc()) {
-        throw new Error('O SIGADOC não abriu a tela de Incluir Documento após o clique e a retomada pela URL oficial.');
-      }
-      return;
-    }
-
-    // A tela do SIGADOC pode exibir #incluir-documento sem href e oculta.
-    // A rota oficial usa a sigla do ofício assinado como documento pai.
     atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
+    anexar.click();
+    if (await aguardarAberturaInclusaoSigadoc()) return;
+
+    // Mantem o mesmo destino usado pelo botao nativo quando o SIGADOC ignora
+    // o clique por uma atualizacao tardia da pagina.
     await navegarAbaAtualSigadoc(urlInclusao);
   }
 
@@ -3407,6 +3405,14 @@
     const motivo = erro && erro.message ? erro.message : String(erro || 'Falha desconhecida.');
     const proximaTentativa = Number(pendente.tentativasAnexo || 0) + 1;
     console.warn('[CDSP - Extrator] Falha ao anexar o expediente:', motivo);
+
+    if (pendente.etapa === 'oficio-assinado') {
+      pendente.tentativasAnexo = proximaTentativa;
+      pendente.avisoAnexo = `Aguardando a tela assinada para anexar o expediente: ${motivo}`;
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      atualizarStatusMenuSigadoc(pendente.avisoAnexo, 'alerta');
+      return;
+    }
 
     if (proximaTentativa < 2 && pendente.urlOficio) {
       pendente.tentativasAnexo = proximaTentativa;
@@ -3582,6 +3588,12 @@
     }
 
     const pacote = await obterPacoteSalvo();
+    const assinaturaPendente = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY];
+    // Registra o passo seguinte antes de submeter a senha. Assim, a troca de
+    // pagina feita pelo SIGADOC nao perde a inclusao do expediente.
+    if (pacote && !(assinaturaPendente && assinaturaPendente.anexoExpediente)) {
+      await salvarFluxoPosAssinaturaSigadoc(pacote);
+    }
 
     const senhaDaSessao = obterSenhaDaSessaoSigadoc();
     const tentativas = [{ origem: 'credencial interna', senha: credencial.senha }];
@@ -3600,18 +3612,7 @@
       // nessa situação a senha opcional da sessão é usada como contingência.
       await aguardar(1600);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
-        const assinaturaPendente = (await storageGet([PENDING_ASSINATURA_KEY]))[PENDING_ASSINATURA_KEY];
-        // A inclusao do expediente so pode iniciar depois que o SIGADOC
-        // confirmou a assinatura do oficio principal pelo fechamento do modal.
-        if (pacote && !(assinaturaPendente && assinaturaPendente.anexoExpediente)) {
-          await salvarFluxoPosAssinaturaSigadoc(pacote);
-        }
         await limparFluxoAssinaturaSigadoc();
-        // O fechamento do modal de senha nao necessariamente altera o DOM do
-        // documento assinado. Inicia o proximo passo explicitamente, sem
-        // depender do MutationObserver para abrir Incluir documento.
-        await aguardar(250);
-        await verificarFluxoPosAssinaturaSigadocPendente();
         return;
       }
 
@@ -4462,7 +4463,8 @@
 
     while (Date.now() - inicio < timeoutMs) {
       ultimo = extrairCamposDaPaginaProcesso();
-      if (ultimo.processo && (ultimo.vara || ultimo.autor || ultimo.assuntoBruto)) return ultimo;
+      const camposBasicosCarregados = ultimo.processo && (ultimo.vara || ultimo.autor || ultimo.assuntoBruto);
+      if (camposBasicosCarregados && encontrouExpedienteDaPendencia(ultimo)) return ultimo;
       await aguardar(300);
     }
 

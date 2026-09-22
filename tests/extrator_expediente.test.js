@@ -20,7 +20,7 @@ const context = vm.createContext({
 vm.runInContext(
   getFunction('normalizarTexto', 'normalizarRotulo') +
   getFunction('encontrarUrlProcessoPrincipalEmRaiz', 'encontrarUrlProcessoPrincipal') +
-  getFunction('extrairLinkExpedienteDeDocumentoSpa', 'extrairAssuntoDeDocumentoSpa'),
+  getFunction('extrairReferenciaExpedienteDeDocumentoSpa', 'extrairAssuntoDeDocumentoSpa'),
   context
 );
 
@@ -43,10 +43,26 @@ test('seleciona o expediente pelo ID mesmo quando outro PDF aparece primeiro', (
   );
 });
 
-test('nao escolhe PDF de outro expediente ou sem ID', () => {
-  const doc = { querySelectorAll: () => [link('/coresigner/info/outro.pdf', 'Ler Expediente 99999999')] };
+test('nao escolhe PDF de outro expediente ou sem ID quando ha mais de um candidato', () => {
+  const doc = {
+    querySelectorAll: () => [
+      link('/coresigner/info/outro.pdf', 'Ler Expediente 99999999'),
+      link('/coresigner/info/outro-2.pdf', 'Ler Expediente 88888888'),
+    ],
+  };
   assert.equal(context.extrairLinkExpedienteDeDocumentoSpa(doc, 'https://spa.pge.mt.gov.br/procedures/123', '52707282'), '');
   assert.equal(context.extrairLinkExpedienteDeDocumentoSpa(doc, 'https://spa.pge.mt.gov.br/procedures/123', ''), '');
+});
+
+test('usa o unico expediente visivel quando o SPA ainda nao exibiu o ID do campo', () => {
+  const doc = { querySelectorAll: () => [link('/coresigner/info/unico.pdf', 'Ler Expediente 65582562')] };
+  const referencia = context.extrairReferenciaExpedienteDeDocumentoSpa(
+    doc,
+    'https://spa.pge.mt.gov.br/procedures/123',
+    ''
+  );
+  assert.equal(referencia.id, '65582562');
+  assert.equal(referencia.url, 'https://spa.pge.mt.gov.br/coresigner/info/unico.pdf');
 });
 
 test('rejeita link com rotulo correto fora do SPA', () => {
