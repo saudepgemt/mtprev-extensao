@@ -1073,6 +1073,12 @@
     const origem = baseUrl || window.location.href;
     const url = encontrarUrlProcessoPrincipalEmRaiz(raiz || document, origem, campos) ||
       (URL_PROCESSO.test(origem) ? origem : '');
+    // A pendencia ja pode exibir o proprio "Ler Expediente <ID>". Preserve
+    // essa referencia desde o inicio: a abertura do Processo Principal serve
+    // para enriquecer os dados, mas nao pode apagar o PDF correto se falhar.
+    const linkExpedienteAtual =
+      campos.linkExpedienteSpa ||
+      extrairLinkExpedienteDeDocumentoSpa(raiz || document, origem, campos.idExpedienteSpa);
     const linkAutosAtual =
       campos.linkAutosSpa ||
       extrairLinkAutosProcessuaisSpa(
@@ -1088,7 +1094,7 @@
         urlOrigem: campos.urlOrigem || baseUrl || window.location.href,
         linkProcessoSpa: campos.linkProcessoSpa || baseUrl || window.location.href,
         linkAutosSpa: linkAutosAtual,
-        linkExpedienteSpa: '',
+        linkExpedienteSpa: linkExpedienteAtual,
         assuntoAviso: campos.assuntoBruto ? '' : 'Link do Processo Principal não encontrado.',
       };
     }
@@ -1106,7 +1112,7 @@
           processoPrincipalUrl: url,
           linkProcessoSpa: url,
           linkAutosSpa: linkAutosAtual || extrairLinkAutosProcessuaisSpa(raiz || document, baseUrl || window.location.href, campos.processo),
-          linkExpedienteSpa: '',
+          linkExpedienteSpa: linkExpedienteAtual,
           assuntoAviso: campos.assuntoBruto ? '' : `Não foi possível abrir o Processo Principal (${resposta.status}).`,
         };
       }
@@ -1114,7 +1120,9 @@
       const html = await resposta.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const assuntoPrincipal = extrairAssuntoDeDocumentoSpa(doc);
-      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, campos.idExpedienteSpa);
+      const linkExpedienteSpa =
+        extrairLinkExpedienteDeDocumentoSpa(doc, url, campos.idExpedienteSpa) ||
+        linkExpedienteAtual;
       const linkAutosSpa = extrairLinkAutosProcessuaisSpa(doc, url, campos.processo, html) || linkAutosAtual;
 
       if (campos.assuntoBruto) {
@@ -1161,7 +1169,7 @@
         processoPrincipalUrl: url,
         linkProcessoSpa: url,
         linkAutosSpa: linkAutosAtual,
-        linkExpedienteSpa: '',
+        linkExpedienteSpa: linkExpedienteAtual,
         assuntoAviso: campos.assuntoBruto ? '' : 'Erro ao buscar assunto no Processo Principal.',
       };
     }

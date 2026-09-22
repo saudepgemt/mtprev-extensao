@@ -54,6 +54,22 @@ test('rejeita link com rotulo correto fora do SPA', () => {
   assert.equal(context.extrairLinkExpedienteDeDocumentoSpa(doc, 'https://spa.pge.mt.gov.br/procedures/123', '52707282'), '');
 });
 
+test('le o expediente ja visivel na pendencia pelo ID correspondente', () => {
+  const doc = {
+    querySelectorAll: () => [
+      link('https://spa.pge.mt.gov.br/coresigner/info/expediente-atual.pdf', 'Ler Expediente 65582562'),
+    ],
+  };
+  assert.equal(
+    context.extrairLinkExpedienteDeDocumentoSpa(doc, 'https://spa.pge.mt.gov.br/procedures/3169590/new_progress/618', '65582562'),
+    'https://spa.pge.mt.gov.br/coresigner/info/expediente-atual.pdf'
+  );
+  assert.match(
+    source,
+    /const linkExpedienteAtual\s*=\s*[\s\S]*?extrairLinkExpedienteDeDocumentoSpa\(raiz \|\| document, origem, campos\.idExpedienteSpa\)/
+  );
+});
+
 test('em new_progress reconhece Voltar para o processo como Processo Principal', () => {
   const root = {
     querySelector: () => null,
