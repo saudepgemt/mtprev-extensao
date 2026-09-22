@@ -13,9 +13,13 @@ function getFunction(start, end) {
   return source.slice(first, last);
 }
 
-const context = vm.createContext({ URL });
+const context = vm.createContext({
+  URL,
+  window: { location: { href: 'https://spa.pge.mt.gov.br/' } },
+});
 vm.runInContext(
   getFunction('normalizarTexto', 'normalizarRotulo') +
+  getFunction('encontrarUrlProcessoPrincipalEmRaiz', 'encontrarUrlProcessoPrincipal') +
   getFunction('extrairLinkExpedienteDeDocumentoSpa', 'extrairAssuntoDeDocumentoSpa'),
   context
 );
@@ -48,6 +52,21 @@ test('nao escolhe PDF de outro expediente ou sem ID', () => {
 test('rejeita link com rotulo correto fora do SPA', () => {
   const doc = { querySelectorAll: () => [link('https://example.org/coresigner/info/arquivo.pdf', 'Ler Expediente 52707282')] };
   assert.equal(context.extrairLinkExpedienteDeDocumentoSpa(doc, 'https://spa.pge.mt.gov.br/procedures/123', '52707282'), '');
+});
+
+test('em new_progress reconhece Voltar para o processo como Processo Principal', () => {
+  const root = {
+    querySelector: () => null,
+    querySelectorAll: () => [link('/procedures/3169590', 'Voltar para o processo')],
+  };
+  assert.equal(
+    context.encontrarUrlProcessoPrincipalEmRaiz(
+      root,
+      'https://spa.pge.mt.gov.br/procedures/3169590/new_progress/618',
+      { processo: '1000000-00.2026.8.11.0000' }
+    ),
+    'https://spa.pge.mt.gov.br/procedures/3169590'
+  );
 });
 
 const background = fs.readFileSync(path.join(__dirname, '..', 'js', 'background.js'), 'utf8');
@@ -93,4 +112,13 @@ test('download nao guarda resposta que nao e PDF', async () => {
   const { sandbox, getStored } = createDownloadContext('<html>login</html>');
   await assert.rejects(sandbox.cdspOficiosSalvarExpedienteSpa(download), /PDF valido/);
   assert.equal(getStored(), undefined);
+});
+
+test('documento assinado oferece a rota oficial de inclusao', () => {
+  const html = fs.readFileSync('D:/Users/PGE-MT/Downloads/SIGA - PGE-OFI-2026_40789.html', 'utf8');
+  const match = html.match(/<a\s+id="incluir-documento"[\s\S]*?href="([^"]*criandoAnexo=true[^"]*)"/i);
+  assert.ok(match);
+  assert.match(match[1], /^\/sigaex\/app\/expediente\/doc\/editar\?mobilPaiSel\.sigla=PGEOFI202640789A&criandoAnexo=true&$/);
+  assert.match(source, /document\.getElementById\('incluir-documento'\)/);
+  assert.match(source, /await aguardarAberturaInclusaoSigadoc\(\)/);
 });

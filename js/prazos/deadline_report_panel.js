@@ -11,7 +11,7 @@
       processingTimeoutMs: 180000,
       panelId: "spa-cdsp-deadline-panel",
       headerImageUrl: "",
-      version: "2.18"
+      version: "2.19"
     },
     window.SPA_CDSP_DEADLINE_REPORT_CONFIG || {}
   );

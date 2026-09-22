@@ -980,16 +980,33 @@
     const linkNoCard = raiz.querySelector('#main-procedure a[href^="/procedures/"]');
     if (linkNoCard) return new URL(linkNoCard.getAttribute('href'), urlBase).href;
 
-    const pathname = (() => {
+    const paginaAtual = (() => {
       try {
-        return new URL(urlBase, window.location.href).pathname;
+        return new URL(urlBase, window.location.href);
       } catch (_erro) {
-        return window.location.pathname;
+        return new URL(window.location.href);
       }
     })();
+    const pathname = paginaAtual.pathname;
     const idAtual = (pathname.match(/\/procedures\/(\d+)/) || [])[1];
     const processoJudicial = normalizarTexto(campos && campos.processo);
     const links = Array.from(raiz.querySelectorAll('a[href^="/procedures/"], a[href^="https://spa.pge.mt.gov.br/procedures/"]'));
+
+    // Em passos como new_progress, o cabecalho oferece "Voltar para o
+    // processo" com o mesmo ID. Esse e o Processo Principal que contem o
+    // assunto e o link do expediente, portanto nao pode ser descartado.
+    const foraDaPaginaPrincipal = !new RegExp(`^/procedures/${idAtual}/?$`).test(pathname);
+    if (idAtual && foraDaPaginaPrincipal) {
+      const linkRaizDoProcesso = links.find((link) => {
+        try {
+          const destino = new URL(link.getAttribute('href'), urlBase);
+          return new RegExp(`^/procedures/${idAtual}/?$`).test(destino.pathname);
+        } catch (_erro) {
+          return false;
+        }
+      });
+      if (linkRaizDoProcesso) return new URL(linkRaizDoProcesso.getAttribute('href'), urlBase).href;
+    }
 
     const linkPorNumero = links.find((link) => {
       const href = link.getAttribute('href') || '';
@@ -3121,7 +3138,7 @@
   }
 
   function encontrarLinkAnexarSigadoc() {
-    const botaoNativo = document.querySelector('#incluir-documento[href*="/expediente/doc/editar"][href*="criandoAnexo=true"]');
+    const botaoNativo = document.getElementById('incluir-documento');
     if (botaoNativo) return botaoNativo;
 
     const elementos = Array.from(document.querySelectorAll('a[href], button, input[type="button"], input[type="submit"]'));
@@ -3162,6 +3179,22 @@
     if (!resposta || !resposta.ok) {
       throw new Error(resposta && resposta.error ? resposta.error : 'A extensão não conseguiu navegar para a tela de inclusão do SIGADOC.');
     }
+  }
+
+  function paginaDeInclusaoDoExpedienteSigadoc() {
+    const url = new URL(window.location.href);
+    return /\/expediente\/doc\/editar$/i.test(url.pathname) &&
+      (url.searchParams.get('criandoAnexo') === 'true' ||
+        limparValorExtraido((document.querySelector('[name="exDocumentoDTO.criandoAnexo"]') || {}).value) === 'true');
+  }
+
+  async function aguardarAberturaInclusaoSigadoc(timeoutMs = 3500) {
+    const inicio = Date.now();
+    while (Date.now() - inicio < timeoutMs) {
+      if (paginaDeInclusaoDoExpedienteSigadoc()) return true;
+      await aguardar(150);
+    }
+    return paginaDeInclusaoDoExpedienteSigadoc();
   }
 
   function paginaNovoDocumentoSigadoc() {
@@ -3335,6 +3368,7 @@
     if (!urlInclusao) throw new Error('A ação Incluir documento não foi encontrada no ofício assinado.');
 
     pendente.etapa = 'anexo-selecionar-modelo';
+    pendente.urlInclusao = urlInclusao;
     pendente.tentativasAberturaAnexo = Number(pendente.tentativasAberturaAnexo || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
 
@@ -3344,14 +3378,13 @@
       // Igual ao fluxo de assinatura e tramitação: clicar diretamente no
       // controle que foi localizado no DOM do SIGADOC.
       anexar.click();
-      await aguardar(700);
-      const urlOficio = new URL(pendente.urlOficio, window.location.href).href;
-      if (window.location.href === urlOficio) {
-        await navegarAbaAtualSigadoc(urlInclusao);
-      }
-      await aguardar(700);
-      if (window.location.href === urlOficio) {
-        throw new Error('O SIGADOC manteve a tela do ofício após o clique em Incluir Documento.');
+      if (await aguardarAberturaInclusaoSigadoc()) return;
+
+      // O href oficial e a retomada quando a pagina do SIGADOC nao responde
+      // ao clique, embora o botao esteja visivel e ativo para o usuario.
+      await navegarAbaAtualSigadoc(urlInclusao);
+      if (!await aguardarAberturaInclusaoSigadoc()) {
+        throw new Error('O SIGADOC não abriu a tela de Incluir Documento após o clique e a retomada pela URL oficial.');
       }
       return;
     }

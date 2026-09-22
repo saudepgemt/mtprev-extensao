@@ -24,6 +24,7 @@ Padrao atual:
 - Extrator SIGADOC/anexo de expediente: depois de a senha do oficio ser aceita, chamar imediatamente o fluxo pos-assinatura. Priorizar o link nativo `#incluir-documento[href*="criandoAnexo=true"]`, gravar a URL do oficio antes de procurar o botao e navegar pelo `href` real para a tela de inclusao; nao depender apenas de MutationObserver para disparar essa etapa.
 - Extrator SIGADOC/anexo de expediente: se a etapa `anexo-selecionar-modelo` ainda estiver na tela do oficio assinado, retomar a abertura de `#incluir-documento`. Em documento assinado, esse elemento pode estar oculto e sem `href`; nesse caso, montar `/expediente/doc/editar?mobilPaiSel.sigla=<sigla-do-oficio-com-via>&criandoAnexo=true`, preservando o sufixo da via (`A`, por exemplo), e pedir ao service worker para atualizar a URL da mesma aba. Nao deixar esse estado pendente sem tentativa de retomada ou aviso.
 - Extrator SIGADOC/anexo de expediente: quando `#incluir-documento` estiver ativo, usar diretamente `anexar.click()`, no mesmo padrao dos controles `#assinar` e `#tramitar`. Somente se esse clique nao navegar, pedir ao service worker para atualizar a URL da mesma aba; nao substituir o clique direto por injecao de script.
+- Extrator SIGADOC/anexo de expediente: localizar primeiro `#incluir-documento` sem exigir parametros especificos no `href`. Apos o clique, confirmar a abertura pela URL ou pelo formulario de inclusao; se nao houver transicao, reutilizar o `href` oficial salvo no estado pendente para retomar a mesma aba.
 - Extrator SIGADOC/anexo de expediente: o modelo `Capturado` exige o campo `Assunto`, mesmo quando o arquivo PDF ja estiver selecionado. Preencher Assunto e Descricao com a identificacao do expediente vinculado e executar `validarCamposEntrevista`/`validarDocumentoCapturado` antes de `#btnGravar`; se houver `.is-invalid`, interromper com os IDs dos campos pendentes.
 - Extrator SIGADOC/anexo de expediente: selecionar o link do PDF exclusivamente na pagina do Processo Principal do SPA pela correspondencia com `ID do expediente` da pendencia. O PDF deve ser baixado e validado pelo service worker com origem SPA, assinatura PDF e metadados de URL/ID; nunca anexar um PDF temporario sem essa correspondencia nem sobrescrever o pacote completo do oficio ao preparar o anexo.
 - Coordenacao/Gestao: setores dos assessores sao carregados da base interna data/equipe.xlsx, sem Google Sheets.
@@ -147,6 +148,7 @@ Como atualizar em versoes futuras:
 43. Remover console.logs de depuracao e permissoes que nao forem necessarias.
 44. Incrementar manifest.json, README_CARREGAR.txt e este guia quando houver mudanca de arquitetura.
 45. Validar manifest, sintaxe JavaScript e ZIP com manifest na raiz antes de entregar.
+46. No fluxo SPA para SIGADOC, quando a extracao iniciar em `/procedures/<id>/new_progress/...`, tratar o link de retorno para `/procedures/<id>` como Processo Principal. E nessa pagina que devem ser lidos o Assunto, o ID e o Link do expediente usados no oficio e no anexo PDF.
 
 Checklist rapido:
 - O menu minimiza e expande.

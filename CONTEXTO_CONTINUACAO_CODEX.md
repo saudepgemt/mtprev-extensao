@@ -6,7 +6,7 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.18`
+- Versao atual da extensao: `2.19`
 - Ultima tag publicada no repositorio: `v2.18`
 
 ## Como retomar no notebook
@@ -388,6 +388,12 @@ Versao `2.18`:
 - O link do expediente para o documento Capturado e extraido da pagina do Processo Principal do SPA, no mesmo acesso usado para ler o assunto, pela correspondencia exata com o ID do expediente da pendencia.
 - O service worker baixa e valida o PDF do SPA antes de guarda-lo com URL e ID de origem; arquivos temporarios antigos ou de outro oficio nao sao reutilizados como anexo.
 - O download do expediente nao substitui mais o pacote completo do oficio no armazenamento compartilhado. Quando nao houver correspondencia segura, o fluxo informa a falha e segue sem anexo.
+
+Versao `2.19`:
+
+- A abertura de `Incluir Documento` volta a localizar diretamente o controle nativo `#incluir-documento`, sem depender de uma forma especifica do `href`.
+- Depois do clique, a extensao confirma a tela de inclusao pela URL ou pelo formulario carregado. Se o SIGADOC nao trocar de tela, usa o `href` oficial do botao como retomada na mesma aba.
+- Ao partir de uma tela de passo do SPA, a extensao reconhece o link "Voltar para o processo" como Processo Principal. Assim, busca nessa pagina o Assunto, o ID e o Link do expediente que entram no oficio e identificam o PDF a anexar.
 
 ## Regras permanentes combinadas
 
