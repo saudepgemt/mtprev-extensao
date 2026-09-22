@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.24`
-- Ultima tag publicada no repositorio: `v2.23`
+- Versao atual da extensao: `2.25`
+- Ultima tag publicada no repositorio: `v2.24`
 
 ## Como retomar no notebook
 
@@ -420,6 +420,11 @@ Versao `2.24`:
 - Todas as retomadas automaticas exigem um identificador criado pelo clique em `Preencher + Assinar` na mesma aba. Paginas abertas manualmente nao podem preencher, assinar, anexar ou tramitar.
 - O campo `Senha do SIGADOC` permanece na sessao e o painel nao e reconstruido enquanto essa senha existe, preservando o foco para digitacao.
 
+Versao `2.25`:
+
+- Corrigida a etapa apos o `OK` do documento Capturado: a extensao aciona primeiro o link nativo `#autenticar` da pagina de confirmacao e somente na pagina seguinte usa `#bot-autenticar` com o modo Senha.
+- Apos a senha, a extensao retorna por clique no vinculo interativo do documento pai `PGE-OFI...` exibido no fim da pagina. A tramitacao so e acionada depois que esse retorno ao oficio originario estiver concluido.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -446,7 +451,7 @@ Versao `2.24`:
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.
 - Na base `data/equipe.xlsx`, preservar Aline Cristina de Souza e Maria Leticia Mendonca e Silva como `Nao Saiu da Equipe`, para que ambas constem nas listas de assessores dos Fluxos de Triagem e Correcao.
 - No SIGADOC, preservar a selecao de `CUMP GERAL` tanto para modelos com sufixo de subscritor quanto para o modelo-base recriado `SAUDE - CUMP`, sem vincular o fluxo a identificadores numericos do sistema.
-- Para Oficios/SIGADOC, a regra da versao `2.24` prevalece sobre as anotacoes historicas: preservar a base de assinatura e tramitacao da `v2.02` e executar o anexo apenas pela sequencia confirmada `Incluir Documento > Capturado > OK > Autenticar por Senha`, sempre vinculada ao clique explicito em `Preencher + Assinar`.
+- Para Oficios/SIGADOC, a regra da versao `2.25` prevalece sobre as anotacoes historicas: preservar a base de assinatura e tramitacao da `v2.02` e executar o anexo apenas pela sequencia confirmada `Incluir Documento > Capturado > OK > Autenticar > confirmar Autenticar por Senha > senha > vinculo do oficio pai PGE-OFI > tramitar`, sempre vinculada ao clique explicito em `Preencher + Assinar`.
 - No SIGADOC, antes de gravar ou assinar, preservar a confirmacao assincrona integral do destinatario: ID, sigla e descricao da lotacao. Para SES-UNIJUR, repetir a solicitacao ate a confirmacao e interromper o fluxo caso qualquer campo obrigatorio nao esteja preenchido, sem acionar `OK` nem assinatura antecipadamente.
 - No Fluxo de Triagem, preservar a separacao entre Observacao do Processo, facultativa e exclusiva da complementacao, e Observacao do Oficio, obrigatoria somente com oficio e exclusiva da Nova Tarefa. No Fluxo de Correcao, tratar colunas ausentes como filtros indisponiveis, sem interromper a leitura ou abertura de processos.
 

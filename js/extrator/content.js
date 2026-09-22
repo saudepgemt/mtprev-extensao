@@ -2921,6 +2921,34 @@
     }) || null;
   }
 
+  function encontrarLinkAutenticarDocumentoCapturadoSigadoc() {
+    return document.getElementById('autenticar') || Array.from(document.querySelectorAll('a[href]')).find((link) => {
+      const href = link.getAttribute('href') || '';
+      const texto = normalizarTexto([link.textContent, link.getAttribute('title')].filter(Boolean).join(' '));
+      return /\/expediente\/mov\/autenticar_documento/i.test(href) && texto === 'autenticar';
+    }) || null;
+  }
+
+  function obterSiglaDoDocumentoSigadoc(url) {
+    try {
+      return new URL(url, window.location.href).searchParams.get('sigla') || '';
+    } catch (erro) {
+      return '';
+    }
+  }
+
+  function encontrarLinkDocumentoPaiDoOficioSigadoc(pendente) {
+    const siglaOficio = obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio);
+    const links = Array.from(document.querySelectorAll('#outputRelacaoDocs a[href], a[href*="/expediente/doc/exibir?sigla="]'));
+    const candidatos = links.filter((link) => {
+      const href = link.getAttribute('href') || '';
+      const texto = normalizarTexto([link.textContent, link.getAttribute('title')].filter(Boolean).join(' '));
+      return /\/expediente\/doc\/exibir\?sigla=/i.test(href) && (texto.includes('pge ofi') || /sigla=PGE-OFI/i.test(href));
+    });
+
+    return candidatos.find((link) => obterSiglaDoDocumentoSigadoc(link.href) === siglaOficio) || candidatos[0] || null;
+  }
+
   function paginaInclusaoDocumentoSigadoc() {
     const url = new URL(window.location.href);
     return url.searchParams.get('criandoAnexo') === 'true' || Boolean(document.getElementById('arquivo'));
@@ -3022,7 +3050,7 @@
       ok.click();
       await aguardar(1500);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
-        pendente.etapa = 'anexo-autenticado';
+        pendente.etapa = 'anexo-retornar-oficio';
         await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return true;
       }
@@ -3070,12 +3098,31 @@
     if (document.getElementById('senhaDialog') || document.getElementById('senhaUsuarioSubscritor')) {
       return preencherSenhaDoAnexoSigadoc(pendente);
     }
+    const autenticarDocumento = encontrarLinkAutenticarDocumentoCapturadoSigadoc();
+    if (autenticarDocumento) {
+      pendente.etapa = 'anexo-confirmar-autenticacao';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      atualizarStatusMenuSigadoc('Abrindo a confirmação de autenticação do expediente...');
+      autenticarDocumento.click();
+      return true;
+    }
     const botao = document.getElementById('bot-autenticar');
     if (!botao) return false;
     selecionarAssinaturaPorSenhaSigadoc();
     pendente.etapa = 'anexo-senha';
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
     botao.click();
+    return true;
+  }
+
+  async function retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente) {
+    const documentoPai = encontrarLinkDocumentoPaiDoOficioSigadoc(pendente);
+    if (!documentoPai) return false;
+
+    pendente.etapa = 'oficio-pronto-para-tramitar';
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    atualizarStatusMenuSigadoc('Retornando ao ofício originário para tramitação...');
+    documentoPai.click();
     return true;
   }
 
@@ -3145,12 +3192,12 @@
         await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return;
       }
-      if (pendente.etapa === 'anexo-autenticar' || pendente.etapa === 'anexo-senha') {
+      if (pendente.etapa === 'anexo-autenticar' || pendente.etapa === 'anexo-confirmar-autenticacao' || pendente.etapa === 'anexo-senha') {
         if (await autenticarAnexoSigadoc(pendente)) return;
         return;
       }
-      if (pendente.etapa === 'anexo-autenticado' && pendente.urlOficio && window.location.href !== pendente.urlOficio) {
-        window.location.assign(pendente.urlOficio);
+      if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
+        if (await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente)) return;
         return;
       }
       if (pendente.etapa === 'oficio-assinado' && pendente.fluxoSpa && !pendente.expedienteArquivoId) {
