@@ -1,5 +1,5 @@
 /**
- * CDSP - Extrator SPA/SIGADOC — content.js v3.15
+ * CDSP - Extrator SPA/SIGADOC — content.js v3.16
  *
  * Fluxos:
  * - SPA: extrai campos visíveis, copia a tabela e salva os dados para o SIGADOC.
@@ -17,6 +17,7 @@
   const PENDING_POS_ASSINATURA_KEY = 'spaExtratorPosAssinaturaSigadocPendente';
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
+  const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -814,6 +815,47 @@
     return id;
   }
 
+  async function salvarExpedienteInternoDoSpa(pacote) {
+    if (!pacote || pacote.expedienteArquivoId) return pacote && pacote.expedienteArquivoId;
+    const url = String(pacote.linkExpedienteSpa || '');
+    if (!/^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
+      throw new Error('O PDF do expediente vinculado não foi localizado no Processo Principal.');
+    }
+
+    const resposta = await fetch(url, { credentials: 'include', cache: 'no-store' });
+    if (!resposta.ok) throw new Error(`Não foi possível baixar o PDF do expediente (${resposta.status}).`);
+
+    const blob = await resposta.blob();
+    if (blob.size < 5 || blob.size > 25 * 1024 * 1024) {
+      throw new Error('O PDF do expediente deve ter entre 5 bytes e 25 MB.');
+    }
+    const cabecalho = new TextDecoder('ascii').decode(await blob.slice(0, 5).arrayBuffer());
+    if (cabecalho !== '%PDF-') throw new Error('O link do expediente não retornou um arquivo PDF válido.');
+
+    const id = gerarIdArquivoInterno();
+    const nomeArquivo = sanitizarNomeArquivo(`Expediente - ${pacote.processo || 'SPA'}.pdf`);
+    await enviarMensagemExtensao({
+      type: 'cdspOficioSalvarPdf',
+      payload: {
+        id,
+        nomeArquivo,
+        base64: await blobParaBase64(blob),
+        mime: 'application/pdf',
+        tamanho: blob.size,
+        criadoEm: new Date().toISOString(),
+        metadados: {
+          tipo: 'expediente-para-anexo-sigadoc',
+          origemUrl: url,
+          idExpedienteSpa: String(pacote.idExpedienteSpa || ''),
+          processo: pacote.processo || '',
+        },
+      },
+    });
+    pacote.expedienteArquivoId = id;
+    pacote.nomeArquivoExpediente = nomeArquivo;
+    return id;
+  }
+
   async function baixarPdfParaDownloads(url, nomeArquivo) {
     await enviarMensagemExtensao({
       type: 'cdspOficioBaixarArquivo',
@@ -952,6 +994,7 @@
       tipoTarefa: lerNoDocumento(['tipo de tarefa']),
       numeroOficio: lerNoDocumento(['numero do oficio', 'número do ofício']),
       numeroSigadoc: lerNoDocumento(['numero sigadoc', 'número sigadoc']),
+      idExpedienteSpa: lerNoDocumento(['id do expediente']),
       destinatario: lerNoDocumento(['destinatario', 'destinatário']),
       urlOrigem: urlBase,
       linkProcessoSpa: urlBase,
@@ -1010,13 +1053,18 @@
     return encontrarUrlProcessoPrincipalEmRaiz(document, window.location.href, campos);
   }
 
-  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, htmlBruto = '') {
+  function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, htmlBruto = '', idExpediente = '') {
     const anchors = Array.from(doc.querySelectorAll('a[href]'));
-    const linkExpediente = anchors.find((link) => {
+    const linksPdf = anchors.filter((link) => {
       const href = link.getAttribute('href') || '';
       return /\/coresigner\/info\/[^"'<>]+\.pdf(?:[?#].*)?$/i.test(href) ||
         /\/coresigner\/info\/[^"'<>]+\.pdf/i.test(href);
     });
+
+    const idNormalizado = normalizarTexto(idExpediente);
+    const linkExpediente = (idNormalizado && linksPdf.find((link) =>
+      normalizarTexto(link.textContent || '').includes(idNormalizado)
+    )) || (linksPdf.length === 1 ? linksPdf[0] : null);
 
     if (linkExpediente) {
       return new URL(linkExpediente.getAttribute('href'), baseUrl).href;
@@ -1090,7 +1138,7 @@
       const html = await resposta.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const assuntoPrincipal = extrairAssuntoDeDocumentoSpa(doc);
-      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, html);
+      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, html, campos.idExpedienteSpa);
       const linkAutosSpa = extrairLinkAutosProcessuaisSpa(doc, url, campos.processo, html) || linkAutosAtual;
 
       if (campos.assuntoBruto) {
@@ -1312,6 +1360,7 @@
       tipoTarefa: lerCampoDaLinha(row, mapa, ['Tipo de tarefa']),
       numeroOficio: lerCampoDaLinha(row, mapa, ['Número do ofício', 'Numero do oficio']),
       numeroSigadoc: lerCampoDaLinha(row, mapa, ['Número SIGADoc', 'Numero SIGADoc']),
+      idExpedienteSpa: lerCampoDaLinha(row, mapa, ['ID do expediente', 'ID do Expediente']),
       destinatario: lerCampoDaLinha(row, mapa, ['Destinatário', 'Destinatario']),
     };
   }
@@ -1534,7 +1583,7 @@
     const linhas = montarLinhas(campos);
 
     return {
-      versao: '3.15',
+      versao: '3.16',
       origem,
       urlOrigem: campos.urlOrigem || window.location.href,
       criadoEm: new Date().toISOString(),
@@ -1551,6 +1600,7 @@
       tipoTarefa: campos.tipoTarefa || '',
       numeroOficio: campos.numeroOficio || '',
       numeroSigadoc: campos.numeroSigadoc || '',
+      idExpedienteSpa: campos.idExpedienteSpa || '',
       destinatario: campos.destinatario || '',
       linkProcessoSpa: campos.linkProcessoSpa || campos.processoPrincipalUrl || '',
       linkAutosSpa: campos.linkAutosSpa || '',
@@ -1631,6 +1681,12 @@
   }
 
   async function concluirExtracao(pacote, btn) {
+    try {
+      await salvarExpedienteInternoDoSpa(pacote);
+    } catch (erro) {
+      pacote.expedienteAviso = erro && erro.message ? erro.message : 'Não foi possível preparar o PDF do expediente.';
+      console.warn('[CDSP - Extrator] PDF do expediente não preparado:', erro);
+    }
     await salvarPacote(pacote);
     await copiarPacote(pacote);
 
@@ -1647,7 +1703,8 @@
       : (pacote.assuntoOrigem === 'processo-principal' ? ' Assunto extraído do Processo Principal.' : '');
     btn.title = (pacote.tipoOficio
       ? `Tipo detectado: ${pacote.tipoOficio}`
-      : 'Dados salvos para preencher no SIGADOC') + detalheAssunto;
+      : 'Dados salvos para preencher no SIGADOC') + detalheAssunto +
+      (pacote.expedienteAviso ? ` ${pacote.expedienteAviso}` : ' PDF do expediente preparado para anexação.');
   }
 
   async function executarExtracaoProcesso(botaoOrigem) {
@@ -2418,6 +2475,11 @@
     return (modelo && modelo.destinatario) || DESTINATARIO_PADRAO_SIGADOC;
   }
 
+  function modeloClassificacaoDoPacote(pacote) {
+    const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
+    return modelo && modelo.classificacao ? { ...modelo.classificacao } : null;
+  }
+
   function descricaoDestinatarioCorresponde(atual, esperado) {
     if (!esperado) return true;
     if (!atual) return false;
@@ -2496,13 +2558,13 @@
     `);
   }
 
-  async function preencherDestinatarioSigadoc(pacote) {
+  async function preencherDestinatarioSigadoc(pacote, destinoForcado = null) {
     const sigla = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla');
     const span = document.getElementById('exDocumentoDTO.lotacaoDestinatarioSelSpan');
     const descricaoCampo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_descricao');
     if (!sigla) return 'Campo de destinatário não encontrado.';
 
-    const destino = obterDestinatarioSigadoc(pacote);
+    const destino = destinoForcado || obterDestinatarioSigadoc(pacote);
     const siglaDestino = destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
     const descricaoEsperada = destino.descricao || '';
 
@@ -2654,9 +2716,9 @@
     }
   }
 
-  async function preencherClassificacaoSigadoc(pacote) {
+  async function preencherClassificacaoSigadoc(pacote, classificacaoForcada = null) {
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
-    const classificacao = modelo && modelo.classificacao;
+    const classificacao = classificacaoForcada || (modelo && modelo.classificacao);
     if (!classificacao) return '';
 
     const campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
@@ -2731,10 +2793,15 @@
   }
 
   async function salvarFluxoAssinaturaSigadoc(etapa, extra = {}) {
+    const fluxo = obterFluxoAtivoSigadoc();
+    if (!fluxo || !fluxo.assinar) {
+      throw new Error('A assinatura automática exige o clique em Preencher + Assinar nesta aba.');
+    }
     await storageSet({
       [PENDING_ASSINATURA_KEY]: {
         criadoEm: new Date().toISOString(),
         etapa,
+        fluxoId: fluxo.id,
         ...extra,
       },
     });
@@ -2746,6 +2813,10 @@
 
   async function salvarFluxoPosAssinaturaSigadoc(pacote) {
     if (!pacote) return null;
+    const fluxo = obterFluxoAtivoSigadoc();
+    if (!fluxo || !fluxo.assinar) {
+      throw new Error('A inclusão automática exige o clique em Preencher + Assinar nesta aba.');
+    }
 
     const destino = obterDestinatarioSigadoc(pacote);
     const nomeOficioEnviado = montarNomeOficioEnviado(pacote);
@@ -2763,6 +2834,14 @@
       nomeArquivo,
       destinatarioSigla: destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla,
       destinatarioDescricao: destino.descricao || '',
+      classificacao: modeloClassificacaoDoPacote(pacote),
+      descricaoOficio: textoDescricaoAssunto(pacote),
+      expedienteArquivoId: pacote.expedienteArquivoId || '',
+      nomeArquivoExpediente: pacote.nomeArquivoExpediente || '',
+      expedienteAviso: pacote.expedienteAviso || '',
+      etapa: 'oficio-assinado',
+      oficioAssinadoEm: Date.now(),
+      fluxoId: fluxo.id,
     };
 
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
@@ -2835,6 +2914,171 @@
     }) || null;
   }
 
+  function encontrarLinkIncluirDocumentoSigadoc() {
+    return document.getElementById('incluir-documento') || Array.from(document.querySelectorAll('a[href]')).find((link) => {
+      const texto = normalizarTexto([link.textContent, link.getAttribute('title')].filter(Boolean).join(' '));
+      return texto === 'incluir documento';
+    }) || null;
+  }
+
+  function paginaInclusaoDocumentoSigadoc() {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('criandoAnexo') === 'true' || Boolean(document.getElementById('arquivo'));
+  }
+
+  function encontrarModeloCapturadoSigadoc() {
+    return Array.from(document.querySelectorAll('#ulmod .dropdown-item[data-value]')).find((item) => {
+      const texto = normalizarTexto(textoOpcaoModeloDocumentoSigadoc(item));
+      return texto.includes('capturado') && texto.includes('autenticar documento externo');
+    }) || null;
+  }
+
+  async function obterPdfInternoSigadoc(id) {
+    if (!id) return null;
+    const resposta = await enviarMensagemExtensao({ type: 'cdspOficioObterPdf', id });
+    return resposta.pdf || null;
+  }
+
+  function preencherArquivoNoInputSigadoc(input, pdf) {
+    if (!input || !pdf || !pdf.base64) return false;
+    const arquivo = new File([base64ParaBlob(pdf.base64, pdf.mime || 'application/pdf')], pdf.nomeArquivo || 'Expediente.pdf', {
+      type: pdf.mime || 'application/pdf',
+      lastModified: Date.now(),
+    });
+    const transferencia = new DataTransfer();
+    transferencia.items.add(arquivo);
+    input.files = transferencia.files;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    executarNoContextoDaPagina(`
+      (function () {
+        var campo = document.getElementById(${JSON.stringify(input.id || 'arquivo')});
+        try { if (campo && typeof testpdf === 'function') testpdf(campo.form, 26214400); } catch (erro) {}
+      })();
+    `);
+    return Boolean(input.files && input.files.length === 1);
+  }
+
+  async function removerPdfExpedienteInterno(pendente) {
+    if (!pendente || !pendente.expedienteArquivoId) return;
+    await enviarMensagemExtensao({ type: 'cdspOficioApagarPdf', id: pendente.expedienteArquivoId })
+      .catch((erro) => console.warn('[CDSP - Extrator] Falha ao limpar PDF do expediente:', erro));
+  }
+
+  async function finalizarOficioAssinadoSigadoc(pendente) {
+    const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
+    const numeroSigadoc = extrairNumeroSigadocDaPagina();
+    if (!pdfUrl || !numeroSigadoc) return false;
+
+    if (!pendente.fluxoSpa) {
+      await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
+      const texto = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
+      if (texto) await copiarTextoSimples(texto);
+      await removerPdfExpedienteInterno(pendente);
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      return true;
+    }
+
+    const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
+      processo: pendente.processo,
+      tipoOficio: pendente.tipoOficio,
+      numeroSigadoc,
+    });
+    await storageSet({
+      [PENDING_SPA_FINALIZACAO_KEY]: {
+        criadoEm: new Date().toISOString(), etapa: 'aguardando-botao', arquivoId,
+        nomeArquivo: pendente.nomeArquivo, nomeOficioEnviado: pendente.nomeOficioEnviado,
+        textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
+        numeroSigadoc, processo: pendente.processo, tipoOficio: pendente.tipoOficio,
+      },
+      [PENDING_TRAMITACAO_KEY]: {
+        criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
+        destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
+      },
+    });
+    await removerPdfExpedienteInterno(pendente);
+    await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+    const tramitar = encontrarLinkTramitarSigadoc();
+    if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
+    tramitar.click();
+    return true;
+  }
+
+  async function preencherSenhaDoAnexoSigadoc(pendente) {
+    const credencial = detectarCredencialAssinaturaSigadoc();
+    const matricula = await aguardarElemento('#nomeUsuarioSubscritor', 5000);
+    const senha = await aguardarElemento('#senhaUsuarioSubscritor', 5000);
+    const ok = await aguardarElemento('#senhaOk', 5000);
+    if (!credencial || !matricula || !senha || !ok) throw new Error('A senha do documento capturado não pôde ser preenchida.');
+
+    const alternativas = [{ senha: credencial.senha }];
+    const senhaSessao = obterSenhaDaSessaoSigadoc();
+    if (senhaSessao && senhaSessao !== credencial.senha) alternativas.push({ senha: senhaSessao });
+
+    for (const tentativa of alternativas) {
+      setValorCampo(matricula, credencial.matricula);
+      setValorCampo(senha, tentativa.senha);
+      await aguardar(200);
+      ok.click();
+      await aguardar(1500);
+      if (!modalSenhaSigadocContinuaAberto(senha)) {
+        pendente.etapa = 'anexo-autenticado';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        return true;
+      }
+    }
+    throw new Error('O SIGADOC não aceitou a senha para autenticar o expediente.');
+  }
+
+  async function configurarAnexoDoExpedienteSigadoc(pendente) {
+    if (!paginaInclusaoDocumentoSigadoc()) return false;
+
+    if (pendente.etapa === 'anexo-selecionar-modelo') {
+      const modelo = encontrarModeloCapturadoSigadoc();
+      if (!modelo) return false;
+      pendente.etapa = 'anexo-preencher';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      aplicarSelecaoModeloDocumentoSigadoc(modelo);
+      return true;
+    }
+
+    if (pendente.etapa !== 'anexo-preencher') return false;
+    const campoArquivo = await aguardarElemento('#arquivo, input[type="file"]', 8000);
+    const gravar = await aguardarElemento('#btnGravar', 8000);
+    if (!campoArquivo || !gravar) throw new Error('O formulário Capturado não apresentou Arquivo PDF e OK.');
+
+    const pdf = await obterPdfInternoSigadoc(pendente.expedienteArquivoId);
+    if (!pdf || !pdf.base64) throw new Error('O PDF do expediente não está mais disponível na memória interna.');
+    const destino = { sigla: pendente.destinatarioSigla, descricao: pendente.destinatarioDescricao };
+    await preencherDestinatarioSigadoc({ tipoOficio: pendente.tipoOficio }, destino);
+    await preencherClassificacaoSigadoc({ tipoOficio: pendente.tipoOficio }, pendente.classificacao);
+    const descricao = document.getElementById('descrDocumento');
+    if (!descricao) throw new Error('Campo Descrição do documento capturado não encontrado.');
+    setValorCampo(descricao, pendente.descricaoOficio || pendente.nomeOficioEnviado || '');
+    if (!preencherArquivoNoInputSigadoc(campoArquivo, pdf)) throw new Error('O SIGADOC não aceitou o PDF do expediente.');
+
+    const invalidos = Array.from(document.querySelectorAll('#frm .is-invalid')).filter((campo) => campo.type !== 'hidden');
+    if (invalidos.length) throw new Error(`Campos obrigatórios pendentes no anexo: ${invalidos.map((campo) => campo.id || campo.name).join(', ')}.`);
+    pendente.etapa = 'anexo-autenticar';
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    atualizarStatusMenuSigadoc('PDF do expediente anexado. Aguardando autenticação...');
+    gravar.click();
+    return true;
+  }
+
+  async function autenticarAnexoSigadoc(pendente) {
+    if (document.getElementById('senhaDialog') || document.getElementById('senhaUsuarioSubscritor')) {
+      return preencherSenhaDoAnexoSigadoc(pendente);
+    }
+    const botao = document.getElementById('bot-autenticar');
+    if (!botao) return false;
+    selecionarAssinaturaPorSenhaSigadoc();
+    pendente.etapa = 'anexo-senha';
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    botao.click();
+    return true;
+  }
+
   let fluxoPosAssinaturaEmAndamento = false;
 
   async function verificarFluxoPosAssinaturaSigadocPendente() {
@@ -2843,6 +3087,7 @@
     const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.criadoEm) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -2850,11 +3095,8 @@
       return;
     }
 
-    const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
-    const numeroSigadoc = extrairNumeroSigadocDaPagina();
-
     if (pendente.modoPosAssinatura === 'parar') {
-      if (!pdfUrl && !numeroSigadoc && !encontrarLinkTramitarSigadoc()) return;
+      if (!encontrarUrlImpressaoPdfSigadoc() && !extrairNumeroSigadocDaPagina() && !encontrarLinkTramitarSigadoc()) return;
 
       fluxoPosAssinaturaEmAndamento = true;
       try {
@@ -2865,58 +3107,69 @@
       return;
     }
 
-    if (!pdfUrl || !numeroSigadoc) return;
-
     fluxoPosAssinaturaEmAndamento = true;
 
     try {
-      if (!pendente.fluxoSpa) {
-        await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
-        const textoParaSpa = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
-        if (textoParaSpa) {
-          await copiarTextoSimples(textoParaSpa);
+      if (pendente.etapa === 'oficio-assinado' && pendente.fluxoSpa && pendente.expedienteArquivoId) {
+        const incluir = encontrarLinkIncluirDocumentoSigadoc();
+        if (!incluir) {
+          if (Date.now() - Number(pendente.oficioAssinadoEm || 0) < 12000) return;
+          pendente.etapa = 'finalizar-sem-anexo';
+          pendente.expedienteAviso = 'O botão Incluir Documento não ficou disponível após a assinatura.';
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        } else {
+          pendente.urlOficio = window.location.href;
+          pendente.etapa = 'anexo-selecionar-modelo';
+        pendente.inclusaoDisparadaEm = Date.now();
+        pendente.tentativasInclusao = 1;
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        atualizarStatusMenuSigadoc('Abrindo inclusão do expediente...');
+        incluir.click();
+          return;
         }
-        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      }
+      if (pendente.etapa === 'anexo-selecionar-modelo' || pendente.etapa === 'anexo-preencher') {
+        if (await configurarAnexoDoExpedienteSigadoc(pendente)) return;
+        if (Date.now() - Number(pendente.inclusaoDisparadaEm || 0) < 2500) return;
+        const incluir = encontrarLinkIncluirDocumentoSigadoc();
+        if (incluir && Number(pendente.tentativasInclusao || 0) < 2) {
+          pendente.tentativasInclusao = Number(pendente.tentativasInclusao || 0) + 1;
+          pendente.inclusaoDisparadaEm = Date.now();
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          atualizarStatusMenuSigadoc('Tentando abrir a inclusão do expediente novamente...', 'alerta');
+          incluir.click();
+          return;
+        }
+        pendente.etapa = 'finalizar-sem-anexo';
+        pendente.expedienteAviso = 'O SIGADOC não abriu a tela de inclusão do expediente.';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return;
       }
-
-      const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
-        processo: pendente.processo,
-        tipoOficio: pendente.tipoOficio,
-        numeroSigadoc,
-      });
-
-      await storageSet({
-        [PENDING_SPA_FINALIZACAO_KEY]: {
-          criadoEm: new Date().toISOString(),
-          etapa: 'aguardando-botao',
-          arquivoId,
-          nomeArquivo: pendente.nomeArquivo,
-          nomeOficioEnviado: pendente.nomeOficioEnviado,
-          textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
-          numeroSigadoc,
-          processo: pendente.processo,
-          tipoOficio: pendente.tipoOficio,
-        },
-        [PENDING_TRAMITACAO_KEY]: {
-          criadoEm: new Date().toISOString(),
-          destinatarioSigla: pendente.destinatarioSigla,
-          destinatarioDescricao: pendente.destinatarioDescricao,
-          numeroSigadoc,
-        },
-      });
-
-      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
-
-      const tramitar = encontrarLinkTramitarSigadoc();
-      if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
-      tramitar.click();
+      if (pendente.etapa === 'anexo-autenticar' || pendente.etapa === 'anexo-senha') {
+        if (await autenticarAnexoSigadoc(pendente)) return;
+        return;
+      }
+      if (pendente.etapa === 'anexo-autenticado' && pendente.urlOficio && window.location.href !== pendente.urlOficio) {
+        window.location.assign(pendente.urlOficio);
+        return;
+      }
+      if (pendente.etapa === 'oficio-assinado' && pendente.fluxoSpa && !pendente.expedienteArquivoId) {
+        pendente.etapa = 'finalizar-sem-anexo';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      }
+      await finalizarOficioAssinadoSigadoc(pendente);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha após assinatura SIGADOC:', erro);
-      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      pendente.etapa = 'finalizar-sem-anexo';
+      pendente.expedienteAviso = erro && erro.message ? erro.message : 'Falha ao anexar o expediente.';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      atualizarStatusMenuSigadoc(`Expediente não anexado: ${pendente.expedienteAviso}`, 'alerta');
+      if (pendente.urlOficio && window.location.href !== pendente.urlOficio) {
+        window.location.assign(pendente.urlOficio);
+      }
       const btn = document.getElementById('spa-sigadoc-assinar-btn');
-      atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
-      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+      atualizarBotao(btn, 'alerta', '!', 'Anexo não incluído');
+      if (btn) btn.title = pendente.expedienteAviso;
     } finally {
       fluxoPosAssinaturaEmAndamento = false;
     }
@@ -2930,6 +3183,7 @@
     const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
     const pendente = resultado[PENDING_TRAMITACAO_KEY];
     if (!pendente || !pendente.criadoEm) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3043,6 +3297,35 @@
     } catch (_erro) {
       return '';
     }
+  }
+
+  function obterFluxoAtivoSigadoc() {
+    try {
+      const bruto = sessionStorage.getItem(SIGADOC_ACTIVE_FLOW_KEY);
+      return bruto ? JSON.parse(bruto) : null;
+    } catch (_erro) {
+      return null;
+    }
+  }
+
+  function iniciarFluxoExplicitoSigadoc(assinar) {
+    const fluxo = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      assinar: Boolean(assinar),
+      criadoEm: new Date().toISOString(),
+    };
+    try {
+      sessionStorage.setItem(SIGADOC_ACTIVE_FLOW_KEY, JSON.stringify(fluxo));
+    } catch (_erro) {
+      throw new Error('Não foi possível registrar esta execução do SIGADOC na aba atual.');
+    }
+    return fluxo;
+  }
+
+  function estadoPertenceAoFluxoAtivoSigadoc(estado, exigirAssinatura = false) {
+    const fluxo = obterFluxoAtivoSigadoc();
+    return Boolean(fluxo && estado && estado.fluxoId === fluxo.id &&
+      (!exigirAssinatura || fluxo.assinar));
   }
 
   function salvarSenhaDaSessaoSigadoc(senha) {
@@ -3192,6 +3475,7 @@
     const resultado = await storageGet([PENDING_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_ASSINATURA_KEY];
     if (!pendente) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_ASSINATURA_MS) {
@@ -3233,6 +3517,8 @@
     let assinar = Boolean(opcoes.assinar);
     const btn = document.getElementById(assinar ? 'spa-sigadoc-assinar-btn' : 'spa-sigadoc-btn');
     const automatico = Boolean(opcoes.automatico);
+    const fluxo = automatico ? obterFluxoAtivoSigadoc() : iniciarFluxoExplicitoSigadoc(assinar);
+    if (!fluxo) return;
     let manterEstadoBotao = false;
 
     atualizarBotao(btn, 'copiando', '...', automatico ? 'Finalizando...' : 'Preenchendo...');
@@ -3261,6 +3547,7 @@
               processo: pacote.processo,
               assinar,
               fase: 'modelo',
+              fluxoId: fluxo.id,
             },
           });
 
@@ -3279,6 +3566,7 @@
               criadoEm: new Date().toISOString(),
               processo: pacote.processo,
               assinar,
+              fluxoId: fluxo.id,
             },
           });
 
@@ -3607,8 +3895,10 @@
 
     const body = panel.querySelector('.cdsp-sigadoc-menu__body');
     if (!body || body.querySelector('.copiando')) return;
-    const senhaEmEdicao = body.querySelector('#cdsp-sigadoc-session-password');
-    if (senhaEmEdicao && document.activeElement === senhaEmEdicao) return;
+    // O observador do SIGADOC é muito ativo. Recriar o painel remove o foco e
+    // interrompe a digitação da senha; após a primeira montagem, o menu é
+    // preservado até a navegação trocar o documento.
+    if (body.querySelector('#cdsp-sigadoc-session-password')) return;
 
     body.innerHTML = '';
 
@@ -3735,6 +4025,7 @@
     const pendente = resultado[PENDING_SIGADOC_KEY];
     const pacote = resultado[STORAGE_KEY];
     if (!pendente || !pacote) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, Boolean(pendente.assinar))) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > 1000 * 60 * 5) {
