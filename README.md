@@ -2,7 +2,9 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.22**.
+Versão atual versionada neste repositório: **2.23**.
+
+Nesta versão, somente o fluxo de Ofícios/SIGADOC foi restaurado à base estável da `v2.02`. A tentativa posterior de anexação automática do expediente foi retirada para ser reimplementada isoladamente, sem afetar a assinatura e a tramitação já estáveis.
 
 ## Estrutura
 
