@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.21`
-- Ultima tag publicada no repositorio: `v2.20`
+- Versao atual da extensao: `2.22`
+- Ultima tag publicada no repositorio: `v2.21`
 
 ## Como retomar no notebook
 
@@ -403,6 +403,10 @@ Versao `2.21`:
 
 - A extracao em aba auxiliar aguarda o PDF `Ler Expediente <ID>` alem dos campos textuais. Quando o SPA ainda nao exibiu o ID do campo, usa o unico expediente visivel; se houver mais de um, mantem a exigencia de correspondencia pelo ID.
 - A inclusao do documento e registrada antes da confirmacao da senha, mas so e disparada depois que o oficio assinado exibe o botao nativo `#incluir-documento`. Isso impede que a pagina de assinatura consuma ou descarte a etapa do anexo.
+
+Versao `2.22`:
+
+- As continuacoes automaticas do SIGADOC passaram a exigir um identificador de sessao criado somente pelo clique em `Preencher SIGADOC` ou `Preencher + Assinar`. Estados pendentes de outra aba, sessao ou documento aberto manualmente sao ignorados; sem gatilho explicito, a extensao nao preenche, assina, anexa nem tramita.
 
 ## Regras permanentes combinadas
 

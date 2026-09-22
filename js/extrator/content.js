@@ -22,6 +22,7 @@
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
   const SIGADOC_SESSION_PASSWORD_KEY = 'cdspSigadocSessionPassword';
+  const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
   const TEMPO_EXPIRACAO_MS = 1000 * 60 * 60 * 8;
   const TEMPO_FLUXO_ASSINATURA_MS = 1000 * 60 * 15;
   const TEMPO_FLUXO_FINALIZACAO_MS = 1000 * 60 * 60 * 8;
@@ -2799,10 +2800,13 @@
   }
 
   async function salvarFluxoAssinaturaSigadoc(etapa, extra = {}) {
+    const fluxoId = obterFluxoAtivoSigadoc();
+    if (!fluxoId) throw new Error('A assinatura automatica exige o acionamento de Preencher + Assinar nesta aba.');
     await storageSet({
       [PENDING_ASSINATURA_KEY]: {
         criadoEm: new Date().toISOString(),
         etapa,
+        fluxoId,
         ...extra,
       },
     });
@@ -2814,6 +2818,8 @@
 
   async function salvarFluxoPosAssinaturaSigadoc(pacote) {
     if (!pacote) return null;
+    const fluxoId = obterFluxoAtivoSigadoc();
+    if (!fluxoId) throw new Error('A inclusao automatica exige o acionamento de Preencher + Assinar nesta aba.');
 
     const destino = obterDestinatarioSigadoc(pacote);
     const nomeOficioEnviado = montarNomeOficioEnviado(pacote);
@@ -2838,6 +2844,7 @@
       nomeArquivoExpediente: montarNomeArquivoExpediente(pacote),
       etapa: 'oficio-assinado',
       tentativasAnexo: 0,
+      fluxoId,
     };
 
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
@@ -2918,6 +2925,7 @@
     const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.criadoEm) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3033,6 +3041,7 @@
           destinatarioSigla: pendente.destinatarioSigla,
           destinatarioDescricao: pendente.destinatarioDescricao,
           numeroSigadoc,
+          fluxoId: pendente.fluxoId,
         },
       });
 
@@ -3066,6 +3075,7 @@
     const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
     const pendente = resultado[PENDING_TRAMITACAO_KEY];
     if (!pendente || !pendente.criadoEm) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3523,6 +3533,29 @@
     }
   }
 
+  function obterFluxoAtivoSigadoc() {
+    try {
+      return String(sessionStorage.getItem(SIGADOC_ACTIVE_FLOW_KEY) || '');
+    } catch (_erro) {
+      return '';
+    }
+  }
+
+  function iniciarFluxoExplicitoSigadoc() {
+    const fluxoId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      sessionStorage.setItem(SIGADOC_ACTIVE_FLOW_KEY, fluxoId);
+    } catch (_erro) {
+      throw new Error('Não foi possível registrar a sessão do fluxo automático no SIGADOC.');
+    }
+    return fluxoId;
+  }
+
+  function estadoPertenceAoFluxoAtivoSigadoc(estado) {
+    const fluxoId = obterFluxoAtivoSigadoc();
+    return Boolean(fluxoId && estado && estado.fluxoId && estado.fluxoId === fluxoId);
+  }
+
   function salvarSenhaDaSessaoSigadoc(senha) {
     try {
       if (senha) {
@@ -3672,6 +3705,7 @@
     const resultado = await storageGet([PENDING_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_ASSINATURA_KEY];
     if (!pendente) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_ASSINATURA_MS) {
@@ -3715,6 +3749,8 @@
     let assinar = Boolean(opcoes.assinar);
     const btn = document.getElementById(assinar ? 'spa-sigadoc-assinar-btn' : 'spa-sigadoc-btn');
     const automatico = Boolean(opcoes.automatico);
+    const fluxoId = automatico ? obterFluxoAtivoSigadoc() : iniciarFluxoExplicitoSigadoc();
+    if (!fluxoId) return;
     let manterEstadoBotao = false;
 
     atualizarBotao(btn, 'copiando', '...', automatico ? 'Finalizando...' : 'Preenchendo...');
@@ -3743,6 +3779,7 @@
               processo: pacote.processo,
               assinar,
               fase: 'modelo',
+              fluxoId,
             },
           });
 
@@ -3766,6 +3803,7 @@
               processo: pacote.processo,
               assinar,
               fase: 'texto-padrao',
+              fluxoId,
             },
           });
 
@@ -4238,6 +4276,7 @@
     const pendente = resultado[PENDING_SIGADOC_KEY];
     const pacote = resultado[STORAGE_KEY];
     if (!pendente || !pacote) return;
+    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > 1000 * 60 * 5) {

@@ -154,3 +154,11 @@ test('documento assinado oferece a rota oficial de inclusao', () => {
   assert.match(source, /document\.getElementById\('incluir-documento'\)/);
   assert.match(source, /await aguardarAberturaInclusaoSigadoc\(\)/);
 });
+
+test('continuacoes no SIGADOC exigem um gatilho explicito na mesma aba', () => {
+  assert.match(source, /const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow'/);
+  assert.match(source, /function iniciarFluxoExplicitoSigadoc\(\)/);
+  assert.match(source, /function estadoPertenceAoFluxoAtivoSigadoc\(estado\)/);
+  assert.match(source, /if \(!estadoPertenceAoFluxoAtivoSigadoc\(pendente\)\) return;/);
+  assert.match(source, /const fluxoId = automatico \? obterFluxoAtivoSigadoc\(\) : iniciarFluxoExplicitoSigadoc\(\)/);
+});
