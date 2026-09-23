@@ -2959,11 +2959,13 @@
 
   function encontrarLinkRetornoAoOficioSigadoc(pendente) {
     const siglaOficio = obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio);
-    const links = Array.from(document.querySelectorAll('a[href*="/expediente/doc/exibir?sigla="]'));
+    const links = Array.from(document.querySelectorAll(
+      'a[id^="pge-ofi-"], #outputRelacaoDocs a[href], a[href*="/expediente/doc/exibir?sigla="]'
+    ));
     const candidatos = links.filter((link) => {
       const href = link.getAttribute('href') || '';
-      const texto = normalizarTexto([link.textContent, link.getAttribute('title')].filter(Boolean).join(' '));
-      return /\/expediente\/doc\/exibir\?sigla=/i.test(href) && (texto.includes('pge ofi') || /sigla=PGE-OFI/i.test(href));
+      const identidade = compactarTexto([link.id, link.textContent, link.getAttribute('title'), href].filter(Boolean).join(' '));
+      return /\/expediente\/doc\/exibir\?sigla=/i.test(href) && identidade.includes('pgeofi');
     });
     const vinculadosNaJuntada = candidatos.filter((link) =>
       /^pge-ofi-/i.test(link.id || '') || Boolean(link.closest('tr.juntada, #outputRelacaoDocs'))
@@ -3145,11 +3147,16 @@
     const documentoPai = encontrarLinkRetornoAoOficioSigadoc(pendente);
     if (!documentoPai) return false;
 
+    const urlAtual = window.location.href;
+    const urlOficio = new URL(documentoPai.getAttribute('href'), window.location.href).href;
     pendente.retornoSolicitadoEm = Date.now();
     pendente.tentativasRetorno = Number(pendente.tentativasRetorno || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
     atualizarStatusMenuSigadoc('Retornando ao ofício originário para tramitação...');
     documentoPai.click();
+    setTimeout(() => {
+      if (window.location.href === urlAtual) window.location.assign(urlOficio);
+    }, 900);
     return true;
   }
 
