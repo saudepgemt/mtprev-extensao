@@ -3075,13 +3075,18 @@
       setValorCampo(matricula, credencial.matricula);
       setValorCampo(senha, tentativa.senha);
       await aguardar(200);
+      // O SIGADOC pode navegar logo ao confirmar a senha. Salva a proxima etapa
+      // antes do clique para que o content script da pagina Capturado a retome.
+      pendente.etapa = 'anexo-retornar-oficio';
+      pendente.senhaAutenticacaoTentadaEm = Date.now();
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
       ok.click();
       await aguardar(1500);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
-        pendente.etapa = 'anexo-retornar-oficio';
-        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return true;
       }
+      pendente.etapa = 'anexo-senha';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
     }
     throw new Error('O SIGADOC não aceitou a senha para autenticar o expediente.');
   }
@@ -3225,6 +3230,16 @@
         pendente.expedienteAviso = 'O SIGADOC não abriu a tela de inclusão do expediente.';
         await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return;
+      }
+      // Recupera execucoes iniciadas por versoes anteriores: se a senha ja levou
+      // ao documento Capturado, a unica proxima acao valida e voltar ao PGE-OFI.
+      if (pendente.etapa === 'anexo-senha' &&
+          !document.getElementById('senhaDialog') &&
+          !document.getElementById('senhaUsuarioSubscritor') &&
+          !document.getElementById('bot-autenticar') &&
+          encontrarLinkRetornoAoOficioSigadoc(pendente)) {
+        pendente.etapa = 'anexo-retornar-oficio';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
       }
       if (pendente.etapa === 'anexo-autenticar' || pendente.etapa === 'anexo-confirmar-autenticacao' || pendente.etapa === 'anexo-senha') {
         if (await autenticarAnexoSigadoc(pendente)) return;

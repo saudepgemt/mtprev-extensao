@@ -2,9 +2,9 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.27**.
+Versão atual versionada neste repositório: **2.28**.
 
-Nesta versão, o fluxo de Ofícios/SIGADOC preserva a base estável da `v2.02` e inclui o PDF do expediente após a assinatura. A confirmação do documento capturado aciona o `Autenticar`, confirma a senha e retorna pelo vínculo azul de juntada `PGE-OFI...` antes de tramitar, aceitando a sigla com ou sem separadores e usando a URL do mesmo vínculo apenas se o clique não navegar. A tramitação só confirma o envio após o SIGADOC validar a lotação de destino. A automação só continua quando iniciada pelo clique em `Preencher + Assinar` na própria aba.
+Nesta versão, o fluxo de Ofícios/SIGADOC preserva a base estável da `v2.02` e inclui o PDF do expediente após a assinatura. A próxima etapa é salva antes da confirmação da senha do documento Capturado, evitando perda de estado em uma navegação imediata. Em seguida, a extensão retorna pelo vínculo azul de juntada `PGE-OFI...` antes de tramitar. A automação só continua quando iniciada pelo clique em `Preencher + Assinar` na própria aba.
 
 ## Estrutura
 
