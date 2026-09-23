@@ -4034,10 +4034,20 @@
     try {
       const posicao = JSON.parse(localStorage.getItem(SIGADOC_MENU_POSITION_KEY) || 'null');
       if (posicao && Number.isFinite(posicao.left) && Number.isFinite(posicao.top)) {
-        panel.style.left = `${posicao.left}px`;
-        panel.style.top = `${posicao.top}px`;
+        // A posicao pode ter sido salva em outro monitor, resolucao ou zoom.
+        // Nunca permita que esse valor esconda o unico ponto de entrada do menu.
+        const margem = 8;
+        const maxLeft = Math.max(margem, window.innerWidth - panel.offsetWidth - margem);
+        const maxTop = Math.max(margem, window.innerHeight - panel.offsetHeight - margem);
+        const left = Math.min(maxLeft, Math.max(margem, posicao.left));
+        const top = Math.min(maxTop, Math.max(margem, posicao.top));
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';
+        if (left !== posicao.left || top !== posicao.top) {
+          localStorage.setItem(SIGADOC_MENU_POSITION_KEY, JSON.stringify({ left, top }));
+        }
       }
     } catch (_erro) {
       // Posicao invalida: usa padrao visual.

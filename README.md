@@ -2,9 +2,9 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.29**.
+Versão atual versionada neste repositório: **2.30**.
 
-Nesta versão, o fluxo de Ofícios/SIGADOC preserva a base estável da `v2.02` e inclui o PDF do expediente após a assinatura. Cada transição que pode recarregar a página registra a próxima etapa antes do clique. A extensão só remove a pendência e o PDF temporário depois de confirmar a página de destino; se o portal não avançar, interrompe o fluxo para conferência, sem reenviar a ação automaticamente. A automação só continua quando iniciada pelo clique em `Preencher + Assinar` na própria aba.
+Nesta versão, o fluxo de Ofícios/SIGADOC preserva a base estável da `v2.02` e inclui o PDF do expediente após a assinatura. Cada transição que pode recarregar a página registra a próxima etapa antes do clique. A extensão só remove a pendência e o PDF temporário depois de confirmar a página de destino; se o portal não avançar, interrompe o fluxo para conferência, sem reenviar a ação automaticamente. O painel do SIGADOC também restaura sua posição somente dentro da área visível da janela. A automação só continua quando iniciada pelo clique em `Preencher + Assinar` na própria aba.
 
 ## Estrutura
 
