@@ -2937,16 +2937,42 @@
     }
   }
 
-  function encontrarLinkDocumentoPaiDoOficioSigadoc(pendente) {
+  function chaveSiglaDocumentoSigadoc(sigla) {
+    const texto = limparValorExtraido(sigla).toUpperCase();
+    const semSufixo = texto.replace(/-[A-Z]$/i, '');
+    const compacta = semSufixo.replace(/[^A-Z0-9]/g, '');
+    return /^PGEOFI\d{4}\d+A$/i.test(compacta) ? compacta.slice(0, -1) : compacta;
+  }
+
+  function siglasReferemMesmoOficioSigadoc(primeira, segunda) {
+    const chavePrimeira = chaveSiglaDocumentoSigadoc(primeira);
+    const chaveSegunda = chaveSiglaDocumentoSigadoc(segunda);
+    return Boolean(chavePrimeira && chaveSegunda && chavePrimeira === chaveSegunda);
+  }
+
+  function estaNaPaginaDoOficioOrigemSigadoc(pendente) {
+    return siglasReferemMesmoOficioSigadoc(
+      obterSiglaDoDocumentoSigadoc(window.location.href),
+      obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio)
+    );
+  }
+
+  function encontrarLinkRetornoAoOficioSigadoc(pendente) {
     const siglaOficio = obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio);
-    const links = Array.from(document.querySelectorAll('#outputRelacaoDocs a[href], a[href*="/expediente/doc/exibir?sigla="]'));
+    const links = Array.from(document.querySelectorAll('a[href*="/expediente/doc/exibir?sigla="]'));
     const candidatos = links.filter((link) => {
       const href = link.getAttribute('href') || '';
       const texto = normalizarTexto([link.textContent, link.getAttribute('title')].filter(Boolean).join(' '));
       return /\/expediente\/doc\/exibir\?sigla=/i.test(href) && (texto.includes('pge ofi') || /sigla=PGE-OFI/i.test(href));
     });
+    const vinculadosNaJuntada = candidatos.filter((link) =>
+      /^pge-ofi-/i.test(link.id || '') || Boolean(link.closest('tr.juntada, #outputRelacaoDocs'))
+    );
+    const porSigla = (links) => links.find((link) => siglasReferemMesmoOficioSigadoc(
+      obterSiglaDoDocumentoSigadoc(link.href), siglaOficio
+    ));
 
-    return candidatos.find((link) => obterSiglaDoDocumentoSigadoc(link.href) === siglaOficio) || candidatos[0] || null;
+    return porSigla(vinculadosNaJuntada) || vinculadosNaJuntada[0] || porSigla(candidatos) || candidatos[0] || null;
   }
 
   function paginaInclusaoDocumentoSigadoc() {
@@ -3116,10 +3142,11 @@
   }
 
   async function retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente) {
-    const documentoPai = encontrarLinkDocumentoPaiDoOficioSigadoc(pendente);
+    const documentoPai = encontrarLinkRetornoAoOficioSigadoc(pendente);
     if (!documentoPai) return false;
 
-    pendente.etapa = 'oficio-pronto-para-tramitar';
+    pendente.retornoSolicitadoEm = Date.now();
+    pendente.tentativasRetorno = Number(pendente.tentativasRetorno || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
     atualizarStatusMenuSigadoc('Retornando ao ofício originário para tramitação...');
     documentoPai.click();
@@ -3197,7 +3224,17 @@
         return;
       }
       if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
-        if (await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente)) return;
+        if (estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+          pendente.etapa = 'oficio-pronto-para-tramitar';
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        } else {
+          if (await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente)) return;
+          return;
+        }
+      }
+      if (pendente.etapa === 'oficio-pronto-para-tramitar' && !estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+        pendente.etapa = 'anexo-retornar-oficio';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         return;
       }
       if (pendente.etapa === 'oficio-assinado' && pendente.fluxoSpa && !pendente.expedienteArquivoId) {
@@ -3224,6 +3261,42 @@
 
   let fluxoTramitacaoEmAndamento = false;
 
+  function estadoResponsavelTramitacaoSigadoc(destino) {
+    const id = document.getElementById('formulario_lotaResponsavelSel_id') ||
+      document.getElementsByName('lotaResponsavelSel.id')[0];
+    const sigla = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
+      document.getElementsByName('lotaResponsavelSel.sigla')[0];
+    const descricao = document.getElementById('formulario_lotaResponsavelSel_descricao') ||
+      document.getElementsByName('lotaResponsavelSel.descricao')[0];
+    const span = document.getElementById('lotaResponsavelSelSpan');
+    const idValue = limparValorExtraido(id && id.value);
+    const siglaValue = limparValorExtraido(sigla && sigla.value);
+    const descricaoValue = limparValorExtraido((span && span.textContent) || (descricao && descricao.value));
+    const descricaoEsperada = limparValorExtraido(destino && destino.descricao);
+
+    return {
+      idValue,
+      siglaValue,
+      descricaoValue,
+      confirmed: Boolean(
+        idValue &&
+        normalizarTexto(siglaValue) === normalizarTexto(destino && destino.sigla) &&
+        (!descricaoEsperada || !descricaoValue || descricaoDestinatarioCorresponde(descricaoValue, descricaoEsperada))
+      ),
+    };
+  }
+
+  async function aguardarConfirmacaoResponsavelTramitacaoSigadoc(destino, timeoutMs) {
+    const inicio = Date.now();
+    let estado = estadoResponsavelTramitacaoSigadoc(destino);
+    while (Date.now() - inicio < timeoutMs) {
+      if (estado.confirmed) return estado;
+      await aguardar(200);
+      estado = estadoResponsavelTramitacaoSigadoc(destino);
+    }
+    return estado;
+  }
+
   async function verificarTramitacaoSigadocPendente() {
     if (fluxoTramitacaoEmAndamento) return;
 
@@ -3246,8 +3319,11 @@
     fluxoTramitacaoEmAndamento = true;
 
     try {
-      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
-      setValorCampo(campo, destino);
+      const destino = {
+        sigla: pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla,
+        descricao: pendente.destinatarioDescricao || '',
+      };
+      setValorCampo(campo, destino.sigla);
       campo.focus();
 
       const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
@@ -3264,7 +3340,7 @@
 
       executarNoContextoDaPagina(`
         (function () {
-          var destino = ${JSON.stringify(destino)};
+          var destino = ${JSON.stringify(destino.sigla)};
           var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
             document.getElementsByName('lotaResponsavelSel.sigla')[0];
 
@@ -3295,12 +3371,31 @@
         })();
       `);
 
-      await aguardar(1200);
+      let estado = estadoResponsavelTramitacaoSigadoc(destino);
+      for (let tentativa = 1; tentativa <= 3 && !estado.confirmed; tentativa += 1) {
+        await aguardar(250 * tentativa);
+        executarNoContextoDaPagina(`
+          (function () {
+            try { if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel(); } catch (erro) {}
+          })();
+        `);
+        estado = await aguardarConfirmacaoResponsavelTramitacaoSigadoc(destino, 2500 * tentativa);
+      }
+      if (!estado.confirmed) {
+        pendente.ultimaTentativaEm = Date.now();
+        pendente.tentativas = Number(pendente.tentativas || 0) + 1;
+        await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+        atualizarStatusMenuSigadoc(`A tramitação aguarda a confirmação de ${destino.sigla} no SIGADOC.`, 'alerta');
+        return;
+      }
       await storageRemove([PENDING_TRAMITACAO_KEY]);
       ok.click();
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      pendente.ultimaTentativaEm = Date.now();
+      pendente.tentativas = Number(pendente.tentativas || 0) + 1;
+      await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+      atualizarStatusMenuSigadoc('Falha ao confirmar a lotação para tramitação. A extensão tentará novamente.', 'alerta');
     } finally {
       fluxoTramitacaoEmAndamento = false;
     }
