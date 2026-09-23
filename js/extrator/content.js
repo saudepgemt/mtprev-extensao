@@ -3040,6 +3040,11 @@
       tipoOficio: pendente.tipoOficio,
       numeroSigadoc,
     });
+    const pendenciaTramitacao = {
+      criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
+      destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
+      etapa: 'aguardando-formulario', tentativasAbertura: 0,
+    };
     await storageSet({
       [PENDING_SPA_FINALIZACAO_KEY]: {
         criadoEm: new Date().toISOString(), etapa: 'aguardando-botao', arquivoId,
@@ -3047,16 +3052,13 @@
         textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
         numeroSigadoc, processo: pendente.processo, tipoOficio: pendente.tipoOficio,
       },
-      [PENDING_TRAMITACAO_KEY]: {
-        criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
-        destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
-      },
     });
-    await removerPdfExpedienteInterno(pendente);
-    await storageRemove([PENDING_POS_ASSINATURA_KEY]);
     const tramitar = encontrarLinkTramitarSigadoc();
     if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
-    tramitar.click();
+    await storageSet({ [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao });
+    await removerPdfExpedienteInterno(pendente);
+    await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+    await abrirFormularioTramitacaoSigadoc(pendenciaTramitacao, tramitar);
     return true;
   }
 
@@ -3283,6 +3285,22 @@
 
   let fluxoTramitacaoEmAndamento = false;
 
+  async function abrirFormularioTramitacaoSigadoc(pendente, linkTramitar) {
+    if (!linkTramitar) return false;
+    const urlAtual = window.location.href;
+    const urlFormulario = new URL(linkTramitar.getAttribute('href'), window.location.href).href;
+    pendente.etapa = 'aguardando-formulario';
+    pendente.aberturaDisparadaEm = Date.now();
+    pendente.tentativasAbertura = Number(pendente.tentativasAbertura || 0) + 1;
+    await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+    atualizarStatusMenuSigadoc('Abrindo formulário de tramitação...');
+    linkTramitar.click();
+    setTimeout(() => {
+      if (window.location.href === urlAtual) window.location.assign(urlFormulario);
+    }, 900);
+    return true;
+  }
+
   function estadoResponsavelTramitacaoSigadoc(destino) {
     const id = document.getElementById('formulario_lotaResponsavelSel_id') ||
       document.getElementsByName('lotaResponsavelSel.id')[0];
@@ -3336,7 +3354,28 @@
     const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
     const ok = document.getElementById('button_ok');
     const form = document.getElementById('frm');
-    if (!campo || !ok || !form) return;
+
+    if (pendente.etapa === 'confirmando-envio') {
+      if (!campo || !ok || !form) {
+        await storageRemove([PENDING_TRAMITACAO_KEY]);
+        return;
+      }
+      if (Date.now() - Number(pendente.confirmacaoDisparadaEm || 0) < 1800) return;
+      pendente.confirmacaoFalhouEm = Date.now();
+      await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+      atualizarStatusMenuSigadoc('O formulário de tramitação não avançou após o OK. Confira antes de tentar novamente.', 'alerta');
+      return;
+    }
+
+    if (!campo || !ok || !form) {
+      if (pendente.etapa === 'aguardando-formulario' &&
+          Date.now() - Number(pendente.aberturaDisparadaEm || 0) >= 1300 &&
+          Number(pendente.tentativasAbertura || 0) < 2) {
+        const tramitar = encontrarLinkTramitarSigadoc();
+        if (tramitar) await abrirFormularioTramitacaoSigadoc(pendente, tramitar);
+      }
+      return;
+    }
 
     fluxoTramitacaoEmAndamento = true;
 
@@ -3410,8 +3449,12 @@
         atualizarStatusMenuSigadoc(`A tramitação aguarda a confirmação de ${destino.sigla} no SIGADOC.`, 'alerta');
         return;
       }
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      pendente.etapa = 'confirmando-envio';
+      pendente.confirmacaoDisparadaEm = Date.now();
+      pendente.tentativasEnvio = Number(pendente.tentativasEnvio || 0) + 1;
+      await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
       ok.click();
+      setTimeout(verificarTramitacaoSigadocPendente, 1900);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
       pendente.ultimaTentativaEm = Date.now();
@@ -4291,18 +4334,22 @@
 
     atualizarBotao(btn, 'sucesso', 'OK', 'Encerrando...');
 
-    await storageRemove([PENDING_SPA_FINALIZACAO_KEY]);
-    if (dados.arquivoId) {
-      await enviarMensagemExtensao({
-        type: 'cdspOficioApagarPdf',
-        id: dados.arquivoId,
-      }).catch((erro) => {
-        console.warn('[CDSP - Extrator] Não foi possível apagar o PDF interno:', erro);
-      });
-    }
-
+    const urlAtual = window.location.href;
+    await atualizarFinalizacaoSpaPendente({
+      etapa: 'confirmando-encerramento',
+      encerramentoDisparadoEm: Date.now(),
+    });
     await aguardar(350);
     encerrar.click();
+    setTimeout(async () => {
+      if (window.location.href !== urlAtual || etapaAtualSpa() !== '1245') return;
+      await atualizarFinalizacaoSpaPendente({
+        etapa: 'aguardando-revisao',
+        encerramentoFalhouEm: Date.now(),
+      }).catch(() => {});
+      atualizarBotao(btn, 'alerta', '!', 'Confira e tente');
+      if (btn) btn.title = 'O SPA permaneceu no formulário após Encerrar. Confira os campos e clique novamente.';
+    }, 1800);
   }
 
   async function continuarFinalizacaoSpa(dados, btn) {
@@ -4376,9 +4423,18 @@
     if (finalizacaoSpaEmAndamento) return;
 
     const dados = await obterFinalizacaoSpaPendente();
-    if (!dados || dados.etapa === 'aguardando-botao') return;
+    if (!dados || dados.etapa === 'aguardando-botao' || dados.etapa === 'aguardando-revisao') return;
 
     const etapa = etapaAtualSpa();
+    if (dados.etapa === 'confirmando-encerramento') {
+      if (etapa === '1245') return;
+      await storageRemove([PENDING_SPA_FINALIZACAO_KEY]);
+      if (dados.arquivoId) {
+        await enviarMensagemExtensao({ type: 'cdspOficioApagarPdf', id: dados.arquivoId })
+          .catch((erro) => console.warn('[CDSP - Extrator] Não foi possível apagar o PDF interno:', erro));
+      }
+      return;
+    }
     const deveContinuar = (dados.etapa === 'selecionar-inserir' && etapa === '751') ||
       (dados.etapa === 'preencher-formulario' && etapa === '1245');
 
