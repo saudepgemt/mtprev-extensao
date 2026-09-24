@@ -2822,6 +2822,11 @@
     }
   }
 
+  function obterSiglaDoTituloSigadoc() {
+    const ocorrencia = String(document.title || '').match(/PGE-OFI-\d{4}\/\d+(?:-[A-Z])?/i);
+    return ocorrencia ? ocorrencia[0] : '';
+  }
+
   function chaveSiglaDocumentoSigadoc(sigla) {
     const texto = limparValorExtraido(sigla).toUpperCase();
     const semSufixo = texto.replace(/-[A-Z]$/i, '');
@@ -2836,10 +2841,9 @@
   }
 
   function estaNaPaginaDoOficioOrigemSigadoc(pendente) {
-    return siglasReferemMesmoOficioSigadoc(
-      obterSiglaDoDocumentoSigadoc(window.location.href),
-      obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio)
-    );
+    const siglaOrigem = pendente && (pendente.siglaOficio || obterSiglaDoDocumentoSigadoc(pendente.urlOficio));
+    return siglasReferemMesmoOficioSigadoc(obterSiglaDoDocumentoSigadoc(window.location.href), siglaOrigem) ||
+      siglasReferemMesmoOficioSigadoc(obterSiglaDoTituloSigadoc(), siglaOrigem);
   }
 
   function encontrarLinkRetornoAoOficioSigadoc(pendente) {
@@ -3031,12 +3035,14 @@
   }
 
   async function retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente) {
+    if (pendente.retornoDisparadoEm) return false;
     const documentoPai = encontrarLinkRetornoAoOficioSigadoc(pendente);
     if (!documentoPai) return false;
 
     const urlAtual = window.location.href;
     const urlOficio = new URL(documentoPai.getAttribute('href'), window.location.href).href;
     pendente.retornoSolicitadoEm = Date.now();
+    pendente.retornoDisparadoEm = pendente.retornoSolicitadoEm;
     pendente.tentativasRetorno = Number(pendente.tentativasRetorno || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
     atualizarStatusMenuSigadoc('Retornando ao ofício originário para tramitação...');
@@ -3087,6 +3093,7 @@
           await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         } else {
           pendente.urlOficio = window.location.href;
+          pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(pendente.urlOficio) || obterSiglaDoTituloSigadoc();
           pendente.etapa = 'anexo-selecionar-modelo';
         pendente.inclusaoDisparadaEm = Date.now();
         pendente.tentativasInclusao = 1;
@@ -3130,7 +3137,9 @@
       if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
         if (estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
           pendente.etapa = 'oficio-pronto-para-tramitar';
+          pendente.retornoConcluidoEm = Date.now();
           await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          atualizarStatusMenuSigadoc('Ofício originário localizado. Preparando tramitação...');
         } else {
           if (await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente)) return;
           return;
