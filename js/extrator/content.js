@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.37';
+  const SIGADOC_FLOW_VERSION = '2.39';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -2727,6 +2727,10 @@
       etapa: 'oficio-assinado',
       oficioAssinadoEm: Date.now(),
       fluxoId: fluxo.id,
+      // O clique em Preencher + Assinar já autorizou esta cadeia. Depois da
+      // assinatura, o SIGADOC navega entre páginas e pode limpar o
+      // sessionStorage; a continuação precisa sobreviver a essa troca.
+      continuidadePosAssinaturaAutorizada: true,
     };
 
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
@@ -2928,6 +2932,7 @@
       criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
       destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
       etapa: 'abrir-formulario', tentativasAbertura: 0,
+      continuidadePosAssinaturaAutorizada: Boolean(pendente.continuidadePosAssinaturaAutorizada),
     };
     await storageSet({
       [PENDING_SPA_FINALIZACAO_KEY]: {
@@ -3061,7 +3066,7 @@
     const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.criadoEm) return;
-    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
+    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3237,7 +3242,7 @@
     const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
     const pendente = resultado[PENDING_TRAMITACAO_KEY];
     if (!pendente || !pendente.criadoEm) return;
-    if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
+    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) return;
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3406,6 +3411,15 @@
     return Boolean(fluxo && fluxo.versao === SIGADOC_FLOW_VERSION &&
       estado && estado.fluxoId === fluxo.id &&
       (!exigirAssinatura || fluxo.assinar));
+  }
+
+  function podeContinuarFluxoPosAssinaturaSigadoc(estado) {
+    // A autorização inicial continua vinculada ao clique explícito. Este
+    // marcador só é gravado depois que salvarFluxoPosAssinaturaSigadoc valida
+    // esse clique; ele evita que a automação seja interrompida ao trocar de
+    // página no SIGADOC, quando o identificador da sessão pode desaparecer.
+    return estadoPertenceAoFluxoAtivoSigadoc(estado, true) ||
+      Boolean(estado && estado.continuidadePosAssinaturaAutorizada === true);
   }
 
   function salvarSenhaDaSessaoSigadoc(senha) {

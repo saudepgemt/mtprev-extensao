@@ -6,7 +6,7 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.38`
+- Versao atual da extensao: `2.39`
 - Ultima tag publicada no repositorio: `v2.30`
 
 ## Como retomar no notebook
@@ -536,3 +536,9 @@ O ideal e entrar no notebook com a mesma conta OpenAI/Codex e procurar esta tare
 
 - O fluxo de Oficios/SIGADOC preserva o anexo do expediente em modelo Capturado e o retorno ao oficio originario.
 - A abertura do formulario de tramitacao voltou a usar primeiro o clique nativo no botao `Tramitar`, como nas versoes 2.02/2.31. A navegacao direta para a URL do formulario ficou apenas como contingencia se o portal nao iniciar a transicao, sem um segundo clique em `Tramitar`.
+
+## Ajuste da versao 2.39
+
+- Depois do clique explicito em `Preencher + Assinar`, a autorizacao da cadeia pos-assinatura passa a acompanhar a pendencia salva em `chrome.storage`.
+- Assim, a inclusao do Capturado, o retorno ao oficio originario e a tramitacao continuam mesmo quando a navegacao do SIGADOC remover o identificador mantido no `sessionStorage` da aba.
+- O fluxo inicial de preenchimento e assinatura continua exigindo o clique explicito; pendencias antigas, sem o marcador de continuidade, nao sao retomadas automaticamente.
