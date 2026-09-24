@@ -2126,45 +2126,7 @@
       console.warn('[CDSP - Extrator] Não foi possível simular clique no Modelo:', erro);
     }
 
-    executarNoContextoDaPagina(`
-      (function(valor) {
-        var item = document.querySelector('#ulmod .dropdown-item[data-value="' + valor + '"]');
-        var hidden = document.getElementsByName('exDocumentoDTO.idMod')[0];
-        var label = document.querySelector('#modelos-select .selected-label');
-
-        if (item) {
-          try {
-            item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-            item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-            item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-            var link = item.querySelector('a');
-            if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-          } catch (erro) {}
-          try {
-            var texto = item.querySelector('a') && item.querySelector('a').childNodes[0]
-              ? item.querySelector('a').childNodes[0].textContent
-              : item.textContent;
-            if (label && texto) label.textContent = texto.trim();
-          } catch (erro) {}
-        }
-
-        if (hidden) {
-          hidden.value = valor;
-          hidden.dispatchEvent(new Event('input', { bubbles: true }));
-          hidden.dispatchEvent(new Event('change', { bubbles: true }));
-          if (typeof hidden.onchange === 'function') {
-            try { hidden.onchange.call(hidden, new Event('change', { bubbles: true })); } catch (erro) {}
-          }
-        }
-
-        try {
-          if (typeof alterouModeloSelect === 'function') alterouModeloSelect();
-        } catch (erro) {}
-        try {
-          if (window.jQuery && hidden) window.jQuery(hidden).val(valor).trigger('input').trigger('change');
-        } catch (erro) {}
-      })(${JSON.stringify(valor)});
-    `);
+    void executarAcaoNoContextoSigadoc('selecionar-modelo', { valor });
 
     return true;
   }
@@ -2301,45 +2263,7 @@
     select.dispatchEvent(new Event('input', { bubbles: true }));
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
-    executarNoContextoDaPagina(`
-      (function(valor) {
-        var select = document.getElementById('preenchimento');
-        if (!select) return;
-        for (var i = 0; i < select.options.length; i += 1) {
-          select.options[i].selected = select.options[i].value === valor;
-          if (select.options[i].value === valor) select.selectedIndex = i;
-        }
-        select.value = valor;
-        try {
-          select.focus();
-          if (select.options[select.selectedIndex]) {
-            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-            select.options[select.selectedIndex].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-          }
-        } catch (erro) {}
-        var eventoInput = new Event('input', { bubbles: true });
-        var eventoChange = new Event('change', { bubbles: true });
-        select.dispatchEvent(eventoInput);
-        select.dispatchEvent(eventoChange);
-        if (typeof select.onchange === 'function') {
-          try { select.onchange.call(select, eventoChange); } catch (erro) {}
-        }
-        if (window.jQuery) {
-          try {
-            window.jQuery(select).val(valor).trigger('input').trigger('change').trigger('change.select2').trigger('chosen:updated');
-          } catch (erro) {}
-        }
-        if (typeof window.carregaPreench === 'function') {
-          try { window.carregaPreench(); } catch (erro) {}
-          setTimeout(function() {
-            try { window.carregaPreench(); } catch (erro) {}
-          }, 250);
-        } else {
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      })(${JSON.stringify(valor)});
-    `);
+    void executarAcaoNoContextoSigadoc('selecionar-texto-padrao', { valor });
   }
 
   function selecionarTextoPadraoSeNecessario(pacote) {
@@ -2463,11 +2387,21 @@
     return 'Campo de conteúdo não encontrado.';
   }
 
-  function executarNoContextoDaPagina(codigo) {
-    const script = document.createElement('script');
-    script.textContent = codigo;
-    (document.documentElement || document.head || document.body).appendChild(script);
-    script.remove();
+  async function executarAcaoNoContextoSigadoc(acao, payload = {}) {
+    try {
+      const resposta = await enviarMensagemExtensao({
+        type: 'CDSP_SIGADOC_PAGE_ACTION',
+        action: acao,
+        payload,
+      });
+      if (!resposta || !resposta.ok) {
+        throw new Error((resposta && resposta.error) || `Ação ${acao} não foi concluída.`);
+      }
+      return resposta;
+    } catch (erro) {
+      console.warn(`[CDSP - Extrator] Falha ao executar ${acao} no contexto do SIGADOC:`, erro);
+      return { ok: false, error: erro && erro.message ? erro.message : String(erro) };
+    }
   }
 
   function obterDestinatarioSigadoc(pacote) {
@@ -2528,34 +2462,8 @@
     return estado;
   }
 
-  function solicitarConfirmacaoDestinatarioSigadoc(siglaDestino) {
-    executarNoContextoDaPagina(`
-      (function () {
-        var destino = ${JSON.stringify(siglaDestino)};
-        var campo = document.getElementById('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla') ||
-          document.getElementsByName('exDocumentoDTO.lotacaoDestinatarioSel.sigla')[0];
-        if (!campo) return;
-
-        campo.value = destino;
-        campo.dispatchEvent(new Event('input', { bubbles: true }));
-        campo.dispatchEvent(new Event('change', { bubbles: true }));
-        try {
-          if (typeof handleEnter === 'function') {
-            handleEnter(campo, {
-              type: 'keypress', keyCode: 13, which: 13,
-              preventDefault: function () {}, stopPropagation: function () {}
-            });
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao simular Enter no destinatário:', erro);
-        }
-        try {
-          if (typeof ajax_lotacaoDestinatario === 'function') ajax_lotacaoDestinatario();
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao confirmar destinatário:', erro);
-        }
-      })();
-    `);
+  async function solicitarConfirmacaoDestinatarioSigadoc(siglaDestino) {
+    return executarAcaoNoContextoSigadoc('confirmar-destinatario', { sigla: siglaDestino });
   }
 
   async function preencherDestinatarioSigadoc(pacote, destinoForcado = null) {
@@ -2596,7 +2504,7 @@
 
     let estado = estadoDestinatarioSigadoc(destino);
     for (let attempt = 1; attempt <= 3 && !estado.confirmed; attempt += 1) {
-      solicitarConfirmacaoDestinatarioSigadoc(siglaDestino);
+      await solicitarConfirmacaoDestinatarioSigadoc(siglaDestino);
       estado = await aguardarConfirmacaoDestinatarioSigadoc(destino, 3000 * attempt);
     }
 
@@ -2673,35 +2581,11 @@
     return estado;
   }
 
-  function solicitarClassificacaoSigadoc(classificacao, usarRetornoDireto) {
-    executarNoContextoDaPagina(`
-      (function(classificacao, usarRetornoDireto) {
-        var campo = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
-          document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
-        if (!campo) return;
-
-        campo.value = classificacao.codigo;
-        campo.dispatchEvent(new Event('input', { bubbles: true }));
-        campo.dispatchEvent(new Event('change', { bubbles: true }));
-
-        try {
-          if (!usarRetornoDireto && typeof ajax_classificacao === 'function') {
-            ajax_classificacao();
-            return;
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao consultar a classificação:', erro);
-        }
-
-        try {
-          if (typeof retorna_classificacao === 'function') {
-            retorna_classificacao(classificacao.id, classificacao.codigo, classificacao.descricao);
-          }
-        } catch (erro) {
-          console.warn('[CDSP - Extrator] Falha ao aplicar a classificação:', erro);
-        }
-      })(${JSON.stringify(classificacao)}, ${Boolean(usarRetornoDireto)});
-    `);
+  async function solicitarClassificacaoSigadoc(classificacao, usarRetornoDireto) {
+    return executarAcaoNoContextoSigadoc('confirmar-classificacao', {
+      classificacao,
+      usarRetornoDireto: Boolean(usarRetornoDireto),
+    });
   }
 
   async function confirmarClassificacaoPorDesfocoSigadoc(campo, classificacao) {
@@ -2731,14 +2615,14 @@
     let estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 4500);
 
     if (!estado.confirmed) {
-      solicitarClassificacaoSigadoc(classificacao, false);
+      await solicitarClassificacaoSigadoc(classificacao, false);
       estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 3500);
     }
 
     // Contingência para uma resposta AJAX bloqueada pelo próprio SIGADOC: usa o
     // callback nativo, no contexto da página, para registrar ID, sigla e descrição.
     if (!estado.confirmed) {
-      solicitarClassificacaoSigadoc(classificacao, true);
+      await solicitarClassificacaoSigadoc(classificacao, true);
       estado = await aguardarConfirmacaoClassificacaoSigadoc(classificacao, 2500);
     }
 
@@ -3006,12 +2890,7 @@
     input.files = transferencia.files;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    executarNoContextoDaPagina(`
-      (function () {
-        var campo = document.getElementById(${JSON.stringify(input.id || 'arquivo')});
-        try { if (campo && typeof testpdf === 'function') testpdf(campo.form, 26214400); } catch (erro) {}
-      })();
-    `);
+    void executarAcaoNoContextoSigadoc('validar-arquivo-pdf', { inputId: input.id || 'arquivo' });
     return Boolean(input.files && input.files.length === 1);
   }
 
@@ -3287,6 +3166,7 @@
 
   async function abrirFormularioTramitacaoSigadoc(pendente, linkTramitar) {
     if (!linkTramitar) return false;
+    if (pendente.etapa === 'aguardando-formulario' && pendente.aberturaDisparadaEm) return false;
     const urlAtual = window.location.href;
     const urlFormulario = new URL(linkTramitar.getAttribute('href'), window.location.href).href;
     pendente.etapa = 'aguardando-formulario';
@@ -3350,6 +3230,7 @@
       await storageRemove([PENDING_TRAMITACAO_KEY]);
       return;
     }
+    if (pendente.etapa === 'aguardando-revisao') return;
 
     const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
     const ok = document.getElementById('button_ok');
@@ -3369,10 +3250,11 @@
 
     if (!campo || !ok || !form) {
       if (pendente.etapa === 'aguardando-formulario' &&
-          Date.now() - Number(pendente.aberturaDisparadaEm || 0) >= 1300 &&
-          Number(pendente.tentativasAbertura || 0) < 2) {
-        const tramitar = encontrarLinkTramitarSigadoc();
-        if (tramitar) await abrirFormularioTramitacaoSigadoc(pendente, tramitar);
+          Date.now() - Number(pendente.aberturaDisparadaEm || 0) >= 1800) {
+        pendente.etapa = 'aguardando-revisao';
+        pendente.aberturaFalhouEm = Date.now();
+        await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+        atualizarStatusMenuSigadoc('O formulário de tramitação não abriu. Confira a tela antes de continuar.', 'alerta');
       }
       return;
     }
@@ -3399,47 +3281,12 @@
         }));
       });
 
-      executarNoContextoDaPagina(`
-        (function () {
-          var destino = ${JSON.stringify(destino.sigla)};
-          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
-            document.getElementsByName('lotaResponsavelSel.sigla')[0];
-
-          if (!campo) return;
-          campo.value = destino;
-          campo.dispatchEvent(new Event('input', { bubbles: true }));
-          campo.dispatchEvent(new Event('change', { bubbles: true }));
-
-          try {
-            if (typeof handleEnter === 'function') {
-              handleEnter(campo, {
-                type: 'keypress',
-                keyCode: 13,
-                which: 13,
-                preventDefault: function () {},
-                stopPropagation: function () {}
-              });
-            }
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
-          }
-
-          try {
-            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
-          }
-        })();
-      `);
+      await executarAcaoNoContextoSigadoc('confirmar-responsavel-tramitacao', { sigla: destino.sigla });
 
       let estado = estadoResponsavelTramitacaoSigadoc(destino);
       for (let tentativa = 1; tentativa <= 3 && !estado.confirmed; tentativa += 1) {
         await aguardar(250 * tentativa);
-        executarNoContextoDaPagina(`
-          (function () {
-            try { if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel(); } catch (erro) {}
-          })();
-        `);
+        await executarAcaoNoContextoSigadoc('repetir-responsavel-tramitacao');
         estado = await aguardarConfirmacaoResponsavelTramitacaoSigadoc(destino, 2500 * tentativa);
       }
       if (!estado.confirmed) {
@@ -3459,8 +3306,9 @@
       console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
       pendente.ultimaTentativaEm = Date.now();
       pendente.tentativas = Number(pendente.tentativas || 0) + 1;
+      pendente.etapa = 'aguardando-revisao';
       await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
-      atualizarStatusMenuSigadoc('Falha ao confirmar a lotação para tramitação. A extensão tentará novamente.', 'alerta');
+      atualizarStatusMenuSigadoc('Falha ao confirmar a lotação para tramitação. Confira a tela antes de tentar novamente.', 'alerta');
     } finally {
       fluxoTramitacaoEmAndamento = false;
     }

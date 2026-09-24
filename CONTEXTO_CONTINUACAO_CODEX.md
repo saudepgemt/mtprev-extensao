@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.30`
-- Ultima tag publicada no repositorio: `v2.29`
+- Versao atual da extensao: `2.31`
+- Ultima tag publicada no repositorio: `v2.30`
 
 ## Como retomar no notebook
 
@@ -450,6 +450,11 @@ Versao `2.30`:
 
 - Corrigido o desaparecimento visual do painel do SIGADOC: a posicao salva em `localStorage` agora e limitada ao tamanho atual da janela, inclusive quando a posicao veio de outro monitor, resolucao ou nivel de zoom.
 
+Versao `2.31`:
+
+- Corrigidos erros de CSP do SIGADOC: a extensao nao injeta mais tags `<script>` inline para chamar callbacks internos do portal. Essas acoes agora usam o contexto principal via `chrome.scripting.executeScript`.
+- A abertura de `Tramitar` e unica. Caso o formulario nao apareca, a pendencia passa para revisao, sem cliques repetidos nem nova submissao automatica.
+
 ## Regras permanentes combinadas
 
 - Quando o usuario anexar uma versao nova de alguma extensao/modulo, comparar com as alteracoes feitas neste chat.
@@ -476,7 +481,7 @@ Versao `2.30`:
 - Na Coordenacao, `Pecas a Retificar` pertencem exclusivamente a `Cobrar Peca`, com 3 dias uteis ou mais na caixa. Preservar a separacao visual entre essas pecas e os processos criticos da Caixa Geral do Redator.
 - Na base `data/equipe.xlsx`, preservar Aline Cristina de Souza e Maria Leticia Mendonca e Silva como `Nao Saiu da Equipe`, para que ambas constem nas listas de assessores dos Fluxos de Triagem e Correcao.
 - No SIGADOC, preservar a selecao de `CUMP GERAL` tanto para modelos com sufixo de subscritor quanto para o modelo-base recriado `SAUDE - CUMP`, sem vincular o fluxo a identificadores numericos do sistema.
-- Para Oficios/SIGADOC, a regra da versao `2.30` prevalece sobre as anotacoes historicas: preservar a base de assinatura e tramitacao da `v2.02` e executar o anexo apenas pela sequencia confirmada `Incluir Documento > Capturado > OK > Autenticar > confirmar Autenticar por Senha > salvar retorno antes da senha > vinculo azul de juntada PGE-OFI, com contingencia pela mesma URL > confirmacao do oficio originario > abrir formulario de tramitacao > confirmar lotacao > salvar confirmacao antes do OK > tramitar`, sempre vinculada ao clique explicito em `Preencher + Assinar`. Nenhuma pendencia ou PDF temporario pode ser removido antes da confirmacao da proxima pagina, falhas de navegacao nao podem disparar uma segunda submissao automatica, e a posicao salva do menu deve sempre ser reajustada para ficar dentro da janela visivel.
+- Para Oficios/SIGADOC, a regra da versao `2.31` prevalece sobre as anotacoes historicas: preservar a base de assinatura e tramitacao da `v2.02` e executar o anexo apenas pela sequencia confirmada `Incluir Documento > Capturado > OK > Autenticar > confirmar Autenticar por Senha > salvar retorno antes da senha > vinculo azul de juntada PGE-OFI, com contingencia pela mesma URL > confirmacao do oficio originario > abrir formulario de tramitacao > confirmar lotacao > salvar confirmacao antes do OK > tramitar`, sempre vinculada ao clique explicito em `Preencher + Assinar`. Chamadas aos callbacks internos do SIGADOC devem usar `chrome.scripting.executeScript` no contexto principal, nunca script inline. Nenhuma pendencia ou PDF temporario pode ser removido antes da confirmacao da proxima pagina; nao pode haver uma segunda tentativa automatica de `Tramitar` ou de confirmacao do formulario.
 - No SIGADOC, antes de gravar ou assinar, preservar a confirmacao assincrona integral do destinatario: ID, sigla e descricao da lotacao. Para SES-UNIJUR, repetir a solicitacao ate a confirmacao e interromper o fluxo caso qualquer campo obrigatorio nao esteja preenchido, sem acionar `OK` nem assinatura antecipadamente.
 - No Fluxo de Triagem, preservar a separacao entre Observacao do Processo, facultativa e exclusiva da complementacao, e Observacao do Oficio, obrigatoria somente com oficio e exclusiva da Nova Tarefa. No Fluxo de Correcao, tratar colunas ausentes como filtros indisponiveis, sem interromper a leitura ou abertura de processos.
 

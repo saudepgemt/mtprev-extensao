@@ -4757,6 +4757,120 @@ async function injectDeadlinePanel(sender) {
   }
 }
 
+async function executarAcaoSigadocNoContextoPrincipal(sender, action, payload) {
+  const tabId = sender && sender.tab && sender.tab.id;
+  const url = String((sender && sender.url) || (sender && sender.tab && sender.tab.url) || '');
+  if (!tabId || !/^https:\/\/(?:www\.)?sigadoc\.mt\.gov\.br\//i.test(url)) {
+    throw new Error('Ação do SIGADOC recebida fora de uma aba autorizada.');
+  }
+
+  const result = await executeMainWorld(
+    tabId,
+    (requestedAction, data) => {
+      const emit = (element, type) => element && element.dispatchEvent(new Event(type, { bubbles: true }));
+      const field = (id, name) => document.getElementById(id) || document.getElementsByName(name || '')[0];
+      const safe = (callback) => {
+        try { callback(); } catch (_error) { /* O SIGADOC pode omitir callbacks em algumas telas. */ }
+      };
+
+      if (requestedAction === 'selecionar-modelo') {
+        const value = String(data && data.value || '');
+        const item = document.querySelector(`#ulmod .dropdown-item[data-value="${CSS.escape(value)}"]`);
+        const hidden = document.getElementsByName('exDocumentoDTO.idMod')[0];
+        const label = document.querySelector('#modelos-select .selected-label');
+        if (item) {
+          ['mousedown', 'mouseup', 'click'].forEach((type) => item.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
+          const link = item.querySelector('a');
+          if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          const text = item.querySelector('a')?.childNodes?.[0]?.textContent || item.textContent || '';
+          if (label && text) label.textContent = text.trim();
+        }
+        if (hidden) {
+          hidden.value = value;
+          emit(hidden, 'input');
+          emit(hidden, 'change');
+        }
+        safe(() => alterouModeloSelect());
+        safe(() => window.jQuery && hidden && window.jQuery(hidden).val(value).trigger('input').trigger('change'));
+        return { ok: Boolean(item || hidden) };
+      }
+
+      if (requestedAction === 'selecionar-texto-padrao') {
+        const value = String(data && data.value || '');
+        const select = document.getElementById('preenchimento');
+        if (!select) return { ok: false };
+        for (let index = 0; index < select.options.length; index += 1) {
+          const selected = select.options[index].value === value;
+          select.options[index].selected = selected;
+          if (selected) select.selectedIndex = index;
+        }
+        select.value = value;
+        emit(select, 'input');
+        const changeEvent = new Event('change', { bubbles: true });
+        select.dispatchEvent(changeEvent);
+        safe(() => select.onchange && select.onchange.call(select, changeEvent));
+        safe(() => window.jQuery && window.jQuery(select).val(value).trigger('input').trigger('change').trigger('change.select2').trigger('chosen:updated'));
+        safe(() => carregaPreench());
+        return { ok: true };
+      }
+
+      if (requestedAction === 'confirmar-destinatario') {
+        const destination = String(data && data.sigla || '');
+        const input = field('formulario_exDocumentoDTO.lotacaoDestinatarioSel_sigla', 'exDocumentoDTO.lotacaoDestinatarioSel.sigla');
+        if (!input) return { ok: false };
+        input.value = destination;
+        emit(input, 'input');
+        emit(input, 'change');
+        safe(() => handleEnter(input, { type: 'keypress', keyCode: 13, which: 13, preventDefault() {}, stopPropagation() {} }));
+        safe(() => ajax_lotacaoDestinatario());
+        return { ok: true };
+      }
+
+      if (requestedAction === 'confirmar-classificacao') {
+        const classification = data && data.classificacao || {};
+        const input = field('formulario_exDocumentoDTO.classificacaoSel_sigla', 'exDocumentoDTO.classificacaoSel.sigla');
+        if (!input) return { ok: false };
+        input.value = String(classification.codigo || '');
+        emit(input, 'input');
+        emit(input, 'change');
+        if (!data.usarRetornoDireto && typeof ajax_classificacao === 'function') {
+          ajax_classificacao();
+        } else {
+          safe(() => retorna_classificacao(classification.id, classification.codigo, classification.descricao));
+        }
+        return { ok: true };
+      }
+
+      if (requestedAction === 'validar-arquivo-pdf') {
+        const input = document.getElementById(String(data && data.inputId || 'arquivo'));
+        safe(() => input && typeof testpdf === 'function' && testpdf(input.form, 26214400));
+        return { ok: Boolean(input) };
+      }
+
+      if (requestedAction === 'confirmar-responsavel-tramitacao') {
+        const destination = String(data && data.sigla || '');
+        const input = field('formulario_lotaResponsavelSel_sigla', 'lotaResponsavelSel.sigla');
+        if (!input) return { ok: false };
+        input.value = destination;
+        emit(input, 'input');
+        emit(input, 'change');
+        safe(() => handleEnter(input, { type: 'keypress', keyCode: 13, which: 13, preventDefault() {}, stopPropagation() {} }));
+        safe(() => ajax_lotaResponsavel());
+        return { ok: true };
+      }
+
+      if (requestedAction === 'repetir-responsavel-tramitacao') {
+        safe(() => ajax_lotaResponsavel());
+        return { ok: true };
+      }
+
+      throw new Error('Ação do SIGADOC não reconhecida.');
+    },
+    [action, payload || {}]
+  );
+  return result || { ok: false };
+}
+
 async function insertSimpleClosureIntoGoogleDoc(payload) {
   if (location.hostname !== "docs.google.com") return { skipped: true };
 
@@ -5017,6 +5131,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           ok: false,
           error: error && error.message ? error.message : String(error)
         });
+      });
+
+    return true;
+  }
+
+  if (message.type === "CDSP_SIGADOC_PAGE_ACTION") {
+    executarAcaoSigadocNoContextoPrincipal(_sender, message.action, message.payload)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : String(error) });
       });
 
     return true;
