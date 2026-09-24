@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.34';
+  const SIGADOC_FLOW_VERSION = '2.36';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -4398,13 +4398,22 @@
       verificarTramitacaoSigadocPendente();
       atualizarResumoAutomacaoListaSigadoc();
     };
+    const verificarPosAssinaturaETramitacao = () => {
+      injetarBotaoSigadoc();
+      verificarFluxoPosAssinaturaSigadocPendente();
+      verificarTramitacaoSigadocPendente();
+      atualizarResumoAutomacaoListaSigadoc();
+    };
 
     verificarFluxosAposEstabilizacao();
     agendarAutomacaoListaSigadoc(900);
 
-    // O portal pode terminar de montar controles logo apos document_idle.
-    // Esta nova leitura e limitada; nao use MutationObserver para executar acoes.
-    setTimeout(verificarFluxosAposEstabilizacao, 1200);
+    // O portal pode terminar de montar o PDF e os links da pagina pai depois
+    // de document_idle. A recuperacao e finita e limitada ao pos-assinatura:
+    // nunca repete preenchimento, assinatura ou a abertura da minuta.
+    [1200, 2500, 4500, 7500].forEach((delay) => {
+      setTimeout(verificarPosAssinaturaETramitacao, delay);
+    });
 
     if (!window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW) {
       window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW = true;

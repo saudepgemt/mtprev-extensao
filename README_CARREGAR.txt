@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 2.35
+CDSP Extensao Geral - 2.36
 
 Menu compacto no SPA:
 - Triagem e Protocolo
