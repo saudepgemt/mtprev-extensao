@@ -3755,8 +3755,9 @@
   function atualizarStatusMenuSigadoc(texto, tom = '') {
     const status = document.getElementById('cdsp-sigadoc-menu-status');
     if (!status) return;
-    status.textContent = texto || 'Pronto';
-    status.dataset.tone = tom;
+    const proximoTexto = texto || 'Pronto';
+    if (status.textContent !== proximoTexto) status.textContent = proximoTexto;
+    if (status.dataset.tone !== tom) status.dataset.tone = tom;
   }
 
   function atualizarResumoAutomacaoListaSigadoc() {
@@ -3764,18 +3765,14 @@
     if (!resumo) return;
 
     const estado = lerAutomacaoListaSigadoc();
+    let proximoTexto = 'Abra a lista de documentos para iniciar.';
     if (estado && estado.ativo) {
-      resumo.textContent = `${Math.min(estado.indice || 0, estado.total || 0)}/${estado.total || 0} visitado(s).`;
-      return;
-    }
-
-    if (paginaListaDocumentosSigadoc()) {
+      proximoTexto = `${Math.min(estado.indice || 0, estado.total || 0)}/${estado.total || 0} visitado(s).`;
+    } else if (paginaListaDocumentosSigadoc()) {
       const total = coletarLinksListaDocumentosSigadoc().length;
-      resumo.textContent = `${total} documento(s) na lista.`;
-      return;
+      proximoTexto = `${total} documento(s) na lista.`;
     }
-
-    resumo.textContent = 'Abra a lista de documentos para iniciar.';
+    if (resumo.textContent !== proximoTexto) resumo.textContent = proximoTexto;
   }
 
   function localizarLinkListaSigadoc(item) {
@@ -4394,7 +4391,23 @@
     }
 
     let timer = null;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutacoes) => {
+      const menu = document.getElementById('cdsp-sigadoc-menu');
+      const houveMudancaForaDoMenu = mutacoes.some((mutacao) => {
+        const alvo = mutacao.target.nodeType === Node.ELEMENT_NODE
+          ? mutacao.target
+          : mutacao.target.parentElement;
+        if (menu && alvo && (alvo === menu || menu.contains(alvo))) return false;
+
+        return Array.from(mutacao.addedNodes).some((node) => {
+          if (!menu || node.nodeType !== Node.ELEMENT_NODE) return true;
+          return node !== menu && !menu.contains(node);
+        }) || Array.from(mutacao.removedNodes).some((node) => {
+          if (!menu || node.nodeType !== Node.ELEMENT_NODE) return true;
+          return node !== menu && !menu.contains(node);
+        });
+      });
+      if (!houveMudancaForaDoMenu) return;
       clearTimeout(timer);
       timer = setTimeout(() => {
         injetarBotaoSigadoc();
