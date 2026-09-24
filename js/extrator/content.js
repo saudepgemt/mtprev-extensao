@@ -4375,50 +4375,32 @@
   }
 
   function inicializarSigadoc() {
-    injetarBotaoSigadoc();
-    verificarPreenchimentoPendente();
-    verificarFluxoAssinaturaPendente();
-    verificarFluxoPosAssinaturaSigadocPendente();
-    verificarTramitacaoSigadocPendente();
+    if (window.CDSP_SIGADOC_CONTENT_INITIALIZED) return;
+    window.CDSP_SIGADOC_CONTENT_INITIALIZED = true;
+
+    const verificarFluxosAposEstabilizacao = () => {
+      injetarBotaoSigadoc();
+      verificarPreenchimentoPendente();
+      verificarFluxoAssinaturaPendente();
+      verificarFluxoPosAssinaturaSigadocPendente();
+      verificarTramitacaoSigadocPendente();
+      atualizarResumoAutomacaoListaSigadoc();
+    };
+
+    verificarFluxosAposEstabilizacao();
     agendarAutomacaoListaSigadoc(900);
+
+    // O portal pode terminar de montar controles logo apos document_idle.
+    // Esta nova leitura e limitada; nao use MutationObserver para executar acoes.
+    setTimeout(verificarFluxosAposEstabilizacao, 1200);
 
     if (!window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW) {
       window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW = true;
       window.addEventListener('pageshow', () => {
-        injetarBotaoSigadoc();
+        verificarFluxosAposEstabilizacao();
         agendarAutomacaoListaSigadoc(700);
       });
     }
-
-    let timer = null;
-    const observer = new MutationObserver((mutacoes) => {
-      const menu = document.getElementById('cdsp-sigadoc-menu');
-      const houveMudancaForaDoMenu = mutacoes.some((mutacao) => {
-        const alvo = mutacao.target.nodeType === Node.ELEMENT_NODE
-          ? mutacao.target
-          : mutacao.target.parentElement;
-        if (menu && alvo && (alvo === menu || menu.contains(alvo))) return false;
-
-        return Array.from(mutacao.addedNodes).some((node) => {
-          if (!menu || node.nodeType !== Node.ELEMENT_NODE) return true;
-          return node !== menu && !menu.contains(node);
-        }) || Array.from(mutacao.removedNodes).some((node) => {
-          if (!menu || node.nodeType !== Node.ELEMENT_NODE) return true;
-          return node !== menu && !menu.contains(node);
-        });
-      });
-      if (!houveMudancaForaDoMenu) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        injetarBotaoSigadoc();
-        verificarFluxoAssinaturaPendente();
-        verificarFluxoPosAssinaturaSigadocPendente();
-        verificarTramitacaoSigadocPendente();
-        atualizarResumoAutomacaoListaSigadoc();
-      }, 400);
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   if (window.location.hostname === 'spa.pge.mt.gov.br') {
