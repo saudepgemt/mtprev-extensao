@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.36';
+  const SIGADOC_FLOW_VERSION = '2.37';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -2927,7 +2927,7 @@
     const pendenciaTramitacao = {
       criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
       destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
-      etapa: 'aguardando-formulario', tentativasAbertura: 0,
+      etapa: 'abrir-formulario', tentativasAbertura: 0,
     };
     await storageSet({
       [PENDING_SPA_FINALIZACAO_KEY]: {
@@ -3177,17 +3177,16 @@
   async function abrirFormularioTramitacaoSigadoc(pendente, linkTramitar) {
     if (!linkTramitar) return false;
     if (pendente.etapa === 'aguardando-formulario' && pendente.aberturaDisparadaEm) return false;
-    const urlAtual = window.location.href;
     const urlFormulario = new URL(linkTramitar.getAttribute('href'), window.location.href).href;
     pendente.etapa = 'aguardando-formulario';
     pendente.aberturaDisparadaEm = Date.now();
     pendente.tentativasAbertura = Number(pendente.tentativasAbertura || 0) + 1;
+    pendente.urlFormulario = urlFormulario;
     await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
     atualizarStatusMenuSigadoc('Abrindo formulário de tramitação...');
-    linkTramitar.click();
-    setTimeout(() => {
-      if (window.location.href === urlAtual) window.location.assign(urlFormulario);
-    }, 900);
+    // O link nativo do SIGADOC é uma navegação GET. Usar a URL diretamente evita
+    // reexecutar handlers da página pai e impede cliques repetidos em Tramitar.
+    window.location.assign(urlFormulario);
     return true;
   }
 
@@ -3259,8 +3258,17 @@
     }
 
     if (!campo || !ok || !form) {
+      // Se a página pai foi recuperada antes da navegação, retoma uma única vez
+      // a partir do link nativo. Não aciona a inclusão/anexação novamente.
+      if (pendente.etapa === 'abrir-formulario') {
+        const tramitar = encontrarLinkTramitarSigadoc();
+        if (tramitar) {
+          await abrirFormularioTramitacaoSigadoc(pendente, tramitar);
+          return;
+        }
+      }
       if (pendente.etapa === 'aguardando-formulario' &&
-          Date.now() - Number(pendente.aberturaDisparadaEm || 0) >= 1800) {
+          Date.now() - Number(pendente.aberturaDisparadaEm || 0) >= 5000) {
         pendente.etapa = 'aguardando-revisao';
         pendente.aberturaFalhouEm = Date.now();
         await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });

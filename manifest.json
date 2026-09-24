@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CDSP - Extensão Geral",
-  "version": "2.0.36",
-  "version_name": "2.36",
+  "version": "2.0.37",
+  "version_name": "2.37",
   "description": "Menu CDSP no SPA com relatorios, fluxo de correcao, autos, oficios e duplicados por PDF.",
   "permissions": ["scripting", "offscreen", "alarms", "storage", "clipboardWrite", "downloads", "unlimitedStorage"],
   "host_permissions": [
