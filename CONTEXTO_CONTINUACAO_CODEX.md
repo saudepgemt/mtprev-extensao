@@ -6,7 +6,7 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.31`
+- Versao atual da extensao: `2.38`
 - Ultima tag publicada no repositorio: `v2.30`
 
 ## Como retomar no notebook
@@ -531,3 +531,8 @@ Todas as novas versoes, pastas e ZIPs a serem usadas devem ficar dentro de `D:\U
 ## Observacao sobre chats
 
 O ideal e entrar no notebook com a mesma conta OpenAI/Codex e procurar esta tarefa no historico do Codex. Se ela nao aparecer imediatamente, usar este arquivo como ponto de retomada e o repositorio GitHub como fonte do estado real do codigo.
+
+## Ajuste da versao 2.38
+
+- O fluxo de Oficios/SIGADOC preserva o anexo do expediente em modelo Capturado e o retorno ao oficio originario.
+- A abertura do formulario de tramitacao voltou a usar primeiro o clique nativo no botao `Tramitar`, como nas versoes 2.02/2.31. A navegacao direta para a URL do formulario ficou apenas como contingencia se o portal nao iniciar a transicao, sem um segundo clique em `Tramitar`.

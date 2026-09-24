@@ -3177,6 +3177,7 @@
   async function abrirFormularioTramitacaoSigadoc(pendente, linkTramitar) {
     if (!linkTramitar) return false;
     if (pendente.etapa === 'aguardando-formulario' && pendente.aberturaDisparadaEm) return false;
+    const urlAtual = window.location.href;
     const urlFormulario = new URL(linkTramitar.getAttribute('href'), window.location.href).href;
     pendente.etapa = 'aguardando-formulario';
     pendente.aberturaDisparadaEm = Date.now();
@@ -3184,9 +3185,13 @@
     pendente.urlFormulario = urlFormulario;
     await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
     atualizarStatusMenuSigadoc('Abrindo formulário de tramitação...');
-    // O link nativo do SIGADOC é uma navegação GET. Usar a URL diretamente evita
-    // reexecutar handlers da página pai e impede cliques repetidos em Tramitar.
-    window.location.assign(urlFormulario);
+    // O SIGADOC prepara parte do formulário pelo handler do link. O clique nativo
+    // é necessário para preservar esse comportamento; a URL é só contingência
+    // caso o portal não inicie a navegação, sem disparar um segundo clique.
+    linkTramitar.click();
+    setTimeout(() => {
+      if (window.location.href === urlAtual) window.location.assign(urlFormulario);
+    }, 900);
     return true;
   }
 
