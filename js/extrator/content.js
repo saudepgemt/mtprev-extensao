@@ -18,6 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
+  const SIGADOC_FLOW_VERSION = '2.34';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -3368,6 +3369,7 @@
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       assinar: Boolean(assinar),
       criadoEm: new Date().toISOString(),
+      versao: SIGADOC_FLOW_VERSION,
     };
     try {
       sessionStorage.setItem(SIGADOC_ACTIVE_FLOW_KEY, JSON.stringify(fluxo));
@@ -3379,7 +3381,8 @@
 
   function estadoPertenceAoFluxoAtivoSigadoc(estado, exigirAssinatura = false) {
     const fluxo = obterFluxoAtivoSigadoc();
-    return Boolean(fluxo && estado && estado.fluxoId === fluxo.id &&
+    return Boolean(fluxo && fluxo.versao === SIGADOC_FLOW_VERSION &&
+      estado && estado.fluxoId === fluxo.id &&
       (!exigirAssinatura || fluxo.assinar));
   }
 
