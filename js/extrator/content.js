@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.41';
+  const SIGADOC_FLOW_VERSION = '2.42';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -3420,8 +3420,10 @@
 
   function estadoPertenceAoFluxoAtivoSigadoc(estado, exigirAssinatura = false) {
     const fluxo = obterFluxoAtivoSigadoc();
-    return Boolean(fluxo && fluxo.versao === SIGADOC_FLOW_VERSION &&
-      estado && estado.fluxoId === fluxo.id &&
+    // A identidade da execução é o fluxoId. A versão identifica a origem no
+    // diagnóstico, mas não pode invalidar uma assinatura em curso somente
+    // porque a extensão foi atualizada entre as telas do SIGADOC.
+    return Boolean(fluxo && estado && fluxo.id === estado.fluxoId &&
       (!exigirAssinatura || fluxo.assinar));
   }
 
@@ -3498,9 +3500,16 @@
     }
 
     const pacote = await obterPacoteSalvo();
-    if (pacote) {
-      await salvarFluxoPosAssinaturaSigadoc(pacote);
+    if (!pacote) {
+      throw new Error('Os dados do ofício não estão mais disponíveis para concluir a assinatura.');
     }
+
+    // A continuidade pós-assinatura precisa existir antes da navegação que o
+    // SIGADOC pode disparar ao aceitar a senha. Em seguida, limpa a pendência
+    // de assinatura ANTES do clique: se a página for trocada nesse instante,
+    // ela não pode reaparecer no Capturado e sobrescrever a etapa do anexo.
+    await salvarFluxoPosAssinaturaSigadoc(pacote);
+    await limparFluxoAssinaturaSigadoc();
 
     const senhaDaSessao = obterSenhaDaSessaoSigadoc();
     const tentativas = [{ origem: 'credencial interna', senha: credencial.senha }];
@@ -3516,12 +3525,16 @@
       ok.click();
 
       // Em caso de senha incorreta, o SIGADOC mantém o modal aberto. Somente
-      // nessa situação a senha opcional da sessão é usada como contingência.
+      // nessa situação a pendência de assinatura é restaurada para permitir a
+      // próxima tentativa. Em caso de navegação, ela permanece removida.
       await aguardar(1600);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
-        await limparFluxoAssinaturaSigadoc();
         return;
       }
+
+      await salvarFluxoAssinaturaSigadoc('aguardando-modal-senha', {
+        processo: pacote.processo || '',
+      });
 
       if (indice < tentativas.length - 1) {
         console.warn('[CDSP - Extrator] A ' + tentativa.origem + ' não foi aceita; tentando a Senha do SIGADOC da sessão.');
@@ -3581,6 +3594,19 @@
     const pendente = resultado[PENDING_ASSINATURA_KEY];
     if (!pendente) return;
     if (!estadoPertenceAoFluxoAtivoSigadoc(pendente, true)) return;
+
+    // A pendência pós-assinatura é o registro definitivo da cadeia. Se ela
+    // já existe para este mesmo fluxo, uma pendência de assinatura residual
+    // não pode processar o modal do Capturado como se fosse a assinatura do
+    // Ofício nem substituir a etapa anexo-*. Isso ocorria quando o SIGADOC
+    // navegava antes do retorno assíncrono do clique de senha.
+    const resultadoPosAssinatura = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+    const posAssinatura = resultadoPosAssinatura[PENDING_POS_ASSINATURA_KEY];
+    if (podeContinuarFluxoPosAssinaturaSigadoc(posAssinatura) &&
+        posAssinatura.fluxoId === pendente.fluxoId) {
+      await limparFluxoAssinaturaSigadoc();
+      return;
+    }
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_ASSINATURA_MS) {
