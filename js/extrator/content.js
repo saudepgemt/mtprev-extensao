@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.40';
+  const SIGADOC_FLOW_VERSION = '2.41';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -3072,7 +3072,10 @@
     const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.criadoEm) return;
-    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) return;
+    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) {
+      atualizarStatusMenuSigadoc('Fluxo pós-assinatura sem autorização persistida. Inicie novamente em Preencher + Assinar.', 'alerta');
+      return;
+    }
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3248,7 +3251,10 @@
     const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
     const pendente = resultado[PENDING_TRAMITACAO_KEY];
     if (!pendente || !pendente.criadoEm) return;
-    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) return;
+    if (!podeContinuarFluxoPosAssinaturaSigadoc(pendente)) {
+      atualizarStatusMenuSigadoc('Tramitação pendente sem autorização persistida. Inicie novamente em Preencher + Assinar.', 'alerta');
+      return;
+    }
 
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
@@ -3420,12 +3426,11 @@
   }
 
   function podeContinuarFluxoPosAssinaturaSigadoc(estado) {
-    // A autorização inicial continua vinculada ao clique explícito. Este
-    // marcador só é gravado depois que salvarFluxoPosAssinaturaSigadoc valida
-    // esse clique; ele evita que a automação seja interrompida ao trocar de
-    // página no SIGADOC, quando o identificador da sessão pode desaparecer.
-    return estadoPertenceAoFluxoAtivoSigadoc(estado, true) ||
-      Boolean(estado && estado.continuidadePosAssinaturaAutorizada === true);
+    // Depois da assinatura, a autorização vem da pendência persistida. O
+    // marcador é gravado exclusivamente após validar o clique explícito em
+    // "Preencher + Assinar". Não use sessionStorage: o SIGADOC pode recriar
+    // a página no retorno do Capturado antes da etapa de Tramitar.
+    return Boolean(estado && estado.continuidadePosAssinaturaAutorizada === true);
   }
 
   function salvarSenhaDaSessaoSigadoc(senha) {
