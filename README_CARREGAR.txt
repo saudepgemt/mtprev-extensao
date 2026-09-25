@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 2.39
+CDSP Extensao Geral - 2.40
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -14,6 +14,7 @@ Removido desta versao:
 
 Comportamento:
 - O nome publico da extensao no Chrome e "CDSP - Extensao Geral"; o menu interno permanece compacto como "CDSP".
+- No fluxo de Oficios, depois de anexar e autenticar o expediente Capturado, o PDF assinado e as pendências de finalização no SPA e de tramitação no SIGADOC são gravados juntos, antes do clique nativo em `Tramitar`, preservando a ordem funcional da versão 2.02.
 - O menu geral e pequeno, movimentavel e parecido com o painel da Triagem.
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
 - O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no extremo direito do cabecalho antes do botao de recolher, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.

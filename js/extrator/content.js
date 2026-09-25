@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.39';
+  const SIGADOC_FLOW_VERSION = '2.40';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -2923,11 +2923,16 @@
       return true;
     }
 
+    // Mantem a ordem funcional da 2.02: prepara o PDF assinado e grava, na
+    // mesma operação de armazenamento, as duas continuidades obrigatórias:
+    // finalização do SPA e tramitação do Ofício.
     const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
       processo: pendente.processo,
       tipoOficio: pendente.tipoOficio,
       numeroSigadoc,
     });
+    const tramitar = encontrarLinkTramitarSigadoc();
+    if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
     const pendenciaTramitacao = {
       criadoEm: new Date().toISOString(), destinatarioSigla: pendente.destinatarioSigla,
       destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
@@ -2941,10 +2946,11 @@
         textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
         numeroSigadoc, processo: pendente.processo, tipoOficio: pendente.tipoOficio,
       },
+      [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao,
     });
-    const tramitar = encontrarLinkTramitarSigadoc();
-    if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
-    await storageSet({ [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao });
+
+    // A limpeza só ocorre após as duas pendências terem sido gravadas. Assim,
+    // o retorno do Capturado nunca perde uma das duas etapas.
     await removerPdfExpedienteInterno(pendente);
     await storageRemove([PENDING_POS_ASSINATURA_KEY]);
     await abrirFormularioTramitacaoSigadoc(pendenciaTramitacao, tramitar);

@@ -6,8 +6,8 @@ Este arquivo serve para retomar o trabalho em outro computador/notebook sem perd
 
 - GitHub: https://github.com/joaofgomess/extensao-geral.git
 - Branch principal: `main`
-- Versao atual da extensao: `2.39`
-- Ultima tag publicada no repositorio: `v2.30`
+- Versao atual da extensao: `2.40`
+- Ultima tag publicada no repositorio: `v2.40`
 
 ## Como retomar no notebook
 
@@ -542,3 +542,7 @@ O ideal e entrar no notebook com a mesma conta OpenAI/Codex e procurar esta tare
 - Depois do clique explicito em `Preencher + Assinar`, a autorizacao da cadeia pos-assinatura passa a acompanhar a pendencia salva em `chrome.storage`.
 - Assim, a inclusao do Capturado, o retorno ao oficio originario e a tramitacao continuam mesmo quando a navegacao do SIGADOC remover o identificador mantido no `sessionStorage` da aba.
 - O fluxo inicial de preenchimento e assinatura continua exigindo o clique explicito; pendencias antigas, sem o marcador de continuidade, nao sao retomadas automaticamente.
+
+## Ajuste da versao 2.40
+
+- Depois do Capturado retornar ao Ofício originário, o PDF assinado e as pendências de finalização no SPA e de tramitação no SIGADOC são gravados juntos antes do clique nativo em `Tramitar`, seguindo a ordem funcional da 2.02.
