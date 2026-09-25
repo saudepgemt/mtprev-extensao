@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.42';
+  const SIGADOC_FLOW_VERSION = '2.43';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -4448,6 +4448,243 @@
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // Fluxo de fechamento: a tramitação abaixo é deliberadamente a sequência da
+  // versão 2.02. O Capturado só ocupa o intervalo entre a assinatura e o
+  // retorno ao Ofício; depois disso não há estados intermediários, validações
+  // extras de responsável ou tentativas alternativas de envio.
+  function executarNoContextoDaPagina(codigo) {
+    const script = document.createElement('script');
+    script.textContent = codigo;
+    (document.documentElement || document.head || document.body).appendChild(script);
+    script.remove();
+  }
+
+  async function verificarFluxoPosAssinaturaSigadocPendente() {
+    if (fluxoPosAssinaturaEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+    const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      return;
+    }
+
+    if (pendente.modoPosAssinatura === 'parar') {
+      if (!encontrarUrlImpressaoPdfSigadoc() && !extrairNumeroSigadocDaPagina() && !encontrarLinkTramitarSigadoc()) return;
+
+      fluxoPosAssinaturaEmAndamento = true;
+      try {
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      } finally {
+        fluxoPosAssinaturaEmAndamento = false;
+      }
+      return;
+    }
+
+    fluxoPosAssinaturaEmAndamento = true;
+
+    try {
+      // A única extensão sobre a 2.02: concluir o Capturado, caso o PDF do
+      // expediente exista. A tramitação continua exclusivamente depois do
+      // retorno à página do Ofício originário.
+      if (pendente.fluxoSpa && pendente.expedienteArquivoId) {
+        if (pendente.etapa === 'oficio-assinado') {
+          const incluir = encontrarLinkIncluirDocumentoSigadoc();
+          if (!incluir) return;
+
+          pendente.urlOficio = window.location.href;
+          pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(pendente.urlOficio) || obterSiglaDoTituloSigadoc();
+          pendente.etapa = 'anexo-selecionar-modelo';
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          incluir.click();
+          return;
+        }
+
+        if (pendente.etapa === 'anexo-selecionar-modelo' || pendente.etapa === 'anexo-preencher') {
+          await configurarAnexoDoExpedienteSigadoc(pendente);
+          return;
+        }
+
+        if (pendente.etapa === 'anexo-autenticar' ||
+            pendente.etapa === 'anexo-confirmar-autenticacao' ||
+            pendente.etapa === 'anexo-senha') {
+          // Depois que a senha é aceita, o SIGADOC pode trocar a página antes
+          // do content script receber o retorno. O vínculo ao Ofício é o sinal
+          // suficiente para retomar o retorno sem reabrir o Capturado.
+          if (pendente.etapa === 'anexo-senha' &&
+              !document.getElementById('senhaDialog') &&
+              !document.getElementById('senhaUsuarioSubscritor') &&
+              !document.getElementById('bot-autenticar') &&
+              encontrarLinkRetornoAoOficioSigadoc(pendente)) {
+            pendente.etapa = 'anexo-retornar-oficio';
+            await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          } else {
+            await autenticarAnexoSigadoc(pendente);
+            return;
+          }
+        }
+
+        if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
+          if (!estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+            await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente);
+            return;
+          }
+          pendente.etapa = 'oficio-pronto-para-tramitar';
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        }
+
+        if (pendente.etapa === 'oficio-pronto-para-tramitar' &&
+            !estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+          pendente.etapa = 'anexo-retornar-oficio';
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          return;
+        }
+      }
+
+      // Início do bloco original da 2.02: PDF assinado, pendências SPA e
+      // tramitação são preparados juntos e o link Tramitar recebe clique
+      // nativo, exatamente como no fluxo que funcionava.
+      const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
+      const numeroSigadoc = extrairNumeroSigadocDaPagina();
+      if (!pdfUrl || !numeroSigadoc) return;
+
+      if (!pendente.fluxoSpa) {
+        await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
+        const textoParaSpa = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
+        if (textoParaSpa) {
+          await copiarTextoSimples(textoParaSpa);
+        }
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+        return;
+      }
+
+      const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
+        processo: pendente.processo,
+        tipoOficio: pendente.tipoOficio,
+        numeroSigadoc,
+      });
+
+      await storageSet({
+        [PENDING_SPA_FINALIZACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          etapa: 'aguardando-botao',
+          arquivoId,
+          nomeArquivo: pendente.nomeArquivo,
+          nomeOficioEnviado: pendente.nomeOficioEnviado,
+          textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
+          numeroSigadoc,
+          processo: pendente.processo,
+          tipoOficio: pendente.tipoOficio,
+        },
+        [PENDING_TRAMITACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          destinatarioSigla: pendente.destinatarioSigla,
+          destinatarioDescricao: pendente.destinatarioDescricao,
+          numeroSigadoc,
+        },
+      });
+
+      await removerPdfExpedienteInterno(pendente);
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+
+      const tramitar = encontrarLinkTramitarSigadoc();
+      if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
+      tramitar.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha após assinatura SIGADOC:', erro);
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      const btn = document.getElementById('spa-sigadoc-assinar-btn');
+      atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
+      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+    } finally {
+      fluxoPosAssinaturaEmAndamento = false;
+    }
+  }
+
+  async function verificarTramitacaoSigadocPendente() {
+    if (fluxoTramitacaoEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
+    const pendente = resultado[PENDING_TRAMITACAO_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      return;
+    }
+
+    const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
+    const ok = document.getElementById('button_ok');
+    const form = document.getElementById('frm');
+    if (!campo || !ok || !form) return;
+
+    fluxoTramitacaoEmAndamento = true;
+
+    try {
+      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
+      setValorCampo(campo, destino);
+      campo.focus();
+
+      const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
+      ['keydown', 'keypress', 'keyup'].forEach((tipoEvento) => {
+        campo.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        }));
+      });
+
+      executarNoContextoDaPagina(`
+        (function () {
+          var destino = ${JSON.stringify(destino)};
+          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
+            document.getElementsByName('lotaResponsavelSel.sigla')[0];
+
+          if (!campo) return;
+          campo.value = destino;
+          campo.dispatchEvent(new Event('input', { bubbles: true }));
+          campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+          try {
+            if (typeof handleEnter === 'function') {
+              handleEnter(campo, {
+                type: 'keypress',
+                keyCode: 13,
+                which: 13,
+                preventDefault: function () {},
+                stopPropagation: function () {}
+              });
+            }
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
+          }
+
+          try {
+            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
+          }
+        })();
+      `);
+
+      await aguardar(1200);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      ok.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+    } finally {
+      fluxoTramitacaoEmAndamento = false;
+    }
   }
 
   function inicializarSigadoc() {
