@@ -25,7 +25,7 @@
   const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
   const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
   const SIGADOC_TRACE_LIMIT = 8;
-  const SIGADOC_FLOW_VERSION = '2.51';
+  const SIGADOC_FLOW_VERSION = '2.52';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';

@@ -335,7 +335,12 @@
   }
 
   function isProcedureRoute() {
-    return /^\/procedures\/\d+\/?$/.test(window.location.pathname);
+    const path = window.location.pathname;
+    return (
+      /^\/procedures\/\d+\/?$/.test(path) ||
+      /^\/procedures\/\d+\/new_progress\/(?:2746|2748)\/?$/.test(path) ||
+      /^\/procedures\/start_procedure\/(?:748|2934)\/?$/.test(path)
+    );
   }
 
   function refreshRootAutosSearchPanel() {

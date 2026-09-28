@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 2.41
+CDSP Extensao Geral - 2.52
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -25,7 +25,7 @@ Comportamento:
 - Se a aba temporaria nao responder, o modulo tenta uma leitura direta da pagina do processo como contingencia.
 - Ao rolar sobre o menu na tela inicial, a pagina do SPA volta a rolar quando o menu ou a lista interna chegam ao limite.
 - O botao de Agravo de Instrumento fica dentro do modulo Redacao e Correcao no menu geral, como "Cadastrar Agravo".
-- O botao "Cadastrar Agravo" escolhe automaticamente o fluxo TRF quando o numero CNJ contem ".4.01."; nesses casos abre "Cadastrar Agravo de Instrumento TRF".
+- O botao "Cadastrar Agravo" escolhe automaticamente o fluxo TRF quando o numero CNJ contem ".4.01."; abre "Distribuicao em 2o Grau TRF" ou "Distribuicao em 2o Grau TJ", conforme o processo.
 - No Agravo TRF, o codigo final 9360 usa a Turma Recursal dos Juizados Especiais Federais da SJMT; os codigos 3600 a 3606 usam o Tribunal Regional Federal da 1a Regiao.
 - No Agravo TRF, a competencia preenchida e "TRF1-5a e 6a Turmas-Direito Adm/Civil/Comercial".
 - O preenchimento do cadastro de Agravo reconhece tanto os campos do modelo estadual quanto os do modelo TRF, com fallback por rotulo do campo.
@@ -62,6 +62,7 @@ Comportamento:
 - Cada cartao de "Prazos em aberto do Estado" no Andamento PJE possui o botao "Abrir PDF", que abre o expediente vinculado ao prazo.
 - No painel interno "Autos do processo", o botao "Processo Completo" abre um seletor em duas etapas: primeiro Unificado ou Separado; depois Crescente ou Decrescente.
 - O painel de autos carrega automaticamente; use "Atualizar" apenas para refazer a leitura.
+- O painel de autos tambem carrega nas telas de correcao (2746), minuta de peca (2748) e distribuicao de agravo TJ (748) ou TRF (2934), mantendo o processo principal como referencia.
 - A ordenacao dos autos usa data/hora e ID; quando documentos entram no mesmo minuto, o ID crescente preserva a peca principal antes dos anexos.
 - "Unificado" baixa os PDFs diretos em paralelo limitado e mescla localmente em um unico arquivo, sem CDN e sem usar a rota documents.pdf como fluxo principal.
 - "Separado" agrupa documentos da mesma data/hora como um andamento em estilo PJE; ao visualizar o andamento, carrega o documento principal e pre-carrega os anexos em fila leve para acelerar o clique.

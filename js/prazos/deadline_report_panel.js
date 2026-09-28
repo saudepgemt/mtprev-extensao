@@ -4452,22 +4452,23 @@
     );
   }
 
-  function findCadastrarAgravoInstrumentoLink(flowType) {
-    const candidates = Array.from(document.querySelectorAll("a[href*='/procedures/start_procedure/']")).filter((element) => {
-      const text = agravoStartLinkText(element);
-      if (text.indexOf("cadastrar agravo de instrumento") < 0) return false;
-      return true;
-    });
+  function findCadastrarAgravoInstrumentoLink(flowType, procedureId) {
+    const isTrf = flowType === "trf";
+    const stepId = isTrf ? "2934" : "748";
+    const currentLabel = isTrf ? "distribuicao em 2o grau trf" : "distribuicao em 2o grau tj";
 
-    if (flowType === "trf") {
-      return candidates.find((element) => agravoStartLinkText(element).indexOf("trf") >= 0) || null;
-    }
+    return Array.from(document.querySelectorAll("a[href*='/procedures/start_procedure/']")).find((element) => {
+      const href = elementUrl(element);
+      if (!href) return false;
 
-    return (
-      candidates.find((element) => agravoStartLinkText(element).indexOf("trf") < 0 && elementUrl(element).indexOf("/procedures/start_procedure/748") >= 0) ||
-      candidates.find((element) => agravoStartLinkText(element).indexOf("trf") < 0) ||
-      null
-    );
+      const url = new URL(href);
+      if (url.origin !== window.location.origin || url.pathname !== "/procedures/start_procedure/" + stepId) return false;
+      if (url.searchParams.get("main_procedure_id") !== procedureId) return false;
+
+      const label = agravoStartLinkText(element);
+      return label.includes(currentLabel) ||
+        (label.includes("cadastrar agravo de instrumento") && (isTrf ? label.includes("trf") : !label.includes("trf")));
+    }) || null;
   }
 
   function hasStartSubprocessMenu() {
@@ -4491,13 +4492,13 @@
       return;
     }
 
-    const link = findCadastrarAgravoInstrumentoLink(data.flowType);
+    const link = findCadastrarAgravoInstrumentoLink(data.flowType, data.procedureId);
     const href = elementUrl(link);
     if (!href || !hasStartSubprocessMenu()) {
       window.alert(
         data.flowType === "trf"
-          ? "Nao encontrei o item Cadastrar Agravo de Instrumento TRF no menu Iniciar subprocessos desta pendencia."
-          : "Nao encontrei o item Cadastrar Agravo de instrumento no menu Iniciar subprocessos desta pendencia."
+          ? "Nao encontrei o item Distribuicao em 2o Grau TRF no menu Iniciar subprocessos desta pendencia."
+          : "Nao encontrei o item Distribuicao em 2o Grau TJ no menu Iniciar subprocessos desta pendencia."
       );
       return;
     }
@@ -4535,7 +4536,7 @@
     setStatus("Abrindo cadastro de agravo...");
     log(
       "Abrindo " +
-        (data.flowType === "trf" ? "Cadastrar Agravo de Instrumento TRF" : "Cadastrar Agravo de instrumento") +
+        (data.flowType === "trf" ? "Distribuicao em 2o Grau TRF" : "Distribuicao em 2o Grau TJ") +
         " para o processo " +
         (data.processNumber || data.procedureId) +
         ".",
