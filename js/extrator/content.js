@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.44';
+  const SIGADOC_FLOW_VERSION = '2.45';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -4854,7 +4854,10 @@
 
     const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
     const ok = document.getElementById('button_ok');
-    const form = document.getElementById('frm');
+    // A 2.02 procurava exclusivamente #frm. No SIGADOC v11.2 a tela de
+    // transferência mantém os mesmos campo e botão, mas o form não recebe ID.
+    // Preserva #frm nas versões antigas e aceita o formulário atual.
+    const form = document.getElementById('frm') || document.querySelector('form');
     if (!campo || !ok || !form) return;
 
     fluxoTramitacaoEmAndamento = true;
