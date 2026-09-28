@@ -25,7 +25,7 @@
   const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
   const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
   const SIGADOC_TRACE_LIMIT = 8;
-  const SIGADOC_FLOW_VERSION = '2.49';
+  const SIGADOC_FLOW_VERSION = '2.50';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -3017,6 +3017,20 @@
     return porSigla(vinculadosNaJuntada) || vinculadosNaJuntada[0] || porSigla(candidatos) || candidatos[0] || null;
   }
 
+  function adquirirBloqueioRetomadaCapturadoSigadoc() {
+    const raiz = document.documentElement;
+    if (!raiz) return true;
+    const agora = Date.now();
+    const bloqueioAte = Number(raiz.getAttribute('data-cdsp-retomada-capturado-ate') || 0);
+    if (bloqueioAte > agora) return false;
+    raiz.setAttribute('data-cdsp-retomada-capturado-ate', String(agora + 90000));
+    return true;
+  }
+
+  function liberarBloqueioRetomadaCapturadoSigadoc() {
+    document.documentElement?.removeAttribute('data-cdsp-retomada-capturado-ate');
+  }
+
   function paginaInclusaoDocumentoSigadoc() {
     const url = new URL(window.location.href);
     return url.searchParams.get('criandoAnexo') === 'true' || Boolean(document.getElementById('arquivo'));
@@ -3350,7 +3364,8 @@
 
   async function abrirFormularioTramitacaoSigadoc(pendente, linkTramitar) {
     if (!linkTramitar) return false;
-    if (pendente.etapa === 'aguardando-formulario' && pendente.aberturaDisparadaEm) return false;
+    if (pendente.etapa === 'aguardando-formulario' && pendente.aberturaDisparadaEm &&
+        Date.now() - Number(pendente.aberturaDisparadaEm) < 5000) return false;
     const urlAtual = window.location.href;
     const urlFormulario = new URL(linkTramitar.getAttribute('href'), window.location.href).href;
     pendente.etapa = 'aguardando-formulario';
@@ -4872,6 +4887,63 @@
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.fluxoSpa || !pendente.expedienteArquivoId) return false;
 
+    // Continuação linear: depois de iniciar a gravação/autenticação do Capturado,
+    // o retorno ao Ofício pai é o ponto de sequência para a rotina legada de
+    // tramitação. Não depende de reler a linha Juntada nem de reencontrar o link
+    // de retorno, que já foi consumido pela navegação.
+    const etapasAposEnvioCapturado = new Set([
+      'anexo-autenticar', 'anexo-confirmar-autenticacao', 'anexo-senha',
+      'anexo-retornar-oficio', 'anexo-autenticado', 'anexo-concluido',
+      'falha-pos-assinatura',
+    ]);
+    if (etapasAposEnvioCapturado.has(pendente.etapa) && estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+      const agora = Date.now();
+      if (agora - Number(pendente.ultimaRetomadaCapturadoEm || 0) < 5000) return true;
+      if (!adquirirBloqueioRetomadaCapturadoSigadoc()) return true;
+
+      try {
+        const continuidades = await storageGet([PENDING_TRAMITACAO_KEY]);
+        const tramitacaoPendente = continuidades[PENDING_TRAMITACAO_KEY];
+        if (tramitacaoPendente && tramitacaoPendente.criadoEm) {
+          const linkTramitar = encontrarLinkTramitarSigadoc();
+          if (!linkTramitar) {
+            registrarTraceTramitacaoSigadoc('Tramitação', 'Ofício aberto; #tramitar não localizado');
+            atualizarStatusMenuSigadoc('Capturado juntado. Botão Tramitar não localizado.', 'alerta');
+            pendente.ultimaRetomadaCapturadoEm = agora;
+            await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+            return true;
+          }
+          registrarTraceTramitacaoSigadoc('Capturado', 'retorno ao Ofício pai; retomando tramitação');
+          pendente.ultimaRetomadaCapturadoEm = agora;
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          await abrirFormularioTramitacaoSigadoc(tramitacaoPendente, linkTramitar);
+          return true;
+        }
+
+        pendente.etapa = 'anexo-concluido';
+        pendente.ultimaRetomadaCapturadoEm = agora;
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        registrarTraceTramitacaoSigadoc('Capturado', 'anexação concluída; sequência de tramitação');
+        atualizarStatusMenuSigadoc('Capturado confirmado. Preparando tramitação...');
+        const concluiu = await finalizarOficioAssinadoSigadoc(pendente);
+        if (!concluiu) {
+          registrarTraceTramitacaoSigadoc('Tramitação', 'aguardando PDF assinado do Ofício');
+        }
+        return true;
+      } catch (erro) {
+        console.error('[CDSP - Extrator] Falha ao retomar tramitação após juntada:', erro);
+        pendente.etapa = 'falha-pos-assinatura';
+        pendente.ultimaRetomadaCapturadoEm = agora;
+        pendente.erroPosAssinatura = erro && erro.message ? erro.message : String(erro);
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        registrarTraceTramitacaoSigadoc('Erro', 'retomada após juntada');
+        atualizarStatusMenuSigadoc(`Capturado anexado; tramitação pendente: ${pendente.erroPosAssinatura}`, 'alerta');
+        return true;
+      } finally {
+        liberarBloqueioRetomadaCapturadoSigadoc();
+      }
+    }
+
     if (pendente.etapa === 'oficio-assinado') {
       const incluir = encontrarLinkIncluirDocumentoSigadoc();
       if (!incluir) return true;
@@ -5099,7 +5171,9 @@
     registrarTraceTramitacaoSigadoc('Inicialização', `v${SIGADOC_FLOW_VERSION}`);
     void storageGet([PENDING_POS_ASSINATURA_KEY, PENDING_TRAMITACAO_KEY]).then((resultado) => {
       if (resultado[PENDING_POS_ASSINATURA_KEY]) {
-        registrarTraceTramitacaoSigadoc('Retomada', 'pós-assinatura encontrada');
+        registrarTraceTramitacaoSigadoc(
+          'Retomada', `pós-assinatura: ${resultado[PENDING_POS_ASSINATURA_KEY].etapa || 'sem etapa'}`
+        );
       } else if (resultado[PENDING_TRAMITACAO_KEY]) {
         registrarTraceTramitacaoSigadoc('Retomada', 'tramitação encontrada');
       } else {
