@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.43';
+  const SIGADOC_FLOW_VERSION = '2.44';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -4687,42 +4687,268 @@
     }
   }
 
+  // Mantém o Capturado isolado da rotina de tramitação. Enquanto há uma etapa
+  // de anexo em curso, esta função a conduz e bloqueia temporariamente a 2.02.
+  // Quando o Ofício pai é reencontrado, retorna false e libera o fluxo original.
+  async function verificarFluxoCapturadoPendenteSigadoc() {
+    const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+    const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
+    if (!pendente || !pendente.fluxoSpa || !pendente.expedienteArquivoId) return false;
+
+    if (pendente.etapa === 'oficio-assinado') {
+      const incluir = encontrarLinkIncluirDocumentoSigadoc();
+      if (!incluir) return true;
+
+      pendente.urlOficio = window.location.href;
+      pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(pendente.urlOficio) || obterSiglaDoTituloSigadoc();
+      pendente.etapa = 'anexo-selecionar-modelo';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      incluir.click();
+      return true;
+    }
+
+    if (pendente.etapa === 'anexo-selecionar-modelo' || pendente.etapa === 'anexo-preencher') {
+      await configurarAnexoDoExpedienteSigadoc(pendente);
+      return true;
+    }
+
+    if (pendente.etapa === 'anexo-autenticar' ||
+        pendente.etapa === 'anexo-confirmar-autenticacao' ||
+        pendente.etapa === 'anexo-senha') {
+      if (pendente.etapa === 'anexo-senha' &&
+          !document.getElementById('senhaDialog') &&
+          !document.getElementById('senhaUsuarioSubscritor') &&
+          !document.getElementById('bot-autenticar') &&
+          encontrarLinkRetornoAoOficioSigadoc(pendente)) {
+        pendente.etapa = 'anexo-retornar-oficio';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      } else {
+        await autenticarAnexoSigadoc(pendente);
+        return true;
+      }
+    }
+
+    if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
+      if (!estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+        await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente);
+        return true;
+      }
+      pendente.etapa = 'anexo-concluido';
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      // Limpeza de memória do PDF já autenticado: é deliberadamente assíncrona
+      // para não inserir espera alguma entre a 2.02 e o clique em Tramitar.
+      void removerPdfExpedienteInterno(pendente);
+      return false;
+    }
+
+    // Estados que não pertencem ao Capturado (inclusive pendências deixadas
+    // por versões anteriores) devem seguir diretamente para a 2.02.
+    return false;
+  }
+
+  async function verificarFluxoCapturadoETramitacaoSigadocPendente() {
+    if (await verificarFluxoCapturadoPendenteSigadoc()) return;
+    await verificarFluxoPosAssinaturaSigadocPendente();
+  }
+
+  // Bloco restaurado literalmente da 2.02. A única decisão sobre Capturado
+  // ocorre no wrapper acima; esta função não conhece nem altera o anexo.
+  async function verificarFluxoPosAssinaturaSigadocPendente() {
+    if (fluxoPosAssinaturaEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+    const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      return;
+    }
+
+    const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
+    const numeroSigadoc = extrairNumeroSigadocDaPagina();
+
+    if (pendente.modoPosAssinatura === 'parar') {
+      if (!pdfUrl && !numeroSigadoc && !encontrarLinkTramitarSigadoc()) return;
+
+      fluxoPosAssinaturaEmAndamento = true;
+      try {
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      } finally {
+        fluxoPosAssinaturaEmAndamento = false;
+      }
+      return;
+    }
+
+    if (!pdfUrl || !numeroSigadoc) return;
+
+    fluxoPosAssinaturaEmAndamento = true;
+
+    try {
+      if (!pendente.fluxoSpa) {
+        await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
+        const textoParaSpa = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
+        if (textoParaSpa) {
+          await copiarTextoSimples(textoParaSpa);
+        }
+        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+        return;
+      }
+
+      const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
+        processo: pendente.processo,
+        tipoOficio: pendente.tipoOficio,
+        numeroSigadoc,
+      });
+
+      await storageSet({
+        [PENDING_SPA_FINALIZACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          etapa: 'aguardando-botao',
+          arquivoId,
+          nomeArquivo: pendente.nomeArquivo,
+          nomeOficioEnviado: pendente.nomeOficioEnviado,
+          textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
+          numeroSigadoc,
+          processo: pendente.processo,
+          tipoOficio: pendente.tipoOficio,
+        },
+        [PENDING_TRAMITACAO_KEY]: {
+          criadoEm: new Date().toISOString(),
+          destinatarioSigla: pendente.destinatarioSigla,
+          destinatarioDescricao: pendente.destinatarioDescricao,
+          numeroSigadoc,
+        },
+      });
+
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+
+      const tramitar = encontrarLinkTramitarSigadoc();
+      if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
+      tramitar.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha após assinatura SIGADOC:', erro);
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      const btn = document.getElementById('spa-sigadoc-assinar-btn');
+      atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
+      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+    } finally {
+      fluxoPosAssinaturaEmAndamento = false;
+    }
+  }
+
+  // Bloco restaurado literalmente da 2.02.
+  async function verificarTramitacaoSigadocPendente() {
+    if (fluxoTramitacaoEmAndamento) return;
+
+    const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
+    const pendente = resultado[PENDING_TRAMITACAO_KEY];
+    if (!pendente || !pendente.criadoEm) return;
+
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      return;
+    }
+
+    const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
+    const ok = document.getElementById('button_ok');
+    const form = document.getElementById('frm');
+    if (!campo || !ok || !form) return;
+
+    fluxoTramitacaoEmAndamento = true;
+
+    try {
+      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
+      setValorCampo(campo, destino);
+      campo.focus();
+
+      const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
+      ['keydown', 'keypress', 'keyup'].forEach((tipoEvento) => {
+        campo.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        }));
+      });
+
+      executarNoContextoDaPagina(`
+        (function () {
+          var destino = ${JSON.stringify(destino)};
+          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
+            document.getElementsByName('lotaResponsavelSel.sigla')[0];
+
+          if (!campo) return;
+          campo.value = destino;
+          campo.dispatchEvent(new Event('input', { bubbles: true }));
+          campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+          try {
+            if (typeof handleEnter === 'function') {
+              handleEnter(campo, {
+                type: 'keypress',
+                keyCode: 13,
+                which: 13,
+                preventDefault: function () {},
+                stopPropagation: function () {}
+              });
+            }
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
+          }
+
+          try {
+            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
+          } catch (erro) {
+            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
+          }
+        })();
+      `);
+
+      await aguardar(1200);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+      ok.click();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
+      await storageRemove([PENDING_TRAMITACAO_KEY]);
+    } finally {
+      fluxoTramitacaoEmAndamento = false;
+    }
+  }
+
   function inicializarSigadoc() {
-    if (window.CDSP_SIGADOC_CONTENT_INITIALIZED) return;
-    window.CDSP_SIGADOC_CONTENT_INITIALIZED = true;
-
-    const verificarFluxosAposEstabilizacao = () => {
-      injetarBotaoSigadoc();
-      verificarPreenchimentoPendente();
-      verificarFluxoAssinaturaPendente();
-      verificarFluxoPosAssinaturaSigadocPendente();
-      verificarTramitacaoSigadocPendente();
-      atualizarResumoAutomacaoListaSigadoc();
-    };
-    const verificarPosAssinaturaETramitacao = () => {
-      injetarBotaoSigadoc();
-      verificarFluxoPosAssinaturaSigadocPendente();
-      verificarTramitacaoSigadocPendente();
-      atualizarResumoAutomacaoListaSigadoc();
-    };
-
-    verificarFluxosAposEstabilizacao();
+    injetarBotaoSigadoc();
+    verificarPreenchimentoPendente();
+    verificarFluxoAssinaturaPendente();
+    verificarFluxoCapturadoETramitacaoSigadocPendente();
+    verificarTramitacaoSigadocPendente();
     agendarAutomacaoListaSigadoc(900);
-
-    // O portal pode terminar de montar o PDF e os links da pagina pai depois
-    // de document_idle. A recuperacao e finita e limitada ao pos-assinatura:
-    // nunca repete preenchimento, assinatura ou a abertura da minuta.
-    [1200, 2500, 4500, 7500].forEach((delay) => {
-      setTimeout(verificarPosAssinaturaETramitacao, delay);
-    });
 
     if (!window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW) {
       window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW = true;
       window.addEventListener('pageshow', () => {
-        verificarFluxosAposEstabilizacao();
+        injetarBotaoSigadoc();
         agendarAutomacaoListaSigadoc(700);
       });
     }
+
+    let timer = null;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        injetarBotaoSigadoc();
+        verificarFluxoAssinaturaPendente();
+        verificarFluxoCapturadoETramitacaoSigadocPendente();
+        verificarTramitacaoSigadocPendente();
+        atualizarResumoAutomacaoListaSigadoc();
+      }, 400);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   if (window.location.hostname === 'spa.pge.mt.gov.br') {
