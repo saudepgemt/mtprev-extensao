@@ -25,7 +25,7 @@
   const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
   const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
   const SIGADOC_TRACE_LIMIT = 8;
-  const SIGADOC_FLOW_VERSION = '2.50';
+  const SIGADOC_FLOW_VERSION = '2.51';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -2997,6 +2997,24 @@
       siglasReferemMesmoOficioSigadoc(obterSiglaDoTituloSigadoc(), siglaOrigem);
   }
 
+  function reconhecerOficioPaiNoRetornoSigadoc(pendente) {
+    if (estaNaPaginaDoOficioOrigemSigadoc(pendente)) return true;
+
+    // Recupera pendências criadas quando a URL do Ofício ainda era uma tela de
+    // edição sem parâmetro sigla. No retorno já concluído, a página assinada
+    // contém o Capturado na Juntada e o link nativo de Tramitar.
+    const siglaAtual = obterSiglaDoDocumentoSigadoc(window.location.href) || obterSiglaDoTituloSigadoc();
+    const paginaDeOficio = /\/expediente\/doc\/exibir/i.test(window.location.pathname) &&
+      /^PGEOFI/i.test(chaveSiglaDocumentoSigadoc(siglaAtual));
+    const capturadoNaJuntada = Boolean(document.querySelector('tr.juntada a[id^="pge-cap-"]'));
+    if (!paginaDeOficio || !capturadoNaJuntada || !encontrarLinkTramitarSigadoc()) return false;
+
+    pendente.urlOficio = window.location.href;
+    pendente.siglaOficio = siglaAtual;
+    registrarTraceTramitacaoSigadoc('Retomada', 'Ofício pai identificado após o Capturado');
+    return true;
+  }
+
   function encontrarLinkRetornoAoOficioSigadoc(pendente) {
     const siglaOficio = obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio);
     const links = Array.from(document.querySelectorAll(
@@ -3220,12 +3238,14 @@
   }
 
   async function retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente) {
-    if (pendente.retornoDisparadoEm) return false;
+    if (pendente.retornoDisparadoEm && Date.now() - Number(pendente.retornoDisparadoEm) < 4000) return false;
     const documentoPai = encontrarLinkRetornoAoOficioSigadoc(pendente);
     if (!documentoPai) return false;
 
     const urlAtual = window.location.href;
     const urlOficio = new URL(documentoPai.getAttribute('href'), window.location.href).href;
+    pendente.urlOficio = urlOficio;
+    pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(urlOficio);
     pendente.retornoSolicitadoEm = Date.now();
     pendente.retornoDisparadoEm = pendente.retornoSolicitadoEm;
     pendente.tentativasRetorno = Number(pendente.tentativasRetorno || 0) + 1;
@@ -4896,12 +4916,13 @@
       'anexo-retornar-oficio', 'anexo-autenticado', 'anexo-concluido',
       'falha-pos-assinatura',
     ]);
-    if (etapasAposEnvioCapturado.has(pendente.etapa) && estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+    if (etapasAposEnvioCapturado.has(pendente.etapa) && reconhecerOficioPaiNoRetornoSigadoc(pendente)) {
       const agora = Date.now();
       if (agora - Number(pendente.ultimaRetomadaCapturadoEm || 0) < 5000) return true;
       if (!adquirirBloqueioRetomadaCapturadoSigadoc()) return true;
 
       try {
+        registrarTraceTramitacaoSigadoc('Capturado', 'Ofício pai encontrado; iniciando tramitação');
         const continuidades = await storageGet([PENDING_TRAMITACAO_KEY]);
         const tramitacaoPendente = continuidades[PENDING_TRAMITACAO_KEY];
         if (tramitacaoPendente && tramitacaoPendente.criadoEm) {
