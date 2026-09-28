@@ -18,7 +18,14 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.47';
+  // O storage da extensão é a fonte principal. Estes espelhos existem apenas
+  // durante a mesma aba do SIGADOC para não perder a continuação entre o
+  // Capturado e o Ofício pai quando o service worker é reiniciado.
+  const SIGADOC_POS_SESSION_KEY = 'cdspSigadocPosAssinaturaEspelho';
+  const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
+  const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
+  const SIGADOC_TRACE_LIMIT = 8;
+  const SIGADOC_FLOW_VERSION = '2.48';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -687,12 +694,111 @@
 
   // ─── Storage compartilhado entre SPA e SIGADOC ─────────────────────────────
 
+  function estaNoHostSigadoc() {
+    return Boolean(window.location && HOST_SIGADOC.test(window.location.hostname || ''));
+  }
+
+  function chaveEspelhoSigadoc(chave) {
+    if (chave === PENDING_POS_ASSINATURA_KEY) return SIGADOC_POS_SESSION_KEY;
+    if (chave === PENDING_TRAMITACAO_KEY) return SIGADOC_TRAM_SESSION_KEY;
+    return '';
+  }
+
+  function salvarEspelhosSigadoc(objeto) {
+    if (!estaNoHostSigadoc() || !objeto) return false;
+    let salvou = false;
+    try {
+      Object.entries(objeto).forEach(([chave, valor]) => {
+        const espelho = chaveEspelhoSigadoc(chave);
+        if (!espelho) return;
+        if (valor === undefined || valor === null) sessionStorage.removeItem(espelho);
+        else sessionStorage.setItem(espelho, JSON.stringify(valor));
+        salvou = true;
+      });
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Falha ao espelhar a continuação do SIGADOC:', erro);
+    }
+    return salvou;
+  }
+
+  function recuperarEspelhoSigadoc(chave) {
+    if (!estaNoHostSigadoc()) return undefined;
+    const espelho = chaveEspelhoSigadoc(chave);
+    if (!espelho) return undefined;
+    try {
+      const bruto = sessionStorage.getItem(espelho);
+      if (!bruto) return undefined;
+      return JSON.parse(bruto);
+    } catch (erro) {
+      try { sessionStorage.removeItem(espelho); } catch (_) { /* sem ação */ }
+      return undefined;
+    }
+  }
+
+  function removerEspelhosSigadoc(chaves) {
+    if (!estaNoHostSigadoc()) return;
+    try {
+      chaves.forEach((chave) => {
+        const espelho = chaveEspelhoSigadoc(chave);
+        if (espelho) sessionStorage.removeItem(espelho);
+      });
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Falha ao limpar espelho do SIGADOC:', erro);
+    }
+  }
+
+  function lerTraceTramitacaoSigadoc() {
+    if (!estaNoHostSigadoc()) return [];
+    try {
+      const itens = JSON.parse(sessionStorage.getItem(SIGADOC_TRACE_SESSION_KEY) || '[]');
+      return Array.isArray(itens) ? itens.slice(-SIGADOC_TRACE_LIMIT) : [];
+    } catch (erro) {
+      return [];
+    }
+  }
+
+  function renderizarTraceTramitacaoSigadoc(itens) {
+    const painel = document.getElementById('cdsp-sigadoc-trace-content');
+    if (!painel) return;
+    painel.textContent = (itens || []).map((item) => {
+      const complemento = item.detalhe ? ` — ${item.detalhe}` : '';
+      return `${item.hora} ${item.etapa}${complemento}`;
+    }).join('\n') || 'Aguardando uma execução.';
+  }
+
+  // O diagnóstico não registra número de processo, destinatário ou conteúdo do
+  // Ofício. Mantém apenas a etapa e a hora, diretamente no painel da extensão.
+  function registrarTraceTramitacaoSigadoc(etapa, detalhe = '') {
+    if (!estaNoHostSigadoc()) return;
+    const itens = lerTraceTramitacaoSigadoc();
+    const ultimo = itens[itens.length - 1];
+    if (ultimo && ultimo.etapa === etapa && ultimo.detalhe === detalhe) {
+      renderizarTraceTramitacaoSigadoc(itens);
+      return;
+    }
+    const hora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    itens.push({ hora, etapa, detalhe });
+    const atuais = itens.slice(-SIGADOC_TRACE_LIMIT);
+    try { sessionStorage.setItem(SIGADOC_TRACE_SESSION_KEY, JSON.stringify(atuais)); } catch (_) { /* sem ação */ }
+    renderizarTraceTramitacaoSigadoc(atuais);
+  }
+
   function storageSet(objeto) {
+    const espelhou = salvarEspelhosSigadoc(objeto);
     return new Promise((resolve, reject) => {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         chrome.storage.local.set(objeto, () => {
           const erro = chrome.runtime && chrome.runtime.lastError;
           if (erro) {
+            const chaves = Object.keys(objeto || {});
+            const apenasContinuidadesDaMesmaAba = chaves.length > 0 && chaves.every((chave) => Boolean(chaveEspelhoSigadoc(chave)));
+            if (espelhou && apenasContinuidadesDaMesmaAba) {
+              registrarTraceTramitacaoSigadoc('Armazenamento', 'espelho da aba ativo');
+              resolve();
+              return;
+            }
             reject(new Error(erro.message || 'Não foi possível gravar o estado da extensão.'));
             return;
           }
@@ -714,10 +820,27 @@
         chrome.storage.local.get(chaves, (resultado) => {
           const erro = chrome.runtime && chrome.runtime.lastError;
           if (erro) {
+            const valoresDoEspelho = {};
+            chaves.forEach((chave) => {
+              const espelho = recuperarEspelhoSigadoc(chave);
+              if (espelho !== undefined) valoresDoEspelho[chave] = espelho;
+            });
+            if (Object.keys(valoresDoEspelho).length) {
+              registrarTraceTramitacaoSigadoc('Armazenamento', 'retomado pelo espelho da aba');
+              resolve(valoresDoEspelho);
+              return;
+            }
             reject(new Error(erro.message || 'Não foi possível ler o estado da extensão.'));
             return;
           }
-          resolve(resultado || {});
+          const valores = resultado || {};
+          chaves.forEach((chave) => {
+            if (valores[chave] === undefined) {
+              const espelho = recuperarEspelhoSigadoc(chave);
+              if (espelho !== undefined) valores[chave] = espelho;
+            }
+          });
+          resolve(valores);
         });
         return;
       }
@@ -740,12 +863,14 @@
             reject(new Error(erro.message || 'Não foi possível limpar o estado da extensão.'));
             return;
           }
+          removerEspelhosSigadoc(chaves);
           resolve();
         });
         return;
       }
 
       chaves.forEach((chave) => localStorage.removeItem(chave));
+      removerEspelhosSigadoc(chaves);
       resolve();
     });
   }
@@ -2755,6 +2880,7 @@
     };
 
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    registrarTraceTramitacaoSigadoc('Pós-assinatura', 'pendência gravada');
     return pendente;
   }
 
@@ -2960,6 +3086,7 @@
       etapa: 'abrir-formulario', tentativasAbertura: 0,
       continuidadePosAssinaturaAutorizada: Boolean(pendente.continuidadePosAssinaturaAutorizada),
     };
+    registrarTraceTramitacaoSigadoc('Finalização', 'gravando continuidades');
     await storageSet({
       [PENDING_SPA_FINALIZACAO_KEY]: {
         criadoEm: new Date().toISOString(), etapa: 'aguardando-botao', arquivoId,
@@ -2977,6 +3104,7 @@
     if (!confirmacao[PENDING_SPA_FINALIZACAO_KEY] || !confirmacao[PENDING_TRAMITACAO_KEY]) {
       throw new Error('O SIGADOC não confirmou a gravação das pendências de finalização e tramitação.');
     }
+    registrarTraceTramitacaoSigadoc('Finalização', 'continuidades confirmadas');
 
     // A limpeza só ocorre após as duas pendências terem sido gravadas. Ela não
     // pode, porém, bloquear a navegação: o PDF Capturado já foi autenticado e
@@ -3234,9 +3362,13 @@
     // O SIGADOC prepara parte do formulário pelo handler do link. O clique nativo
     // é necessário para preservar esse comportamento; a URL é só contingência
     // caso o portal não inicie a navegação, sem disparar um segundo clique.
+    registrarTraceTramitacaoSigadoc('Tramitação', 'acionando #tramitar');
     linkTramitar.click();
     setTimeout(() => {
-      if (window.location.href === urlAtual) window.location.assign(urlFormulario);
+      if (window.location.href === urlAtual) {
+        registrarTraceTramitacaoSigadoc('Tramitação', 'contingência de URL');
+        window.location.assign(urlFormulario);
+      }
     }, 900);
     return true;
   }
@@ -4157,6 +4289,19 @@
     status.textContent = `Pronto · v${SIGADOC_FLOW_VERSION}`;
     body.appendChild(status);
 
+    const trace = document.createElement('details');
+    trace.id = 'cdsp-sigadoc-trace';
+    trace.className = 'cdsp-sigadoc-menu__section';
+    const resumoTrace = document.createElement('summary');
+    resumoTrace.textContent = 'Log de tramitação';
+    trace.appendChild(resumoTrace);
+    const conteudoTrace = document.createElement('pre');
+    conteudoTrace.id = 'cdsp-sigadoc-trace-content';
+    conteudoTrace.style.cssText = 'white-space:pre-wrap;margin:6px 0 0;font:11px/1.35 monospace;max-height:112px;overflow:auto;';
+    trace.appendChild(conteudoTrace);
+    body.appendChild(trace);
+    renderizarTraceTramitacaoSigadoc(lerTraceTramitacaoSigadoc());
+
     atualizarResumoAutomacaoListaSigadoc();
   }
 
@@ -4767,6 +4912,7 @@
       }
       pendente.etapa = 'anexo-concluido';
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      registrarTraceTramitacaoSigadoc('Capturado', 'Ofício pai reconhecido');
       if (fluxoPosAssinaturaEmAndamento) return true;
 
       fluxoPosAssinaturaEmAndamento = true;
@@ -4780,6 +4926,7 @@
         return concluiu;
       } catch (erro) {
         console.error('[CDSP - Extrator] Falha ao finalizar Capturado e iniciar tramitação:', erro);
+        registrarTraceTramitacaoSigadoc('Erro', 'finalização pós-assinatura');
         pendente.etapa = 'falha-pos-assinatura';
         pendente.erroPosAssinatura = erro && erro.message ? erro.message : String(erro);
         pendente.erroPosAssinaturaEm = Date.now();
@@ -4949,6 +5096,16 @@
 
   function inicializarSigadoc() {
     injetarBotaoSigadoc();
+    registrarTraceTramitacaoSigadoc('Inicialização', `v${SIGADOC_FLOW_VERSION}`);
+    void storageGet([PENDING_POS_ASSINATURA_KEY, PENDING_TRAMITACAO_KEY]).then((resultado) => {
+      if (resultado[PENDING_POS_ASSINATURA_KEY]) {
+        registrarTraceTramitacaoSigadoc('Retomada', 'pós-assinatura encontrada');
+      } else if (resultado[PENDING_TRAMITACAO_KEY]) {
+        registrarTraceTramitacaoSigadoc('Retomada', 'tramitação encontrada');
+      } else {
+        registrarTraceTramitacaoSigadoc('Retomada', 'sem pendência');
+      }
+    }).catch(() => registrarTraceTramitacaoSigadoc('Erro', 'leitura do armazenamento'));
     verificarPreenchimentoPendente();
     verificarFluxoAssinaturaPendente();
     verificarFluxoCapturadoETramitacaoSigadocPendente();
