@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.45';
+  const SIGADOC_FLOW_VERSION = '2.46';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -2949,9 +2949,12 @@
       [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao,
     });
 
-    // A limpeza só ocorre após as duas pendências terem sido gravadas. Assim,
-    // o retorno do Capturado nunca perde uma das duas etapas.
-    await removerPdfExpedienteInterno(pendente);
+    // A limpeza só ocorre após as duas pendências terem sido gravadas. Ela não
+    // pode, porém, bloquear a navegação: o PDF Capturado já foi autenticado e
+    // apagar sua cópia interna é apenas limpeza. Antes, uma resposta pendente
+    // do service worker nesta etapa deixava o Ofício na página pai, mesmo com
+    // a pendência de tramitação já pronta.
+    void removerPdfExpedienteInterno(pendente);
     await storageRemove([PENDING_POS_ASSINATURA_KEY]);
     await abrirFormularioTramitacaoSigadoc(pendenciaTramitacao, tramitar);
     return true;
@@ -4751,8 +4754,11 @@
     await verificarFluxoPosAssinaturaSigadocPendente();
   }
 
-  // Bloco restaurado literalmente da 2.02. A única decisão sobre Capturado
-  // ocorre no wrapper acima; esta função não conhece nem altera o anexo.
+  // A única decisão sobre Capturado ocorre no wrapper acima. Ao voltar ao
+  // Ofício pai, esta rotina usa a mesma transição do fluxo sem Capturado:
+  // grava as duas pendências, aciona o link nativo e tem a URL do próprio
+  // link como contingência. Assim, não há uma segunda implementação da
+  // tramitação que possa divergir da rotina principal.
   async function verificarFluxoPosAssinaturaSigadocPendente() {
     if (fluxoPosAssinaturaEmAndamento) return;
 
@@ -4760,17 +4766,20 @@
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.criadoEm) return;
 
+    // Uma falha material (download/armazenamento do PDF) deve permanecer
+    // visível para diagnóstico, sem virar um ciclo silencioso de tentativas
+    // disparado pelo MutationObserver. Uma nova execução substitui esta
+    // pendência normalmente.
+    if (pendente.etapa === 'falha-pos-assinatura') return;
+
     const idade = Date.now() - new Date(pendente.criadoEm).getTime();
     if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
       await storageRemove([PENDING_POS_ASSINATURA_KEY]);
       return;
     }
 
-    const pdfUrl = encontrarUrlImpressaoPdfSigadoc();
-    const numeroSigadoc = extrairNumeroSigadocDaPagina();
-
     if (pendente.modoPosAssinatura === 'parar') {
-      if (!pdfUrl && !numeroSigadoc && !encontrarLinkTramitarSigadoc()) return;
+      if (!encontrarUrlImpressaoPdfSigadoc() && !extrairNumeroSigadocDaPagina() && !encontrarLinkTramitarSigadoc()) return;
 
       fluxoPosAssinaturaEmAndamento = true;
       try {
@@ -4781,58 +4790,26 @@
       return;
     }
 
-    if (!pdfUrl || !numeroSigadoc) return;
-
     fluxoPosAssinaturaEmAndamento = true;
 
     try {
-      if (!pendente.fluxoSpa) {
-        await baixarPdfParaDownloads(pdfUrl, pendente.nomeArquivo);
-        const textoParaSpa = montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado);
-        if (textoParaSpa) {
-          await copiarTextoSimples(textoParaSpa);
-        }
-        await storageRemove([PENDING_POS_ASSINATURA_KEY]);
-        return;
-      }
-
-      const arquivoId = await salvarPdfInterno(pdfUrl, pendente.nomeArquivo, {
-        processo: pendente.processo,
-        tipoOficio: pendente.tipoOficio,
-        numeroSigadoc,
-      });
-
-      await storageSet({
-        [PENDING_SPA_FINALIZACAO_KEY]: {
-          criadoEm: new Date().toISOString(),
-          etapa: 'aguardando-botao',
-          arquivoId,
-          nomeArquivo: pendente.nomeArquivo,
-          nomeOficioEnviado: pendente.nomeOficioEnviado,
-          textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
-          numeroSigadoc,
-          processo: pendente.processo,
-          tipoOficio: pendente.tipoOficio,
-        },
-        [PENDING_TRAMITACAO_KEY]: {
-          criadoEm: new Date().toISOString(),
-          destinatarioSigla: pendente.destinatarioSigla,
-          destinatarioDescricao: pendente.destinatarioDescricao,
-          numeroSigadoc,
-        },
-      });
-
-      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
-
-      const tramitar = encontrarLinkTramitarSigadoc();
-      if (!tramitar) throw new Error('Botão Tramitar não encontrado no SIGADOC.');
-      tramitar.click();
+      // finalizarOficioAssinadoSigadoc é o ponto único que persiste a
+      // finalização do SPA e a tramitação antes de navegar para o formulário.
+      // Ele só retorna false enquanto a página do Ofício ainda não estiver
+      // pronta (PDF/número indisponíveis); nesse caso, a pendência permanece.
+      await finalizarOficioAssinadoSigadoc(pendente);
     } catch (erro) {
       console.error('[CDSP - Extrator] Falha após assinatura SIGADOC:', erro);
-      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      // Não descarte a pendência: apagar o estado aqui escondia a falha e
+      // tornava impossível saber por que o #tramitar não fora acionado.
+      pendente.etapa = 'falha-pos-assinatura';
+      pendente.erroPosAssinatura = erro && erro.message ? erro.message : String(erro);
+      pendente.erroPosAssinaturaEm = Date.now();
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      atualizarStatusMenuSigadoc(`Tramitação não iniciada: ${pendente.erroPosAssinatura}`, 'alerta');
       const btn = document.getElementById('spa-sigadoc-assinar-btn');
       atualizarBotao(btn, 'erro', '!', 'Erro pós-assinatura');
-      if (btn) btn.title = erro.message || 'Falha ao baixar ou tramitar o ofício.';
+      if (btn) btn.title = pendente.erroPosAssinatura;
     } finally {
       fluxoPosAssinaturaEmAndamento = false;
     }
