@@ -25,7 +25,7 @@
   const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
   const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
   const SIGADOC_TRACE_LIMIT = 8;
-  const SIGADOC_FLOW_VERSION = '2.48';
+  const SIGADOC_FLOW_VERSION = '2.49';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -4297,7 +4297,7 @@
     trace.appendChild(resumoTrace);
     const conteudoTrace = document.createElement('pre');
     conteudoTrace.id = 'cdsp-sigadoc-trace-content';
-    conteudoTrace.style.cssText = 'white-space:pre-wrap;margin:6px 0 0;font:11px/1.35 monospace;max-height:112px;overflow:auto;';
+    conteudoTrace.style.cssText = 'white-space:pre-wrap;margin:6px 0 0;font:12px/1.5 Consolas, monospace;color:#f4f8fb;background:#081521;max-height:140px;overflow:auto;';
     trace.appendChild(conteudoTrace);
     body.appendChild(trace);
     renderizarTraceTramitacaoSigadoc(lerTraceTramitacaoSigadoc());

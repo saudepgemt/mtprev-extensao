@@ -339,3 +339,25 @@
 .cdsp-sigadoc-menu__status[data-tone='busy'] {
   color: #9bd1ff;
 }
+
+#cdsp-sigadoc-trace > summary {
+  color: #f4f8fb !important;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#cdsp-sigadoc-trace-content {
+  max-height: 140px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 7px;
+  border: 1px solid #496078;
+  border-radius: 5px;
+  background: #081521 !important;
+  color: #f4f8fb !important;
+  font: 12px/1.5 Consolas, 'Courier New', monospace !important;
+  opacity: 1 !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
