@@ -18,7 +18,7 @@
   const PENDING_TRAMITACAO_KEY = 'spaExtratorTramitacaoSigadocPendente';
   const PENDING_SPA_FINALIZACAO_KEY = 'spaExtratorFinalizacaoSpaPendente';
   const SIGADOC_ACTIVE_FLOW_KEY = 'cdspSigadocActiveFlow';
-  const SIGADOC_FLOW_VERSION = '2.46';
+  const SIGADOC_FLOW_VERSION = '2.47';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -688,9 +688,16 @@
   // ─── Storage compartilhado entre SPA e SIGADOC ─────────────────────────────
 
   function storageSet(objeto) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set(objeto, resolve);
+        chrome.storage.local.set(objeto, () => {
+          const erro = chrome.runtime && chrome.runtime.lastError;
+          if (erro) {
+            reject(new Error(erro.message || 'Não foi possível gravar o estado da extensão.'));
+            return;
+          }
+          resolve();
+        });
         return;
       }
 
@@ -702,9 +709,16 @@
   }
 
   function storageGet(chaves) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(chaves, resolve);
+        chrome.storage.local.get(chaves, (resultado) => {
+          const erro = chrome.runtime && chrome.runtime.lastError;
+          if (erro) {
+            reject(new Error(erro.message || 'Não foi possível ler o estado da extensão.'));
+            return;
+          }
+          resolve(resultado || {});
+        });
         return;
       }
 
@@ -718,9 +732,16 @@
   }
 
   function storageRemove(chaves) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.remove(chaves, resolve);
+        chrome.storage.local.remove(chaves, () => {
+          const erro = chrome.runtime && chrome.runtime.lastError;
+          if (erro) {
+            reject(new Error(erro.message || 'Não foi possível limpar o estado da extensão.'));
+            return;
+          }
+          resolve();
+        });
         return;
       }
 
@@ -2949,6 +2970,14 @@
       [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao,
     });
 
+    // Confirma que as duas próximas etapas realmente chegaram ao armazenamento
+    // antes de descartar a pendência atual ou navegar. Sem essa leitura, uma
+    // falha silenciosa do storage deixa o Ofício pai em "Pronto", sem clique.
+    const confirmacao = await storageGet([PENDING_SPA_FINALIZACAO_KEY, PENDING_TRAMITACAO_KEY]);
+    if (!confirmacao[PENDING_SPA_FINALIZACAO_KEY] || !confirmacao[PENDING_TRAMITACAO_KEY]) {
+      throw new Error('O SIGADOC não confirmou a gravação das pendências de finalização e tramitação.');
+    }
+
     // A limpeza só ocorre após as duas pendências terem sido gravadas. Ela não
     // pode, porém, bloquear a navegação: o PDF Capturado já foi autenticado e
     // apagar sua cópia interna é apenas limpeza. Antes, uma resposta pendente
@@ -4125,7 +4154,7 @@
     const status = document.createElement('div');
     status.id = 'cdsp-sigadoc-menu-status';
     status.className = 'cdsp-sigadoc-menu__status';
-    status.textContent = 'Pronto';
+    status.textContent = `Pronto · v${SIGADOC_FLOW_VERSION}`;
     body.appendChild(status);
 
     atualizarResumoAutomacaoListaSigadoc();
@@ -4690,9 +4719,9 @@
     }
   }
 
-  // Mantém o Capturado isolado da rotina de tramitação. Enquanto há uma etapa
-  // de anexo em curso, esta função a conduz e bloqueia temporariamente a 2.02.
-  // Quando o Ofício pai é reencontrado, retorna false e libera o fluxo original.
+  // Mantém o Capturado isolado da rotina de tramitação. Ao reencontrar o Ofício
+  // pai, a própria rotina encerra a cadeia imediatamente; não devolve o estado
+  // para outra função que possa perdê-lo entre o anexo e o clique em Tramitar.
   async function verificarFluxoCapturadoPendenteSigadoc() {
     const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
@@ -4738,10 +4767,28 @@
       }
       pendente.etapa = 'anexo-concluido';
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
-      // Limpeza de memória do PDF já autenticado: é deliberadamente assíncrona
-      // para não inserir espera alguma entre a 2.02 e o clique em Tramitar.
-      void removerPdfExpedienteInterno(pendente);
-      return false;
+      if (fluxoPosAssinaturaEmAndamento) return true;
+
+      fluxoPosAssinaturaEmAndamento = true;
+      try {
+        atualizarStatusMenuSigadoc('Capturado concluído. Abrindo tramitação...');
+        // Esta chamada persiste a finalização no SPA, a pendência de
+        // tramitação e abre o #tramitar nativo com a contingência da URL.
+        // A limpeza do PDF Capturado só ocorre dentro dela, após a confirmação
+        // das pendências, e nunca bloqueia a navegação.
+        const concluiu = await finalizarOficioAssinadoSigadoc(pendente);
+        return concluiu;
+      } catch (erro) {
+        console.error('[CDSP - Extrator] Falha ao finalizar Capturado e iniciar tramitação:', erro);
+        pendente.etapa = 'falha-pos-assinatura';
+        pendente.erroPosAssinatura = erro && erro.message ? erro.message : String(erro);
+        pendente.erroPosAssinaturaEm = Date.now();
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        atualizarStatusMenuSigadoc(`Tramitação não iniciada: ${pendente.erroPosAssinatura}`, 'alerta');
+        return true;
+      } finally {
+        fluxoPosAssinaturaEmAndamento = false;
+      }
     }
 
     // Estados que não pertencem ao Capturado (inclusive pendências deixadas
