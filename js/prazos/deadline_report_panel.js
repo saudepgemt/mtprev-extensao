@@ -204,7 +204,7 @@
   const AGRAVO_ACTION_MAX_AGE_MS = 10 * 60 * 1000;
   const AGRAVO_LAST_CLIPBOARD_KEY = "SPA_CDSP_AGRAVO_LAST_CLIPBOARD";
   const AGRAVO_BUTTON_ID = "spa-cdsp-agravo-instrumento-button";
-  const AGRAVO_SUBJECT_LABEL = "Multas e demais San\u00e7\u00f5es";
+  const AGRAVO_SUBJECT_LABEL = "Urg\u00eancia";
   const AGRAVO_STATE_COMPETENCE_LABELS = [
     "C\u00e2maras isoladas c\u00edveis de direito p\u00fablico",
     "Camaras isoladas civeis de direito publico"
@@ -5385,10 +5385,17 @@
     const select = resolveFieldTarget(target);
     if (!select) return false;
 
-    if (selectOptionByLabel(select, label)) return true;
-
     const wanted = normalizeKey(label);
-    const searchTerms = [label, normalizeText(label), "Multas"];
+    const existing = Array.from(select.options || []).find((item) =>
+      item.value && normalizeKey(item.textContent) === wanted
+    );
+    if (existing) {
+      select.value = existing.value;
+      dispatchFieldEvents(select);
+      return true;
+    }
+
+    const searchTerms = [label, normalizeText(label)];
 
     for (const term of searchTerms) {
       let options = [];
@@ -5398,9 +5405,7 @@
         options = [];
       }
 
-      const option =
-        options.find((item) => normalizeKey(item.label) === wanted) ||
-        options.find((item) => normalizeKey(item.label).indexOf(wanted) >= 0 || wanted.indexOf(normalizeKey(item.label)) >= 0);
+      const option = options.find((item) => normalizeKey(item.label) === wanted);
 
       if (!option || !option.value) continue;
 

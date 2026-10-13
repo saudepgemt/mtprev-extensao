@@ -1,5 +1,15 @@
 # Contexto para continuar no Codex
 
+## Estado publicado em 13/10/2026: extensão 2.64
+
+O manifesto atual é `2.0.64`, com nome de versão `2.64`. Esta publicação sincroniza o código da extensão incluída no painel 0.3.11; os arquivos do aplicativo não fazem parte deste repositório. As notas de versões anteriores abaixo são histórico.
+
+- Confirmar classificação e destinatário antes dos campos livres e do editor no SIGADOC; conferir a tabela no editor e no campo usado para gravação antes da assinatura.
+- Selecionar Capturado com um único clique nativo e acompanhar a gravação, a autenticação, a Juntada e o retorno ao ofício pai. Em falha confirmada do anexo, registrar o aviso e seguir a tramitação sem o Capturado.
+- No cadastramento de agravos, selecionar exatamente `Urgência`, sem aceitar assuntos semelhantes.
+- Avaliação Psicopedagógica, Med Escolar, Setasc Idoso, Infor SEDUC e Alta Home Care seguem o ciclo completo dos ofícios. Orçamento permanece fora do piloto.
+
+
 Este arquivo serve para retomar o trabalho em outro computador/notebook sem perder o contexto principal desta conversa.
 
 ## Repositorio

@@ -25,7 +25,7 @@
   const SIGADOC_TRAM_SESSION_KEY = 'cdspSigadocTramitacaoEspelho';
   const SIGADOC_TRACE_SESSION_KEY = 'cdspSigadocTraceTramitacao';
   const SIGADOC_TRACE_LIMIT = 8;
-  const SIGADOC_FLOW_VERSION = '2.52';
+  const SIGADOC_FLOW_VERSION = '2.64';
   const SIGADOC_LIST_AUTOMATION_KEY = 'cdspSigadocListAutomation';
   const SIGADOC_MENU_POSITION_KEY = 'cdspSigadocMenuPosition';
   const SIGADOC_MENU_COLLAPSED_KEY = 'cdspSigadocMenuCollapsed';
@@ -403,6 +403,11 @@
     DESCUMP: 'Ofício de descumprimento de decisão judicial e consequências - {Número do Processo} - CDSP',
     SECUND: 'Ofício de responsabilidade secundária ao Estado - {Número do Processo} - CDSP',
     'HOME CARE': 'Ofício de visita domiciliar para avaliação de home care - {Número do Processo} - CDSP',
+    'AVALIAÇÃO PSICOPEDAGÓGICA': 'Ofício de avaliação psicopedagógica - {Número do Processo} - CDSP',
+    'MED ESCOLAR': 'Ofício de administração de medicamento em ambiente escolar - {Número do Processo} - CDSP',
+    'SETASC IDOSO': 'Ofício de assistência social a pessoa em situação de vulnerabilidade - {Número do Processo} - CDSP',
+    'INFOR SEDUC': 'Ofício de solicitação de informações à SEDUC - {Número do Processo} - CDSP',
+    ALTA: 'Ofício de alta médica em serviço de home care - {Número do Processo} - CDSP',
   });
 
   // ─── Utilidades de texto ────────────────────────────────────────────────────
@@ -2250,30 +2255,12 @@
 
     const valor = item.getAttribute('data-value') || '';
     if (!valor) return false;
-
-    const hidden = document.querySelector('input[name="exDocumentoDTO.idMod"]');
-    const label = document.querySelector('#modelos-select .selected-label');
-    const textoLabel = limparValorExtraido(item.querySelector('a')?.childNodes?.[0]?.textContent || item.textContent || '');
-
-    Array.from(document.querySelectorAll('#ulmod .dropdown-item.active')).forEach((ativo) => {
-      ativo.classList.remove('active');
-    });
-    item.classList.add('active');
-
-    if (label && textoLabel) label.textContent = textoLabel;
-    if (hidden) setValorCampo(hidden, valor);
-
-    try {
-      item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      const link = item.querySelector('a');
-      if (link) link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    } catch (erro) {
-      console.warn('[CDSP - Extrator] Não foi possível simular clique no Modelo:', erro);
-    }
-
-    void executarAcaoNoContextoSigadoc('selecionar-modelo', { valor });
+    const link = item.querySelector('a');
+    if (!link) return false;
+    // O clique real na opção Capturado foi observado abrir /editar?modelo=24670
+    // com o campo Arquivo PDF. Deixe o seletor do SIGADOC atualizar o campo
+    // oculto e navegar; não duplique o postback com change ou ação MAIN.
+    link.click();
 
     return true;
   }
@@ -2623,6 +2610,12 @@
     const siglaDestino = destino.sigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
     const descricaoEsperada = destino.descricao || '';
 
+    // Confirmar de novo um destinatário já resolvido pode chamar sbmt() e
+    // descartar os campos livres que acabaram de ser preenchidos.
+    if (estadoDestinatarioSigadoc(destino).confirmed) {
+      return `Destinatário já confirmado: ${siglaDestino}.`;
+    }
+
     setValorCampo(sigla, siglaDestino);
     try {
       sigla.focus();
@@ -2669,7 +2662,7 @@
     const erros = [];
     const descricao = document.getElementById('descrDocumento');
     const assunto = obterCampoAssuntoSigadoc();
-    const areaEditavel = document.querySelector('[contenteditable="true"]');
+    const areaEditavel = obterAreaEditavelSigadoc();
     const textarea = obterTextareaConteudoSigadoc();
     const destino = obterDestinatarioSigadoc(pacote);
     const estadoDestinatario = estadoDestinatarioSigadoc(destino);
@@ -2682,6 +2675,9 @@
     if (!estadoDestinatario.confirmed) erros.push('Destinatario');
     if (!limparValorExtraido(conteudo)) erros.push('Conteudo');
     if (pacote.processo && !conteudoJaTemTabela(conteudo, pacote)) erros.push('Tabela do processo');
+    if (pacote.processo && textarea && !conteudoJaTemTabela(textarea.value, pacote)) {
+      erros.push('Tabela no campo de gravação');
+    }
     if (classificacao && !estadoClassificacaoSigadoc(classificacao).confirmed) {
       erros.push('Classificacao');
     }
@@ -2751,6 +2747,9 @@
     const modelo = resolverModeloSigadoc(pacote.tipoOficio || pacote.observacao || '');
     const classificacao = classificacaoForcada || (modelo && modelo.classificacao);
     if (!classificacao) return '';
+    if (estadoClassificacaoSigadoc(classificacao).confirmed) {
+      return `Classificação ${classificacao.codigo} já confirmada.`;
+    }
 
     const campoSigla = document.getElementsByName('exDocumentoDTO.classificacaoSel.sigla')[0] ||
       document.getElementById('formulario_exDocumentoDTO.classificacaoSel_sigla');
@@ -2787,35 +2786,38 @@
     const mensagens = [];
     const textoFormal = textoDescricaoAssunto(pacote);
 
-    const descricao = document.getElementById('descrDocumento');
-    if (descricao) {
-      setValorCampo(descricao, textoFormal);
-      mensagens.push('Descrição preenchida.');
-    } else {
-      mensagens.push('Descrição não encontrada.');
-    }
-
-    const assunto = obterCampoAssuntoSigadoc();
-    if (assunto) {
-      setValorCampo(assunto, textoFormal);
-      mensagens.push('Assunto preenchido.');
-    } else {
-      mensagens.push('Assunto não encontrado.');
-    }
-
+    // Classificação e destinatário são os únicos campos desta etapa que podem
+    // provocar postback. Resolva-os antes do editor e dos campos livres.
     const mensagemClassificacao = await preencherClassificacaoSigadoc(pacote);
     if (mensagemClassificacao) mensagens.push(mensagemClassificacao);
-
+    const destino = obterDestinatarioSigadoc(pacote);
+    const destinatarioJaConfirmado = estadoDestinatarioSigadoc(destino).confirmed;
     mensagens.push(await preencherDestinatarioSigadoc(pacote));
+    if (!destinatarioJaConfirmado) return null;
 
-    mensagens.push(await inserirTabelaNoEditor(pacote));
-
-    const fechamento = obterCampoFechamentoSigadoc();
-    if (fechamento && selecionarValorPorTexto(fechamento, 'Atenciosamente')) {
-      mensagens.push('Fechamento definido como Atenciosamente.');
-    } else {
-      mensagens.push('Fechamento não alterado.');
+    await aguardar(700);
+    for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+      const descricao = document.getElementById('descrDocumento');
+      const assunto = obterCampoAssuntoSigadoc();
+      if (descricao) setValorCampo(descricao, textoFormal);
+      if (assunto) setValorCampo(assunto, textoFormal);
+      await inserirTabelaNoEditor(pacote);
+      const fechamento = obterCampoFechamentoSigadoc();
+      if (fechamento) selecionarValorPorTexto(fechamento, 'Atenciosamente');
+      await aguardar(1000);
+      const areaEditavelAtual = obterAreaEditavelSigadoc();
+      const textareaAtual = obterTextareaConteudoSigadoc();
+      const conteudo = areaEditavelAtual?.innerHTML || textareaAtual?.value || '';
+      if (limparValorExtraido(document.getElementById('descrDocumento')?.value) === textoFormal &&
+          limparValorExtraido(obterCampoAssuntoSigadoc()?.value) === textoFormal &&
+          conteudoJaTemTabela(conteudo, pacote) &&
+          (!textareaAtual || conteudoJaTemTabela(textareaAtual.value, pacote))) break;
+      if (tentativa === 2) {
+        throw new Error('O SIGADOC apagou a descrição, o assunto ou a tabela após atualizar o formulário. Nenhuma assinatura foi iniciada.');
+      }
     }
+
+    mensagens.push('Descrição, assunto, tabela e fechamento conferidos após a atualização do editor.');
 
     validarCamposObrigatoriosSigadoc(pacote);
 
@@ -3015,6 +3017,149 @@
     return true;
   }
 
+  function chaveCapturadoSigadoc(sigla) {
+    const compacta = String(sigla || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^PGECAP\d{5,}[A-Z]$/.test(compacta) ? compacta.slice(0, -1) : compacta;
+  }
+
+  function siglasCapturadosJuntadosSigadoc(raiz = document) {
+    return Array.from(new Set(Array.from(raiz.querySelectorAll('tr.juntada a[href*="/expediente/doc/exibir"]'))
+      .map((link) => new URL(link.getAttribute('href'), window.location.href).searchParams.get('sigla') || '')
+      .filter((sigla) => /^PGECAP\d{5,}[A-Z]?$/i.test(sigla.replace(/[^A-Z0-9]/gi, '')))
+      .map(chaveCapturadoSigadoc)));
+  }
+
+  function siglaCapturadoDaPaginaSigadoc() {
+    return [obterSiglaDoDocumentoSigadoc(window.location.href),
+      String(document.title || '').match(/PGE-CAP-\d{4}\/\d+(?:-[A-Z])?/i)?.[0] || '']
+      .find((sigla) => /^PGECAP\d{5,}[A-Z]?$/i.test(String(sigla).replace(/[^A-Z0-9]/gi, ''))) || '';
+  }
+
+  async function capturadoAtualJuntadoAoOficioSigadoc(pendente) {
+    if (!pendente.siglaCapturado || !Array.isArray(pendente.capturadosAntes)) return false;
+    const chave = chaveCapturadoSigadoc(pendente.siglaCapturado);
+    if (pendente.capturadosAntes.includes(chave)) return false;
+    if (siglasCapturadosJuntadosSigadoc().includes(chave)) return true;
+
+    // A tela pai pode ter sido renderizada antes da Juntada aparecer.
+    try {
+      const controle = new AbortController();
+      const limite = setTimeout(() => controle.abort(), 5000);
+      try {
+        const resposta = await fetch(window.location.href, {
+          credentials: 'same-origin', cache: 'no-store', signal: controle.signal,
+        });
+        if (!resposta.ok) return false;
+        const pagina = new DOMParser().parseFromString(await resposta.text(), 'text/html');
+        return siglasCapturadosJuntadosSigadoc(pagina).includes(chave);
+      } finally {
+        clearTimeout(limite);
+      }
+    } catch (erro) {
+      console.warn('[CDSP - Extrator] Não foi possível consultar a Juntada atualizada:', erro);
+      return false;
+    }
+  }
+
+  let timerVerificacaoCapturadoSigadoc = null;
+
+  function agendarVerificacaoCapturadoSigadoc(atrasoMs) {
+    if (timerVerificacaoCapturadoSigadoc) return;
+    timerVerificacaoCapturadoSigadoc = setTimeout(() => {
+      timerVerificacaoCapturadoSigadoc = null;
+      void verificarFluxoCapturadoETramitacaoSigadocPendente();
+    }, Math.max(500, atrasoMs));
+  }
+
+  async function registrarFalhaCapturadoSigadoc(pendente, mensagem) {
+    pendente.etapa = 'anexo-ignorado-retornar-oficio';
+    pendente.capturadoIgnorado = true;
+    pendente.expedienteAviso = mensagem;
+    await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    registrarTraceTramitacaoSigadoc('Capturado', mensagem);
+    await continuarSemCapturadoSigadoc(pendente);
+  }
+
+  async function continuarSemCapturadoSigadoc(pendente) {
+    if (!pendente.continuidadePosAssinaturaAutorizada || pendente.modoPosAssinatura === 'parar') return;
+    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
+    if (!Number.isFinite(idade) || idade > TEMPO_FLUXO_FINALIZACAO_MS) {
+      await storageRemove([PENDING_POS_ASSINATURA_KEY]);
+      return;
+    }
+
+    const paginaDoOficio = /\/expediente\/doc\/exibir\/?$/.test(window.location.pathname) &&
+      !paginaInclusaoDocumentoSigadoc() && estaNaPaginaDoOficioOrigemSigadoc(pendente);
+    if (!paginaDoOficio) {
+      const siglaPaiNaInclusao = new URL(window.location.href).searchParams.get('mobilPaiSel.sigla') || '';
+      const siglaSalva = /^PGEOFI/i.test(chaveSiglaDocumentoSigadoc(pendente.siglaOficio))
+        ? pendente.siglaOficio : '';
+      const siglaEsperada = siglaSalva || siglaPaiNaInclusao;
+      if (!/^PGEOFI\d+[A-Z]?$/i.test(chaveSiglaDocumentoSigadoc(siglaEsperada))) {
+        atualizarStatusMenuSigadoc('Capturado ignorado. Não foi possível confirmar qual é o ofício pai.', 'alerta');
+        return;
+      }
+      pendente.siglaOficio = siglaEsperada;
+      let destino = null;
+      try {
+        if (pendente.urlOficio) destino = new URL(pendente.urlOficio, window.location.href);
+      } catch (erro) {
+        console.warn('[CDSP - Extrator] Endereço de retorno inválido:', erro);
+      }
+      if (!destino || destino.origin !== window.location.origin ||
+          !/\/expediente\/doc\/exibir\/?$/.test(destino.pathname)) {
+        // O ofício pode ter sido aberto com sigla TMP; o formulário de inclusão
+        // traz a sigla definitiva do mesmo pai. A validação final ainda ocorre
+        // na página do Ofício, pelo título, antes de tramitar.
+        destino = new URL('/sigaex/app/expediente/doc/exibir', window.location.origin);
+        destino.searchParams.set('sigla', siglaEsperada);
+      }
+      if (pendente.retornoSemAnexoDisparadoEm) {
+        if (Date.now() - pendente.retornoSemAnexoDisparadoEm < 3000) return;
+        // Se a página anterior foi uma confirmação intermediária, use apenas
+        // o endereço do Ofício assinado já salvo, sem novo history.back().
+        if (!pendente.retornoDiretoDisparadoEm) {
+          pendente.retornoDiretoDisparadoEm = Date.now();
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+          window.location.assign(destino.href);
+        } else if (Date.now() - pendente.retornoDiretoDisparadoEm >= 15000) {
+          atualizarStatusMenuSigadoc('Capturado ignorado. Não foi possível voltar ao ofício pai; tramitação pendente.', 'alerta');
+        }
+        return;
+      }
+      pendente.retornoSemAnexoDisparadoEm = Date.now();
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      atualizarStatusMenuSigadoc('Falha no Capturado. Voltando ao ofício pai para tramitar sem o anexo...', 'alerta');
+      agendarVerificacaoCapturadoSigadoc(3500);
+      if (window.history.length > 1) window.history.back();
+      else window.location.assign(destino.href);
+      return;
+    }
+
+    if (fluxoPosAssinaturaEmAndamento) return;
+    fluxoPosAssinaturaEmAndamento = true;
+    try {
+      atualizarStatusMenuSigadoc('Capturado ignorado por falha. Preparando a tramitação do ofício...', 'alerta');
+      if (await finalizarOficioAssinadoSigadoc(pendente)) return;
+      if (!pendente.preparacaoSemAnexoIniciadaEm) {
+        pendente.preparacaoSemAnexoIniciadaEm = Date.now();
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      }
+      if (Date.now() - pendente.preparacaoSemAnexoIniciadaEm >= 20000) {
+        throw new Error('O ofício pai não disponibilizou o PDF assinado ou o número para iniciar a tramitação.');
+      }
+      agendarVerificacaoCapturadoSigadoc(3000);
+    } catch (erro) {
+      pendente.etapa = 'falha-pos-assinatura';
+      pendente.erroPosAssinatura = erro.message || String(erro);
+      await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      registrarTraceTramitacaoSigadoc('Tramitação', pendente.erroPosAssinatura);
+      atualizarStatusMenuSigadoc(`Capturado ignorado. Falha na tramitação: ${pendente.erroPosAssinatura}`, 'alerta');
+    } finally {
+      fluxoPosAssinaturaEmAndamento = false;
+    }
+  }
+
   function encontrarLinkRetornoAoOficioSigadoc(pendente) {
     const siglaOficio = obterSiglaDoDocumentoSigadoc(pendente && pendente.urlOficio);
     const links = Array.from(document.querySelectorAll(
@@ -3117,6 +3262,7 @@
       destinatarioDescricao: pendente.destinatarioDescricao, numeroSigadoc, fluxoId: pendente.fluxoId,
       etapa: 'abrir-formulario', tentativasAbertura: 0,
       continuidadePosAssinaturaAutorizada: Boolean(pendente.continuidadePosAssinaturaAutorizada),
+      capturadoIgnorado: Boolean(pendente.capturadoIgnorado), expedienteAviso: pendente.expedienteAviso || '',
     };
     registrarTraceTramitacaoSigadoc('Finalização', 'gravando continuidades');
     await storageSet({
@@ -3125,6 +3271,7 @@
         nomeArquivo: pendente.nomeArquivo, nomeOficioEnviado: pendente.nomeOficioEnviado,
         textoRegistroSpa: montarTextoRegistroSpa(numeroSigadoc, pendente.nomeOficioEnviado),
         numeroSigadoc, processo: pendente.processo, tipoOficio: pendente.tipoOficio,
+        capturadoIgnorado: Boolean(pendente.capturadoIgnorado), expedienteAviso: pendente.expedienteAviso || '',
       },
       [PENDING_TRAMITACAO_KEY]: pendenciaTramitacao,
     });
@@ -3139,8 +3286,8 @@
     registrarTraceTramitacaoSigadoc('Finalização', 'continuidades confirmadas');
 
     // A limpeza só ocorre após as duas pendências terem sido gravadas. Ela não
-    // pode, porém, bloquear a navegação: o PDF Capturado já foi autenticado e
-    // apagar sua cópia interna é apenas limpeza. Antes, uma resposta pendente
+    // pode, porém, bloquear a navegação: o Capturado foi concluído ou ignorado
+    // por falha, e apagar sua cópia interna é apenas limpeza. Antes, uma resposta pendente
     // do service worker nesta etapa deixava o Ofício na página pai, mesmo com
     // a pendência de tramitação já pronta.
     void removerPdfExpedienteInterno(pendente);
@@ -3169,6 +3316,7 @@
       pendente.etapa = 'anexo-retornar-oficio';
       pendente.senhaAutenticacaoTentadaEm = Date.now();
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      agendarVerificacaoCapturadoSigadoc(15000);
       ok.click();
       await aguardar(1500);
       if (!modalSenhaSigadocContinuaAberto(senha)) {
@@ -3185,10 +3333,35 @@
 
     if (pendente.etapa === 'anexo-selecionar-modelo') {
       const modelo = encontrarModeloCapturadoSigadoc();
-      if (!modelo) return false;
-      pendente.etapa = 'anexo-preencher';
+      if (!modelo) {
+        // A rotina ativa grava inclusaoIniciadaEm antes do clique em Incluir.
+        // inclusaoDisparadaEm pertence a uma rotina antiga, sobrescrita abaixo.
+        if (Date.now() - Number(pendente.inclusaoIniciadaEm || pendente.inclusaoDisparadaEm || Date.now()) > 20000) {
+          throw new Error('O modelo Capturado não apareceu no formulário de inclusão.');
+        }
+        agendarVerificacaoCapturadoSigadoc(2000);
+        return true;
+      }
+      const valorCapturado = modelo.getAttribute('data-value') || '';
+      if (obterModeloDocumentoAtualSigadoc().valor === valorCapturado &&
+          document.querySelector('#arquivo, input[type="file"]')) {
+        pendente.etapa = 'anexo-preencher';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        return configurarAnexoDoExpedienteSigadoc(pendente);
+      }
+      if (pendente.modeloCapturadoDisparadoEm) {
+        if (Date.now() - pendente.modeloCapturadoDisparadoEm > 20000) {
+          throw new Error('O SIGADOC não abriu o formulário Capturado após a seleção do modelo.');
+        }
+        agendarVerificacaoCapturadoSigadoc(2000);
+        return true;
+      }
+      pendente.modeloCapturadoDisparadoEm = Date.now();
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
-      aplicarSelecaoModeloDocumentoSigadoc(modelo);
+      if (!aplicarSelecaoModeloDocumentoSigadoc(modelo)) {
+        throw new Error('Não foi possível selecionar o modelo Capturado.');
+      }
+      agendarVerificacaoCapturadoSigadoc(2000);
       return true;
     }
 
@@ -3209,9 +3382,12 @@
 
     const invalidos = Array.from(document.querySelectorAll('#frm .is-invalid')).filter((campo) => campo.type !== 'hidden');
     if (invalidos.length) throw new Error(`Campos obrigatórios pendentes no anexo: ${invalidos.map((campo) => campo.id || campo.name).join(', ')}.`);
-    pendente.etapa = 'anexo-autenticar';
+    pendente.etapa = 'anexo-gravando';
+    pendente.gravacaoDisparadaEm = Date.now();
+    pendente.tentativasGravacao = Number(pendente.tentativasGravacao || 0) + 1;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
-    atualizarStatusMenuSigadoc('PDF do expediente anexado. Aguardando autenticação...');
+    atualizarStatusMenuSigadoc('Gravando o Capturado no SIGADOC...');
+    agendarVerificacaoCapturadoSigadoc(12000);
     gravar.click();
     return true;
   }
@@ -3222,17 +3398,25 @@
     }
     const autenticarDocumento = encontrarLinkAutenticarDocumentoCapturadoSigadoc();
     if (autenticarDocumento) {
+      if (pendente.autenticacaoLinkDisparadoEm) return false;
       pendente.etapa = 'anexo-confirmar-autenticacao';
+      pendente.autenticacaoLinkDisparadoEm = Date.now();
+      pendente.autenticacaoAguardadaEm = pendente.autenticacaoLinkDisparadoEm;
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
       atualizarStatusMenuSigadoc('Abrindo a confirmação de autenticação do expediente...');
+      agendarVerificacaoCapturadoSigadoc(15000);
       autenticarDocumento.click();
       return true;
     }
     const botao = document.getElementById('bot-autenticar');
     if (!botao) return false;
+    if (pendente.autenticacaoBotaoDisparadoEm) return false;
     selecionarAssinaturaPorSenhaSigadoc();
     pendente.etapa = 'anexo-senha';
+    pendente.autenticacaoBotaoDisparadoEm = Date.now();
+    pendente.autenticacaoAguardadaEm = pendente.autenticacaoBotaoDisparadoEm;
     await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+    agendarVerificacaoCapturadoSigadoc(15000);
     botao.click();
     return true;
   }
@@ -3464,10 +3648,18 @@
 
     const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
     const ok = document.getElementById('button_ok');
-    const form = document.getElementById('frm');
+    const form = document.getElementById('frm') || document.querySelector('form');
 
     if (pendente.etapa === 'confirmando-envio') {
       if (!campo || !ok || !form) {
+        if (/\/expediente\/mov\/transferir_gravar/i.test(window.location.pathname) &&
+            /n[aã]o foram informados dados para o tr[aâ]mite/i.test(document.body.textContent || '')) {
+          pendente.etapa = 'aguardando-revisao';
+          pendente.erroTramitacao = 'O SIGADOC rejeitou a transferência: dados do trâmite ausentes.';
+          await storageSet({ [PENDING_TRAMITACAO_KEY]: pendente });
+          atualizarStatusMenuSigadoc(pendente.erroTramitacao, 'alerta');
+          return;
+        }
         await storageRemove([PENDING_TRAMITACAO_KEY]);
         return;
       }
@@ -3843,6 +4035,19 @@
     }
   }
 
+  async function aguardarRetomadaDestinatarioSigadoc(assinar) {
+    const resultado = await storageGet([PENDING_SIGADOC_KEY]);
+    const pendente = resultado[PENDING_SIGADOC_KEY];
+    const tentativas = Number(pendente?.tentativasRecargaDestinatario || 0) + 1;
+    if (!pendente || tentativas > 3) {
+      throw new Error('O destinatário foi confirmado, mas o SIGADOC não estabilizou o formulário após três tentativas. Nenhuma assinatura foi iniciada.');
+    }
+    pendente.tentativasRecargaDestinatario = tentativas;
+    pendente.fase = 'campos';
+    await storageSet({ [PENDING_SIGADOC_KEY]: pendente });
+    setTimeout(() => void executarPreenchimentoSigadoc({ automatico: true, assinar }), 3000);
+  }
+
   async function executarPreenchimentoSigadoc(opcoes = {}) {
     let assinar = Boolean(opcoes.assinar);
     const btn = document.getElementById(assinar ? 'spa-sigadoc-assinar-btn' : 'spa-sigadoc-btn');
@@ -3869,6 +4074,15 @@
       }
 
       if (!automatico) {
+        await storageSet({
+          [PENDING_SIGADOC_KEY]: {
+            criadoEm: new Date().toISOString(),
+            processo: pacote.processo,
+            assinar,
+            fase: 'modelo',
+            fluxoId: fluxo.id,
+          },
+        });
         const modeloDocumento = await selecionarModeloDocumentoSeNecessario(pacote);
         if (modeloDocumento.mudou) {
           await storageSet({
@@ -3885,6 +4099,9 @@
           if (btn) {
             btn.title = `${modeloDocumento.mensagem} Aguardando o SIGADOC atualizar os textos padrão.`;
           }
+          // A troca de modelo recarrega o formulário. Não selecione texto
+          // padrão nem preencha campos na instância prestes a ser descartada.
+          return;
         } else if (modeloDocumento.mensagem && btn) {
           btn.title = modeloDocumento.mensagem;
         }
@@ -3909,6 +4126,10 @@
           setTimeout(async () => {
             try {
               const mensagens = await preencherCamposSigadoc(pacote);
+              if (!mensagens) {
+                await aguardarRetomadaDestinatarioSigadoc(assinar);
+                return;
+              }
               if (assinar) {
                 await iniciarFluxoAssinaturaSigadoc(pacote, btn);
                 return;
@@ -3928,7 +4149,23 @@
         if (selecao.mensagem && btn) btn.title = selecao.mensagem;
       }
 
+      if (!automatico) {
+        await storageSet({
+          [PENDING_SIGADOC_KEY]: {
+            criadoEm: new Date().toISOString(),
+            processo: pacote.processo,
+            assinar,
+            fase: 'campos',
+            fluxoId: fluxo.id,
+          },
+        });
+      }
       const mensagens = await preencherCamposSigadoc(pacote);
+      if (!mensagens) {
+        atualizarBotao(btn, 'alerta', '...', 'Aguardando SIGADOC...');
+        await aguardarRetomadaDestinatarioSigadoc(assinar);
+        return;
+      }
       if (assinar) {
         manterEstadoBotao = true;
         await iniciarFluxoAssinaturaSigadoc(pacote, btn);
@@ -4492,7 +4729,7 @@
       }).catch(() => {});
       atualizarBotao(btn, 'alerta', '!', 'Confira e tente');
       if (btn) btn.title = 'O SPA permaneceu no formulário após Encerrar. Confira os campos e clique novamente.';
-    }, 1800);
+    }, 15000);
   }
 
   async function continuarFinalizacaoSpa(dados, btn) {
@@ -4710,7 +4947,9 @@
           if (!incluir) return;
 
           pendente.urlOficio = window.location.href;
-          pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(pendente.urlOficio) || obterSiglaDoTituloSigadoc();
+          const siglaNaUrl = obterSiglaDoDocumentoSigadoc(pendente.urlOficio);
+          pendente.siglaOficio = /^PGEOFI/i.test(chaveSiglaDocumentoSigadoc(siglaNaUrl))
+            ? siglaNaUrl : obterSiglaDoTituloSigadoc();
           pendente.etapa = 'anexo-selecionar-modelo';
           await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
           incluir.click();
@@ -4818,86 +5057,6 @@
     }
   }
 
-  async function verificarTramitacaoSigadocPendente() {
-    if (fluxoTramitacaoEmAndamento) return;
-
-    const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
-    const pendente = resultado[PENDING_TRAMITACAO_KEY];
-    if (!pendente || !pendente.criadoEm) return;
-
-    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
-    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-      return;
-    }
-
-    const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
-    const ok = document.getElementById('button_ok');
-    const form = document.getElementById('frm');
-    if (!campo || !ok || !form) return;
-
-    fluxoTramitacaoEmAndamento = true;
-
-    try {
-      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
-      setValorCampo(campo, destino);
-      campo.focus();
-
-      const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
-      ['keydown', 'keypress', 'keyup'].forEach((tipoEvento) => {
-        campo.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          cancelable: true,
-        }));
-      });
-
-      executarNoContextoDaPagina(`
-        (function () {
-          var destino = ${JSON.stringify(destino)};
-          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
-            document.getElementsByName('lotaResponsavelSel.sigla')[0];
-
-          if (!campo) return;
-          campo.value = destino;
-          campo.dispatchEvent(new Event('input', { bubbles: true }));
-          campo.dispatchEvent(new Event('change', { bubbles: true }));
-
-          try {
-            if (typeof handleEnter === 'function') {
-              handleEnter(campo, {
-                type: 'keypress',
-                keyCode: 13,
-                which: 13,
-                preventDefault: function () {},
-                stopPropagation: function () {}
-              });
-            }
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
-          }
-
-          try {
-            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
-          }
-        })();
-      `);
-
-      await aguardar(1200);
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-      ok.click();
-    } catch (erro) {
-      console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-    } finally {
-      fluxoTramitacaoEmAndamento = false;
-    }
-  }
 
   // Mantém o Capturado isolado da rotina de tramitação. Ao reencontrar o Ofício
   // pai, a própria rotina encerra a cadeia imediatamente; não devolve o estado
@@ -4907,16 +5066,41 @@
     const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
     if (!pendente || !pendente.fluxoSpa || !pendente.expedienteArquivoId) return false;
 
-    // Continuação linear: depois de iniciar a gravação/autenticação do Capturado,
-    // o retorno ao Ofício pai é o ponto de sequência para a rotina legada de
-    // tramitação. Não depende de reler a linha Juntada nem de reencontrar o link
-    // de retorno, que já foi consumido pela navegação.
+    if (!pendente.continuidadePosAssinaturaAutorizada || pendente.etapa === 'falha-pos-assinatura') return true;
+    if (pendente.modoPosAssinatura === 'parar') return false;
+
+    if (pendente.etapa === 'falha-anexo') {
+      await registrarFalhaCapturadoSigadoc(pendente,
+        pendente.expedienteAviso || 'O Capturado não foi confirmado no SIGADOC.');
+      return true;
+    }
+    if (pendente.etapa === 'anexo-ignorado-retornar-oficio') {
+      await continuarSemCapturadoSigadoc(pendente);
+      return true;
+    }
+
+    // No retorno ao pai, confirma a Juntada antes de tratar o anexo como concluído.
+    // Uma falha usa a mesma finalização, mas registra que o Capturado foi ignorado.
     const etapasAposEnvioCapturado = new Set([
       'anexo-autenticar', 'anexo-confirmar-autenticacao', 'anexo-senha',
       'anexo-retornar-oficio', 'anexo-autenticado', 'anexo-concluido',
-      'falha-pos-assinatura',
     ]);
     if (etapasAposEnvioCapturado.has(pendente.etapa) && reconhecerOficioPaiNoRetornoSigadoc(pendente)) {
+      if (!await capturadoAtualJuntadoAoOficioSigadoc(pendente)) {
+        if (!pendente.verificacaoJuntadaIniciadaEm) {
+          pendente.verificacaoJuntadaIniciadaEm = Date.now();
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        }
+        if (Date.now() - pendente.verificacaoJuntadaIniciadaEm < 15000) {
+          atualizarStatusMenuSigadoc('Aguardando o Capturado aparecer na Juntada do ofício...');
+          agendarVerificacaoCapturadoSigadoc(3000);
+        } else {
+          await registrarFalhaCapturadoSigadoc(pendente,
+            'O Capturado não apareceu na Juntada do ofício. A inclusão foi ignorada; seguindo sem o anexo.');
+        }
+        return true;
+      }
+      registrarTraceTramitacaoSigadoc('Capturado', 'novo documento confirmado na Juntada');
       const agora = Date.now();
       if (agora - Number(pendente.ultimaRetomadaCapturadoEm || 0) < 5000) return true;
       if (!adquirirBloqueioRetomadaCapturadoSigadoc()) return true;
@@ -4967,19 +5151,73 @@
 
     if (pendente.etapa === 'oficio-assinado') {
       const incluir = encontrarLinkIncluirDocumentoSigadoc();
-      if (!incluir) return true;
+      if (!incluir) {
+        if (/\/expediente\/doc\/exibir\/?$/.test(window.location.pathname) &&
+            obterSiglaDoTituloSigadoc() && encontrarLinkTramitarSigadoc()) {
+          pendente.urlOficio = window.location.href;
+          const siglaNaUrl = obterSiglaDoDocumentoSigadoc(pendente.urlOficio);
+          pendente.siglaOficio = /^PGEOFI/i.test(chaveSiglaDocumentoSigadoc(siglaNaUrl))
+            ? siglaNaUrl : obterSiglaDoTituloSigadoc();
+          await registrarFalhaCapturadoSigadoc(pendente,
+            'O botão Incluir Documento não foi localizado no ofício assinado. Seguindo sem o anexo.');
+        }
+        return true;
+      }
 
       pendente.urlOficio = window.location.href;
-      pendente.siglaOficio = obterSiglaDoDocumentoSigadoc(pendente.urlOficio) || obterSiglaDoTituloSigadoc();
+      const siglaNaUrl = obterSiglaDoDocumentoSigadoc(pendente.urlOficio);
+      pendente.siglaOficio = /^PGEOFI/i.test(chaveSiglaDocumentoSigadoc(siglaNaUrl))
+        ? siglaNaUrl : obterSiglaDoTituloSigadoc();
+      pendente.capturadosAntes = siglasCapturadosJuntadosSigadoc();
       pendente.etapa = 'anexo-selecionar-modelo';
+      pendente.inclusaoIniciadaEm = Date.now();
       await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      agendarVerificacaoCapturadoSigadoc(20000);
       incluir.click();
       return true;
     }
 
     if (pendente.etapa === 'anexo-selecionar-modelo' || pendente.etapa === 'anexo-preencher') {
-      await configurarAnexoDoExpedienteSigadoc(pendente);
+      if (!await configurarAnexoDoExpedienteSigadoc(pendente)) {
+        if (!pendente.inclusaoIniciadaEm) {
+          pendente.inclusaoIniciadaEm = Date.now();
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        }
+        if (Date.now() - pendente.inclusaoIniciadaEm >= 20000) {
+          await registrarFalhaCapturadoSigadoc(pendente,
+            'O SIGADOC não disponibilizou o formulário/modelo Capturado. Seguindo sem o anexo.');
+        } else {
+          agendarVerificacaoCapturadoSigadoc(3000);
+        }
+      }
       return true;
+    }
+
+    if (pendente.etapa === 'anexo-gravando') {
+      if (paginaInclusaoDocumentoSigadoc()) {
+        const decorrido = Date.now() - Number(pendente.gravacaoDisparadaEm || 0);
+        if (decorrido < 12000) {
+          agendarVerificacaoCapturadoSigadoc(12000 - decorrido);
+          return true;
+        }
+        await registrarFalhaCapturadoSigadoc(pendente,
+          'O SIGADOC não avançou após o OK do Capturado. A inclusão foi ignorada; seguindo sem o anexo.');
+        return true;
+      }
+      if (encontrarLinkAutenticarDocumentoCapturadoSigadoc() || document.getElementById('bot-autenticar') ||
+          document.getElementById('senhaDialog') || document.getElementById('senhaUsuarioSubscritor')) {
+        pendente.etapa = 'anexo-autenticar';
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+      } else {
+        if (Date.now() - Number(pendente.gravacaoDisparadaEm || 0) >= 25000) {
+          await registrarFalhaCapturadoSigadoc(pendente,
+            'O SIGADOC não apresentou a autenticação do Capturado após o OK. Seguindo sem o anexo.');
+        } else {
+          atualizarStatusMenuSigadoc('Aguardando o SIGADOC apresentar a autenticação do Capturado...');
+          agendarVerificacaoCapturadoSigadoc(3000);
+        }
+        return true;
+      }
     }
 
     if (pendente.etapa === 'anexo-autenticar' ||
@@ -4993,14 +5231,43 @@
         pendente.etapa = 'anexo-retornar-oficio';
         await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
       } else {
-        await autenticarAnexoSigadoc(pendente);
+        if (await autenticarAnexoSigadoc(pendente)) return true;
+        if (!pendente.autenticacaoAguardadaEm) {
+          pendente.autenticacaoAguardadaEm = Date.now();
+          await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
+        }
+        if (Date.now() - pendente.autenticacaoAguardadaEm >= 15000) {
+          await registrarFalhaCapturadoSigadoc(pendente,
+            'O SIGADOC não apresentou a etapa seguinte da autenticação do Capturado. Seguindo sem o anexo.');
+        } else {
+          atualizarStatusMenuSigadoc('Aguardando a autenticação do Capturado no SIGADOC...');
+          agendarVerificacaoCapturadoSigadoc(3000);
+        }
         return true;
       }
     }
 
     if (pendente.etapa === 'anexo-retornar-oficio' || pendente.etapa === 'anexo-autenticado') {
       if (!estaNaPaginaDoOficioOrigemSigadoc(pendente)) {
+        const siglaCapturado = siglaCapturadoDaPaginaSigadoc();
+        if (!siglaCapturado || !encontrarLinkRetornoAoOficioSigadoc(pendente)) {
+          if (Date.now() - Number(pendente.senhaAutenticacaoTentadaEm || 0) < 15000) {
+            atualizarStatusMenuSigadoc('Aguardando a autenticação do Capturado no SIGADOC...');
+            agendarVerificacaoCapturadoSigadoc(3000);
+          } else {
+            await registrarFalhaCapturadoSigadoc(pendente,
+              'A autenticação do Capturado não foi confirmada. Seguindo sem o anexo.');
+          }
+          return true;
+        }
+        pendente.siglaCapturado = siglaCapturado;
+        await storageSet({ [PENDING_POS_ASSINATURA_KEY]: pendente });
         await retornarAoOficioOrigemDepoisDoAnexoSigadoc(pendente);
+        return true;
+      }
+      if (!await capturadoAtualJuntadoAoOficioSigadoc(pendente)) {
+        await registrarFalhaCapturadoSigadoc(pendente,
+          'O Capturado desta execução não foi localizado na Juntada do ofício. Seguindo sem o anexo.');
         return true;
       }
       pendente.etapa = 'anexo-concluido';
@@ -5036,9 +5303,24 @@
     return false;
   }
 
+  let verificacaoCapturadoEmAndamento = false;
+
   async function verificarFluxoCapturadoETramitacaoSigadocPendente() {
-    if (await verificarFluxoCapturadoPendenteSigadoc()) return;
-    await verificarFluxoPosAssinaturaSigadocPendente();
+    if (verificacaoCapturadoEmAndamento) return;
+    verificacaoCapturadoEmAndamento = true;
+    try {
+      if (await verificarFluxoCapturadoPendenteSigadoc()) return;
+      await verificarFluxoPosAssinaturaSigadocPendente();
+    } catch (erro) {
+      console.error('[CDSP - Extrator] Falha na inclusão do Capturado:', erro);
+      const resultado = await storageGet([PENDING_POS_ASSINATURA_KEY]);
+      const pendente = resultado[PENDING_POS_ASSINATURA_KEY];
+      if (!pendente || !pendente.fluxoSpa || !pendente.expedienteArquivoId) return;
+      await registrarFalhaCapturadoSigadoc(pendente,
+        `Não foi possível concluir o Capturado: ${erro && erro.message ? erro.message : String(erro)}. Seguindo sem o anexo.`);
+    } finally {
+      verificacaoCapturadoEmAndamento = false;
+    }
   }
 
   // A única decisão sobre Capturado ocorre no wrapper acima. Ao voltar ao
@@ -5102,90 +5384,6 @@
     }
   }
 
-  // Bloco restaurado literalmente da 2.02.
-  async function verificarTramitacaoSigadocPendente() {
-    if (fluxoTramitacaoEmAndamento) return;
-
-    const resultado = await storageGet([PENDING_TRAMITACAO_KEY]);
-    const pendente = resultado[PENDING_TRAMITACAO_KEY];
-    if (!pendente || !pendente.criadoEm) return;
-
-    const idade = Date.now() - new Date(pendente.criadoEm).getTime();
-    if (idade > TEMPO_FLUXO_FINALIZACAO_MS) {
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-      return;
-    }
-
-    const campo = document.getElementById('formulario_lotaResponsavelSel_sigla');
-    const ok = document.getElementById('button_ok');
-    // A 2.02 procurava exclusivamente #frm. No SIGADOC v11.2 a tela de
-    // transferência mantém os mesmos campo e botão, mas o form não recebe ID.
-    // Preserva #frm nas versões antigas e aceita o formulário atual.
-    const form = document.getElementById('frm') || document.querySelector('form');
-    if (!campo || !ok || !form) return;
-
-    fluxoTramitacaoEmAndamento = true;
-
-    try {
-      const destino = pendente.destinatarioSigla || DESTINATARIO_PADRAO_SIGADOC.sigla;
-      setValorCampo(campo, destino);
-      campo.focus();
-
-      const KeyboardEventCtor = campo.ownerDocument.defaultView.KeyboardEvent;
-      ['keydown', 'keypress', 'keyup'].forEach((tipoEvento) => {
-        campo.dispatchEvent(new KeyboardEventCtor(tipoEvento, {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          cancelable: true,
-        }));
-      });
-
-      executarNoContextoDaPagina(`
-        (function () {
-          var destino = ${JSON.stringify(destino)};
-          var campo = document.getElementById('formulario_lotaResponsavelSel_sigla') ||
-            document.getElementsByName('lotaResponsavelSel.sigla')[0];
-
-          if (!campo) return;
-          campo.value = destino;
-          campo.dispatchEvent(new Event('input', { bubbles: true }));
-          campo.dispatchEvent(new Event('change', { bubbles: true }));
-
-          try {
-            if (typeof handleEnter === 'function') {
-              handleEnter(campo, {
-                type: 'keypress',
-                keyCode: 13,
-                which: 13,
-                preventDefault: function () {},
-                stopPropagation: function () {}
-              });
-            }
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no Enter da tramitação:', erro);
-          }
-
-          try {
-            if (typeof ajax_lotaResponsavel === 'function') ajax_lotaResponsavel();
-          } catch (erro) {
-            console.warn('[CDSP - Extrator] Falha no AJAX da lotação:', erro);
-          }
-        })();
-      `);
-
-      await aguardar(1200);
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-      ok.click();
-    } catch (erro) {
-      console.error('[CDSP - Extrator] Falha ao tramitar SIGADOC:', erro);
-      await storageRemove([PENDING_TRAMITACAO_KEY]);
-    } finally {
-      fluxoTramitacaoEmAndamento = false;
-    }
-  }
 
   function inicializarSigadoc() {
     injetarBotaoSigadoc();

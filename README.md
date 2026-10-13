@@ -2,9 +2,15 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.37**.
+Versão atual versionada neste repositório: **2.64** (`manifest.version = 2.0.64`).
 
-Nesta versão, o fluxo de Ofícios/SIGADOC preserva a base estável da `v2.02` e inclui o PDF do expediente após a assinatura. Os callbacks internos do SIGADOC são chamados pelo contexto principal da extensão, sem scripts inline bloqueados pela política de segurança da página. Cada transição que pode recarregar a página registra a próxima etapa antes do clique; o botão `Tramitar` é acionado uma única vez e falhas deixam o fluxo disponível para conferência. A automação só continua quando iniciada pelo clique em `Preencher + Assinar` na própria aba.
+O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
+
+Após a assinatura, a extensão inclui o PDF do expediente como Capturado quando ele estiver disponível. Uma falha nessa inclusão é registrada e o fluxo segue sem o anexo, mantendo a tramitação obrigatória. A seleção do modelo Capturado usa um único clique nativo; a extensão acompanha a gravação, a autenticação, a Juntada e o retorno ao ofício pai. A continuação depende do comando inicial em `Preencher + Assinar`, e os estados são salvos antes das transições entre páginas.
+
+Desde a versão 2.63, `Cadastrar Agravo` seleciona exatamente o assunto **Urgência**. A versão 2.64 também inclui **Avaliação Psicopedagógica**, **Med Escolar**, **Setasc Idoso**, **Infor SEDUC** e **Alta Home Care** no ciclo completo de assinatura, Capturado quando houver expediente, tramitação e encerramento no SPA. Orçamento permanece fora desse ciclo.
+
+Este repositório contém a extensão. O aplicativo de operações tem versionamento separado; sua versão 0.3.11 utiliza a extensão 2.64.
 
 ## Estrutura
 

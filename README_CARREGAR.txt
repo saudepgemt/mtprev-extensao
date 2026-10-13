@@ -1,4 +1,4 @@
-CDSP Extensao Geral - 2.52
+CDSP Extensao Geral - 2.64
 
 Menu compacto no SPA:
 - Triagem e Protocolo
@@ -7,14 +7,15 @@ Menu compacto no SPA:
 - Oficios
 
 Incluido no pacote:
-- CDSP - Extrator SPA/SIGADOC 3.15
+- CDSP - Extrator SPA/SIGADOC 3.16
 
 Removido desta versao:
 - CDSP - Modo Escuro SPA
 
 Comportamento:
+- Avaliacao Psicopedagogica, Med Escolar, Setasc Idoso, Infor SEDUC e Alta Home Care agora seguem o mesmo ciclo completo do CUMP GERAL: assinatura, Capturado quando houver expediente, tramitacao e encerramento da pendencia no SPA. Orcamento permanece fora do piloto.
 - O nome publico da extensao no Chrome e "CDSP - Extensao Geral"; o menu interno permanece compacto como "CDSP".
-- No fluxo de Oficios, depois de anexar e autenticar o expediente Capturado, o PDF assinado e as pendências de finalização no SPA e de tramitação no SIGADOC são gravados juntos, antes do clique nativo em `Tramitar`, preservando a ordem funcional da versão 2.02. A continuação pós-assinatura usa essa pendência persistida e não depende de `sessionStorage`, que o SIGADOC pode perder ao retornar do Capturado.
+- No fluxo de Oficios, se houver falha na inclusão, gravação, autenticação ou confirmação da Juntada do Capturado, a extensão avisa, abandona a inclusão sem repetir o envio, retorna ao endereço salvo do ofício pai assinado e segue a tramitação normal sem o anexo. A navegação de retorno ocorre uma única vez, sem ciclos de cliques. O PDF assinado e as pendências de finalização no SPA e de tramitação no SIGADOC são gravados juntos, antes do clique nativo em `Tramitar`. O aviso de Capturado ignorado permanece registrado nas pendências desse fluxo. Nenhuma continuação ocorre sem o comando inicial autorizado.
 - O menu geral e pequeno, movimentavel e parecido com o painel da Triagem.
 - A navegacao entre Triagem e Protocolo, Redacao e Correcao, Coordenacao e Oficios acontece no mesmo menu.
 - O menu geral memoriza posicao e modulo ativo; a checkbox "Abrir minimizado", no extremo direito do cabecalho antes do botao de recolher, define se novas abas do SPA abrem com o menu principal recolhido e permanece visivel quando o painel esta recolhido.
@@ -110,8 +111,8 @@ Teste local:
 1. Abra chrome://extensions.
 2. Ative o Modo do desenvolvedor.
 3. Clique em "Carregar sem compactacao".
-4. Selecione esta pasta: CDSP Extensao Geral - 2.28.
+4. Selecione a pasta da versao 2.64.
 5. Acesse https://spa.pge.mt.gov.br/ e https://sigadoc.mt.gov.br/.
 
 Publicacao:
-- Envie o arquivo ZIP "CDSP Extensao Geral - 2.28.zip" no painel da Chrome Web Store.
+- Envie o arquivo ZIP da versao 2.64 no painel da Chrome Web Store.

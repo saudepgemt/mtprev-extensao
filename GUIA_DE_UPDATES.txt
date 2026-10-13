@@ -1,5 +1,12 @@
 CDSP Extensao Geral - Guia de updates
 
+Estado atual publicado: extensao 2.64 (manifest 2.0.64).
+- Preservar a confirmacao de classificacao e destinatario antes dos campos livres e do editor, com conferencia da tabela tambem no campo usado para gravacao.
+- A selecao de Capturado usa um unico clique nativo. Falha confirmada do anexo deve registrar o aviso e prosseguir sem o Capturado; a tramitacao continua obrigatoria.
+- Cadastrar Agravo seleciona exatamente Urgencia. Nao retornar a Multas e demais Sancoes nem aceitar correspondencia parcial de assunto.
+- Avaliacao Psicopedagogica, Med Escolar, Setasc Idoso, Infor SEDUC e Alta Home Care compartilham o ciclo completo dos oficios. Orcamento permanece fora do piloto.
+- O painel de operacoes tem versionamento separado; os arquivos do aplicativo nao integram este repositorio da extensao.
+
 Objetivo:
 - Manter esta extensao pronta para evoluir neste chat quando uma nova pasta ou ZIP de modulo for enviada.
 
