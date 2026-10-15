@@ -12254,6 +12254,7 @@
       gray:    "#2a4560",
     };
     const button = document.createElement("button");
+    button.classList.add("mtprev-action", "mtprev-action--" + (variant || "primary"));
     button.textContent = text;
     button.style.cssText =
       "border:0;padding:8px 9px;border-radius:5px;cursor:pointer;" +
@@ -12383,6 +12384,7 @@
 
   function createSmallUtilityButton(text, onclick) {
     const button = document.createElement("button");
+    button.classList.add("mtprev-utility");
     button.type = "button";
     button.textContent = text;
     button.style.cssText =
@@ -12840,6 +12842,7 @@
 
   function createModuleTabs(tabs) {
     const nav = document.createElement("div");
+    nav.classList.add("mtprev-context-nav");
     nav.style.cssText =
       "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:8px 0 7px;";
 
@@ -12854,6 +12857,7 @@
       tabs.forEach((tab, index) => {
         const active = tab.id === id || (!id && index === 0);
         tab.page.style.display = active ? "" : "none";
+        buttons[index].classList.toggle("mtprev-context-active", active);
         buttons[index].style.background = active ? "#1e5f96" : "#263544";
         buttons[index].style.borderColor = active ? "#4aa3df" : "#425466";
         buttons[index].style.color = active ? "#ffffff" : "#d7e4ef";
@@ -13202,6 +13206,7 @@
 
   function createDateControls() {
     const wrapper = document.createElement("div");
+    wrapper.classList.add("mtprev-field-row");
     wrapper.style.cssText =
       "display:flex;align-items:center;gap:6px;margin:6px 0 8px 0;font-size:12px;";
 
@@ -13240,6 +13245,7 @@
 
   function createLimitControls() {
     const wrapper = document.createElement("div");
+    wrapper.classList.add("mtprev-field-row");
     wrapper.style.cssText =
       "display:flex;align-items:center;gap:6px;margin:6px 0 8px 0;font-size:12px;";
 

@@ -46,24 +46,62 @@
   const loadingModules = Object.create(null);
   let rootToolsLoading = false;
   let rootToolsLastRoute = "";
+  let extensionContextInvalidated = false;
+  let rootToolsWatcherInterval = null;
+  let rootToolsRouteListener = null;
+
+  function invalidateExtensionContext() {
+    if (extensionContextInvalidated) return;
+    extensionContextInvalidated = true;
+    clearInterval(rootToolsWatcherInterval);
+    if (rootToolsRouteListener) {
+      window.removeEventListener('popstate', rootToolsRouteListener);
+      window.removeEventListener('hashchange', rootToolsRouteListener);
+    }
+    setStatus('Recarregue a aba do SPA.', 'error');
+  }
+
+  window.addEventListener('mtprev-extension-context-invalidated', invalidateExtensionContext);
 
   function contextInvalidatedMessage(error) {
     const message = error && error.message ? error.message : String(error || "");
     if (message.indexOf("Extension context invalidated") >= 0) {
+      invalidateExtensionContext();
       return "Recarregue a aba do SPA.";
     }
     return message || "Falha de comunicacao.";
   }
 
   function safeLastError() {
+    if (extensionContextInvalidated) return { message: 'Extension context invalidated.' };
     try {
-      return chrome.runtime.lastError || null;
+      const error = chrome.runtime.lastError || null;
+      if (error && /Extension context invalidated/i.test(error.message || '')) invalidateExtensionContext();
+      return error;
     } catch (error) {
       return { message: contextInvalidatedMessage(error) };
     }
   }
 
+  const resourceUrls = Object.create(null);
+  function safeResourceUrl(path) {
+    if (resourceUrls[path]) return resourceUrls[path];
+    if (extensionContextInvalidated) return '';
+    try {
+      const url = chrome.runtime.getURL(path);
+      resourceUrls[path] = url;
+      return url;
+    } catch (error) {
+      setStatus(contextInvalidatedMessage(error), 'error');
+      return '';
+    }
+  }
+
   function safeSendMessage(message, callback) {
+    if (extensionContextInvalidated) {
+      callback({ ok: false, error: 'Recarregue a aba do SPA.' });
+      return;
+    }
     try {
       chrome.runtime.sendMessage(message, callback);
     } catch (error) {
@@ -196,6 +234,7 @@
         return;
       }
       const rect = shell.getBoundingClientRect();
+      handle.dataset.mtprevDragged = '0';
       drag = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -209,6 +248,9 @@
 
     handle.addEventListener("pointermove", (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+        handle.dataset.mtprevDragged = '1';
+      }
       const position = clampPosition(
         shell,
         drag.left + event.clientX - drag.startX,
@@ -272,9 +314,14 @@
   }
 
   function setStatus(text, tone) {
+    if (extensionContextInvalidated) {
+      text = 'Recarregue a aba do SPA.';
+      tone = 'error';
+    }
     const status = document.querySelector("#" + SHELL_ID + " .cdsp-general-shell__status");
     if (!status) return;
     status.textContent = text || "";
+    status.title = text || "";
     status.dataset.tone = tone || "";
   }
 
@@ -296,6 +343,7 @@
   }
 
   function ensureModuleLoaded(key) {
+    if (extensionContextInvalidated) return;
     const module = moduleByKey(key);
     setActiveModule(module.key);
 
@@ -344,6 +392,7 @@
   }
 
   function refreshRootAutosSearchPanel() {
+    if (extensionContextInvalidated) return;
     const api = window.SPA_CDSP_AUTOMACAO;
     if (!api || typeof api.refreshExternalDocumentsPanel !== "function") return false;
 
@@ -356,6 +405,7 @@
   }
 
   function ensureRootAutosSearchLoaded() {
+    if (extensionContextInvalidated) return;
     if (!isProcedureRoute()) {
       refreshRootAutosSearchPanel();
       return;
@@ -387,6 +437,7 @@
   }
 
   function scheduleRootToolsRefresh() {
+    if (extensionContextInvalidated) return;
     ensureRootAutosSearchLoaded();
     if (!isProcedureRoute()) return;
     setTimeout(ensureRootAutosSearchLoaded, 700);
@@ -395,6 +446,7 @@
 
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
+      if (extensionContextInvalidated) return;
       const route = window.location.pathname + window.location.search + window.location.hash;
       if (route === rootToolsLastRoute) return;
       rootToolsLastRoute = route;
@@ -404,7 +456,8 @@
     evaluateRoute();
     window.addEventListener("popstate", evaluateRoute);
     window.addEventListener("hashchange", evaluateRoute);
-    setInterval(evaluateRoute, 1500);
+    rootToolsRouteListener = evaluateRoute;
+    rootToolsWatcherInterval = setInterval(evaluateRoute, 1500);
   }
 
   function createModuleButton(module) {
@@ -431,7 +484,8 @@
     brand.className = "cdsp-module-brand cdsp-oficios-brand";
 
     const image = document.createElement("img");
-    image.src = chrome.runtime.getURL("images/cabecalho_cdsp_triagem.png");
+    const logoUrl = safeResourceUrl("images/logo-mtprev.png");
+    if (logoUrl) image.src = logoUrl;
     image.alt = "Coordenadoria de Defesa da Saude Publica";
 
     brand.appendChild(image);
@@ -508,6 +562,7 @@
   }
 
   function renderOficiosModule() {
+    if (extensionContextInvalidated) return;
     const pane = getOficiosPane();
     if (!pane) return;
 
@@ -597,14 +652,20 @@
 
     const shell = document.createElement("section");
     shell.id = SHELL_ID;
-    shell.setAttribute("aria-label", "CDSP");
+    shell.setAttribute("aria-label", "MTPREV");
 
     const header = document.createElement("div");
     header.className = "cdsp-general-shell__header";
 
     const title = document.createElement("div");
     title.className = "cdsp-general-shell__title";
-    title.textContent = "CDSP";
+    const logo = document.createElement("img");
+    logo.className = "cdsp-general-shell__logo";
+    const logoUrl = safeResourceUrl("images/logo-mtprev.png");
+    if (logoUrl) logo.src = logoUrl;
+    logo.alt = "MTPREV";
+    logo.draggable = false;
+    title.appendChild(logo);
 
     const status = document.createElement("div");
     status.className = "cdsp-general-shell__status";
@@ -618,7 +679,7 @@
 
     const memory = document.createElement("label");
     memory.className = "cdsp-general-shell__memory";
-    memory.title = "Quando marcado, novas abas do SPA abrem o menu CDSP minimizado.";
+    memory.title = "Quando marcado, novas abas do SPA abrem o menu MTPREV minimizado.";
 
     const memoryInput = document.createElement("input");
     memoryInput.type = "checkbox";
@@ -671,12 +732,23 @@
       writeBooleanSetting(OPEN_MINIMIZED_KEY, memoryInput.checked);
     });
 
-    collapse.addEventListener("click", (event) => {
-      event.stopPropagation();
+    function togglePanelCollapsed() {
       const next = !shell.classList.contains("cdsp-general-shell--collapsed");
       setShellCollapsed(shell, next);
       window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
       saveShellState(shell, { collapsed: next });
+    }
+
+    collapse.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePanelCollapsed();
+    });
+
+    header.addEventListener('dblclick', (event) => {
+      if (event.defaultPrevented || header.dataset.mtprevDragged === '1') return;
+      if (event.target.closest('button,input,select,textarea,a,label,summary,[role="button"],[contenteditable],[tabindex]')) return;
+      event.preventDefault();
+      togglePanelCollapsed();
     });
 
     window.addEventListener("resize", () => {

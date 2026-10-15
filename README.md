@@ -2,7 +2,7 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.64** (`manifest.version = 2.0.64`).
+Versão atual versionada neste repositório: **2.65** (`manifest.version = 2.0.65`).
 
 O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
 
@@ -32,3 +32,9 @@ git push origin vx.xx
 ```
 
 Os arquivos `.zip` gerados para publicação não ficam no Git por padrão.
+
+## Acompanhamento de processos (2.65)
+
+No menu do SPA, use **Acompanhar processos**, informe o CNJ e a instancia e clique em **Acompanhar este processo**. A consulta PJe/TJMT roda a cada 30 minutos com o Chrome aberto, com verificacao manual, historico local, indicador de novas alteracoes e notificacoes. A primeira consulta cria a referencia. Falhas preservam os dados anteriores e aparecem no painel. A lista pertence ao perfil do Chrome. Encerramentos internos do SPA nao sao consultados. Recarregue a extensao e as abas do SPA apos atualizar.
+
+Teste automatizado: node --test tests/process_watch.test.cjs

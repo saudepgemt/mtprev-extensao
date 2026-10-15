@@ -790,117 +790,210 @@
     renderizarTraceTramitacaoSigadoc(atuais);
   }
 
+  let contextoExtensaoInvalidado = false;
+  const observadoresExtensao = new Set();
+
+  function tratarErroContextoExtensao(erro) {
+    const mensagem = erro && erro.message ? erro.message : String(erro || '');
+    if (!/Extension context invalidated/i.test(mensagem) && (!erro || erro.code !== 'EXTENSION_CONTEXT_INVALIDATED')) return erro;
+    if (!contextoExtensaoInvalidado) {
+      contextoExtensaoInvalidado = true;
+      observadoresExtensao.forEach((observer) => observer.disconnect());
+      observadoresExtensao.clear();
+      window.dispatchEvent(new Event('mtprev-extension-context-invalidated'));
+      console.info('[MTPrev] A extensão foi recarregada. Recarregue esta aba para continuar.');
+    }
+    const orientacao = 'A extensão foi recarregada. Recarregue esta aba para continuar.';
+    document.querySelectorAll('.cdsp-general-shell__status, #spa-cdsp-status, #spa-cdsp-deadline-status, #cdsp-sigadoc-menu-status').forEach((status) => {
+      if (status.textContent !== orientacao) status.textContent = orientacao;
+      status.title = orientacao;
+      status.dataset.tone = 'error';
+    });
+    const resultado = new Error(orientacao);
+    resultado.code = 'EXTENSION_CONTEXT_INVALIDATED';
+    return resultado;
+  }
+
+  function lerErroRuntimeExtensao() {
+    try {
+      const erro = chrome.runtime && chrome.runtime.lastError;
+      return erro ? tratarErroContextoExtensao(erro) : null;
+    } catch (erro) {
+      return tratarErroContextoExtensao(erro);
+    }
+  }
+
+  function executarVerificacaoAutomatica(verificar) {
+    if (contextoExtensaoInvalidado) return;
+    return Promise.resolve().then(() => {
+      if (!contextoExtensaoInvalidado) return verificar();
+    }).catch((erro) => {
+      const tratado = tratarErroContextoExtensao(erro);
+      if (!tratado || tratado.code !== 'EXTENSION_CONTEXT_INVALIDATED') {
+        console.error('[CDSP - Extrator] Falha na verificação automática:', tratado);
+      }
+    });
+  }
+
   function storageSet(objeto) {
-    const espelhou = salvarEspelhosSigadoc(objeto);
     return new Promise((resolve, reject) => {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set(objeto, () => {
-          const erro = chrome.runtime && chrome.runtime.lastError;
-          if (erro) {
-            const chaves = Object.keys(objeto || {});
-            const apenasContinuidadesDaMesmaAba = chaves.length > 0 && chaves.every((chave) => Boolean(chaveEspelhoSigadoc(chave)));
-            if (espelhou && apenasContinuidadesDaMesmaAba) {
-              registrarTraceTramitacaoSigadoc('Armazenamento', 'espelho da aba ativo');
-              resolve();
+      try {
+        if (contextoExtensaoInvalidado) {
+          const erro = new Error("Extension context invalidated.");
+          throw erro;
+        }
+        const espelhou = salvarEspelhosSigadoc(objeto);
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set(objeto, () => {
+            const erro = lerErroRuntimeExtensao();
+            if (erro && erro.code === "EXTENSION_CONTEXT_INVALIDATED") {
+              reject(erro);
               return;
             }
-            reject(new Error(erro.message || 'Não foi possível gravar o estado da extensão.'));
-            return;
-          }
-          resolve();
-        });
-        return;
-      }
+            if (erro) {
+              const chaves = Object.keys(objeto || {});
+              const apenasContinuidadesDaMesmaAba = chaves.length > 0 && chaves.every((chave) => Boolean(chaveEspelhoSigadoc(chave)));
+              if (espelhou && apenasContinuidadesDaMesmaAba) {
+                registrarTraceTramitacaoSigadoc('Armazenamento', 'espelho da aba ativo');
+                resolve();
+                return;
+              }
+              reject(new Error(erro.message || 'Não foi possível gravar o estado da extensão.'));
+              return;
+            }
+            resolve();
+          });
+          return;
+        }
 
-      Object.entries(objeto).forEach(([chave, valor]) => {
-        localStorage.setItem(chave, JSON.stringify(valor));
-      });
-      resolve();
+        Object.entries(objeto).forEach(([chave, valor]) => {
+          localStorage.setItem(chave, JSON.stringify(valor));
+        });
+        resolve();
+      } catch (erro) {
+        reject(tratarErroContextoExtensao(erro));
+      }
     });
   }
 
   function storageGet(chaves) {
     return new Promise((resolve, reject) => {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(chaves, (resultado) => {
-          const erro = chrome.runtime && chrome.runtime.lastError;
-          if (erro) {
-            const valoresDoEspelho = {};
-            chaves.forEach((chave) => {
-              const espelho = recuperarEspelhoSigadoc(chave);
-              if (espelho !== undefined) valoresDoEspelho[chave] = espelho;
-            });
-            if (Object.keys(valoresDoEspelho).length) {
-              registrarTraceTramitacaoSigadoc('Armazenamento', 'retomado pelo espelho da aba');
-              resolve(valoresDoEspelho);
+      try {
+        if (contextoExtensaoInvalidado) {
+          const erro = new Error("Extension context invalidated.");
+          throw erro;
+        }
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.get(chaves, (resultado) => {
+            const erro = lerErroRuntimeExtensao();
+            if (erro && erro.code === "EXTENSION_CONTEXT_INVALIDATED") {
+              reject(erro);
               return;
             }
-            reject(new Error(erro.message || 'Não foi possível ler o estado da extensão.'));
-            return;
-          }
-          const valores = resultado || {};
-          chaves.forEach((chave) => {
-            if (valores[chave] === undefined) {
-              const espelho = recuperarEspelhoSigadoc(chave);
-              if (espelho !== undefined) valores[chave] = espelho;
+            if (erro) {
+              const valoresDoEspelho = {};
+              chaves.forEach((chave) => {
+                const espelho = recuperarEspelhoSigadoc(chave);
+                if (espelho !== undefined) valoresDoEspelho[chave] = espelho;
+              });
+              if (Object.keys(valoresDoEspelho).length) {
+                registrarTraceTramitacaoSigadoc('Armazenamento', 'retomado pelo espelho da aba');
+                resolve(valoresDoEspelho);
+                return;
+              }
+              reject(new Error(erro.message || 'Não foi possível ler o estado da extensão.'));
+              return;
             }
+            const valores = resultado || {};
+            chaves.forEach((chave) => {
+              if (valores[chave] === undefined) {
+                const espelho = recuperarEspelhoSigadoc(chave);
+                if (espelho !== undefined) valores[chave] = espelho;
+              }
+            });
+            resolve(valores);
           });
-          resolve(valores);
-        });
-        return;
-      }
+          return;
+        }
 
-      const resultado = {};
-      chaves.forEach((chave) => {
-        const bruto = localStorage.getItem(chave);
-        resultado[chave] = bruto ? JSON.parse(bruto) : undefined;
-      });
-      resolve(resultado);
+        const resultado = {};
+        chaves.forEach((chave) => {
+          const bruto = localStorage.getItem(chave);
+          resultado[chave] = bruto ? JSON.parse(bruto) : undefined;
+        });
+        resolve(resultado);
+      } catch (erro) {
+        reject(tratarErroContextoExtensao(erro));
+      }
     });
   }
 
   function storageRemove(chaves) {
     return new Promise((resolve, reject) => {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.remove(chaves, () => {
-          const erro = chrome.runtime && chrome.runtime.lastError;
-          if (erro) {
-            reject(new Error(erro.message || 'Não foi possível limpar o estado da extensão.'));
-            return;
-          }
-          removerEspelhosSigadoc(chaves);
-          resolve();
-        });
-        return;
-      }
+      try {
+        if (contextoExtensaoInvalidado) {
+          const erro = new Error("Extension context invalidated.");
+          throw erro;
+        }
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.remove(chaves, () => {
+            const erro = lerErroRuntimeExtensao();
+            if (erro && erro.code === "EXTENSION_CONTEXT_INVALIDATED") {
+              reject(erro);
+              return;
+            }
+            if (erro) {
+              reject(new Error(erro.message || 'Não foi possível limpar o estado da extensão.'));
+              return;
+            }
+            removerEspelhosSigadoc(chaves);
+            resolve();
+          });
+          return;
+        }
 
-      chaves.forEach((chave) => localStorage.removeItem(chave));
-      removerEspelhosSigadoc(chaves);
-      resolve();
+        chaves.forEach((chave) => localStorage.removeItem(chave));
+        removerEspelhosSigadoc(chaves);
+        resolve();
+      } catch (erro) {
+        reject(tratarErroContextoExtensao(erro));
+      }
     });
   }
 
   function enviarMensagemExtensao(mensagem) {
     return new Promise((resolve, reject) => {
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        reject(new Error('Comunicação interna da extensão não está disponível.'));
-        return;
+      try {
+        if (contextoExtensaoInvalidado) {
+          const erro = new Error("Extension context invalidated.");
+          throw erro;
+        }
+        if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+          reject(new Error('Comunicação interna da extensão não está disponível.'));
+          return;
+        }
+
+        chrome.runtime.sendMessage(mensagem, (resposta) => {
+          const erro = lerErroRuntimeExtensao();
+            if (erro && erro.code === "EXTENSION_CONTEXT_INVALIDATED") {
+              reject(erro);
+              return;
+            }
+          if (erro) {
+            reject(new Error(erro.message));
+            return;
+          }
+
+          if (!resposta || resposta.ok === false) {
+            reject(new Error((resposta && resposta.error) || 'A extensão não retornou resposta válida.'));
+            return;
+          }
+
+          resolve(resposta);
+        });
+      } catch (erro) {
+        reject(tratarErroContextoExtensao(erro));
       }
-
-      chrome.runtime.sendMessage(mensagem, (resposta) => {
-        const erro = chrome.runtime.lastError;
-        if (erro) {
-          reject(new Error(erro.message));
-          return;
-        }
-
-        if (!resposta || resposta.ok === false) {
-          reject(new Error((resposta && resposta.error) || 'A extensão não retornou resposta válida.'));
-          return;
-        }
-
-        resolve(resposta);
-      });
     });
   }
 
@@ -967,11 +1060,46 @@
     return id;
   }
 
+  async function localizarPdfExpedienteParaAnexo(pacote) {
+    const linkAtual = normalizarUrlProcessoSpa(window.location.href) && extrairLinkExpedienteDeDocumentoSpa(
+      document, window.location.href, '', pacote.idExpedienteSpa
+    );
+    if (linkAtual) return linkAtual;
+
+    // Consulta somente páginas já identificadas no pacote. Não abre abas,
+    // clica em controles da caixa nem envia alterações aos processos.
+    const urls = Array.from(new Set([
+      pacote.urlOrigem, pacote.linkProcessoSpa, pacote.processoPrincipalUrl,
+    ].map(normalizarUrlProcessoSpa).filter(Boolean)));
+    let paginasConsultadas = 0;
+    let erroConsulta = null;
+    for (const url of urls) {
+      try {
+        const resposta = await fetch(url, { credentials: 'include', cache: 'no-store' });
+        if (!resposta.ok) throw new Error(`Não foi possível consultar a página do expediente (${resposta.status}).`);
+        const html = await resposta.text();
+        paginasConsultadas += 1;
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const link = extrairLinkExpedienteDeDocumentoSpa(doc, url, html, pacote.idExpedienteSpa);
+        if (link) return link;
+      } catch (erro) {
+        erroConsulta = erro;
+      }
+    }
+    if (!paginasConsultadas && erroConsulta) throw erroConsulta;
+    return '';
+  }
+
   async function salvarExpedienteInternoDoSpa(pacote) {
     if (!pacote || pacote.expedienteArquivoId) return pacote && pacote.expedienteArquivoId;
-    const url = String(pacote.linkExpedienteSpa || '');
+    let url = String(pacote.linkExpedienteSpa || '');
     if (!/^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
-      throw new Error('O PDF do expediente vinculado não foi localizado no Processo Principal.');
+      url = await localizarPdfExpedienteParaAnexo(pacote);
+    }
+    if (!/^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
+      const erro = new Error('Não foi possível identificar com segurança o PDF do expediente nas páginas consultadas. Verifique o documento e o ID do expediente no SPA.');
+      erro.code = 'EXPEDIENTE_LINK_NOT_FOUND';
+      throw erro;
     }
 
     const resposta = await fetch(url, { credentials: 'include', cache: 'no-store' });
@@ -1005,6 +1133,8 @@
     });
     pacote.expedienteArquivoId = id;
     pacote.nomeArquivoExpediente = nomeArquivo;
+    pacote.linkExpedienteSpa = url;
+    delete pacote.expedienteAviso;
     return id;
   }
 
@@ -1154,7 +1284,8 @@
       linkExpedienteSpa: extrairLinkExpedienteDeDocumentoSpa(
         raiz,
         urlBase,
-        htmlDocumento
+        htmlDocumento,
+        lerNoDocumento(['id do expediente'])
       ),
     };
   }
@@ -1206,31 +1337,37 @@
   }
 
   function extrairLinkExpedienteDeDocumentoSpa(doc, baseUrl, htmlBruto = '', idExpediente = '') {
-    const anchors = Array.from(doc.querySelectorAll('a[href]'));
-    const linksPdf = anchors.filter((link) => {
-      const href = link.getAttribute('href') || '';
-      return /\/coresigner\/info\/[^"'<>]+\.pdf(?:[?#].*)?$/i.test(href) ||
-        /\/coresigner\/info\/[^"'<>]+\.pdf/i.test(href);
+    const candidatos = new Map();
+    const idNormalizado = normalizarTexto(idExpediente).trim();
+    const contemId = (texto) => {
+      const normalizado = normalizarTexto(texto);
+      return idNormalizado && normalizado.split(/[^a-z0-9]+/).includes(idNormalizado);
+    };
+    const adicionar = (valor, contexto = '') => {
+      try {
+        const url = new URL(String(valor || '').replace(/&amp;/g, '&'), baseUrl);
+        if (url.origin !== 'https://spa.pge.mt.gov.br' ||
+            !/^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname)) return;
+        const corresponde = contemId(contexto) || contemId(decodeURIComponent(url.pathname));
+        candidatos.set(url.href, Boolean(candidatos.get(url.href) || corresponde));
+      } catch (_erro) { /* Ignora atributos que não contêm uma URL válida. */ }
+    };
+
+    doc.querySelectorAll('a[href], iframe[src], embed[src], object[data]').forEach((elemento) => {
+      const linha = elemento.closest('tr');
+      const contexto = [
+        elemento.textContent, elemento.getAttribute('title'), elemento.getAttribute('data-original-title'),
+        linha && Array.from(linha.cells).map((celula) => celula.textContent).join(' '),
+      ].filter(Boolean).join(' ');
+      adicionar(elemento.getAttribute('href') || elemento.getAttribute('src') || elemento.getAttribute('data'), contexto);
     });
 
-    const idNormalizado = normalizarTexto(idExpediente);
-    const linkExpediente = (idNormalizado && linksPdf.find((link) =>
-      normalizarTexto(link.textContent || '').includes(idNormalizado)
-    )) || (linksPdf.length === 1 ? linksPdf[0] : null);
+    const regexPdf = /(?:https?:\/\/[^"' <>)]+)?\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/gi;
+    for (const match of String(htmlBruto || '').matchAll(regexPdf)) adicionar(match[0]);
 
-    if (linkExpediente) {
-      return new URL(linkExpediente.getAttribute('href'), baseUrl).href;
-    }
-
-    const regexAbsoluto = /https?:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
-    const matchAbsoluto = htmlBruto.match(regexAbsoluto);
-    if (matchAbsoluto) return matchAbsoluto[0].replace(/&amp;/g, '&');
-
-    const regexRelativo = /\/coresigner\/info\/[^"' <>)]+\.pdf(?:[?#][^"' <>)]+)?/i;
-    const matchRelativo = htmlBruto.match(regexRelativo);
-    if (matchRelativo) return new URL(matchRelativo[0].replace(/&amp;/g, '&'), baseUrl).href;
-
-    return '';
+    const correspondentes = Array.from(candidatos).filter(([, corresponde]) => corresponde);
+    if (correspondentes.length === 1) return correspondentes[0][0];
+    return candidatos.size === 1 ? candidatos.keys().next().value : '';
   }
 
   function extrairAssuntoDeDocumentoSpa(doc) {
@@ -1290,7 +1427,8 @@
       const html = await resposta.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const assuntoPrincipal = extrairAssuntoDeDocumentoSpa(doc);
-      const linkExpedienteSpa = extrairLinkExpedienteDeDocumentoSpa(doc, url, html, campos.idExpedienteSpa);
+      const linkExpedienteSpa = campos.linkExpedienteSpa ||
+        extrairLinkExpedienteDeDocumentoSpa(doc, url, html, campos.idExpedienteSpa);
       const linkAutosSpa = extrairLinkAutosProcessuaisSpa(doc, url, campos.processo, html) || linkAutosAtual;
 
       if (campos.assuntoBruto) {
@@ -1513,6 +1651,10 @@
       numeroOficio: lerCampoDaLinha(row, mapa, ['Número do ofício', 'Numero do oficio']),
       numeroSigadoc: lerCampoDaLinha(row, mapa, ['Número SIGADoc', 'Numero SIGADoc']),
       idExpedienteSpa: lerCampoDaLinha(row, mapa, ['ID do expediente', 'ID do Expediente']),
+      linkExpedienteSpa: extrairLinkExpedienteDeDocumentoSpa(
+        row, window.location.href, row.outerHTML,
+        lerCampoDaLinha(row, mapa, ['ID do expediente', 'ID do Expediente'])
+      ),
       destinatario: lerCampoDaLinha(row, mapa, ['Destinatário', 'Destinatario']),
     };
   }
@@ -1836,6 +1978,7 @@
     try {
       await salvarExpedienteInternoDoSpa(pacote);
     } catch (erro) {
+      if (erro && erro.code === 'EXTENSION_CONTEXT_INVALIDATED') throw erro;
       pacote.expedienteAviso = erro && erro.message ? erro.message : 'Não foi possível preparar o PDF do expediente.';
       console.warn('[CDSP - Extrator] PDF do expediente não preparado:', erro);
     }
@@ -1849,7 +1992,7 @@
       return;
     }
 
-    atualizarBotao(btn, 'sucesso', 'OK', 'Salvo e copiado');
+    atualizarBotao(btn, pacote.expedienteAviso ? 'alerta' : 'sucesso', pacote.expedienteAviso ? '!' : 'OK', 'Salvo e copiado');
     const detalheAssunto = pacote.assuntoAviso
       ? ` ${pacote.assuntoAviso}`
       : (pacote.assuntoOrigem === 'processo-principal' ? ' Assunto extraído do Processo Principal.' : '');
@@ -1903,27 +2046,38 @@
       }
 
       let pacote = null;
+      const camposLinha = extrairCamposDaLinhaCaixa(row);
       try {
         if (btn) btn.title = 'Abrindo aba do processo e extraindo dados...';
         pacote = await extrairPacoteProcessoEmAba(urlProcesso);
+        if (pacote) pacote = preencherCamposAusentes(pacote, {
+          idExpedienteSpa: camposLinha.idExpedienteSpa,
+          linkExpedienteSpa: camposLinha.linkExpedienteSpa,
+        });
       } catch (_erroRemoto) {
         pacote = null;
       }
 
-      if (!pacote || camposFaltantes(pacote).length) {
-        const camposLinha = extrairCamposDaLinhaCaixa(row);
-        const pagina = await buscarDocumentoProcessoPorUrl(urlProcesso);
-        if (btn) btn.title = 'Extraindo dados da página do processo...';
+      if (!pacote || camposFaltantes(pacote).length || !pacote.linkExpedienteSpa) {
+        try {
+          const pagina = await buscarDocumentoProcessoPorUrl(urlProcesso);
+          if (btn) btn.title = 'Extraindo dados da página do processo...';
 
-        let campos = extrairCamposDeDocumentoProcesso(pagina.doc, pagina.url, pagina.html);
-        campos = preencherCamposAusentes(campos, camposLinha);
-        campos.linkProcessoSpa = campos.linkProcessoSpa || pagina.url;
-        campos.urlOrigem = campos.urlOrigem || pagina.url;
+          let campos = extrairCamposDeDocumentoProcesso(pagina.doc, pagina.url, pagina.html);
+          campos = preencherCamposAusentes(campos, camposLinha);
+          campos.linkProcessoSpa = campos.linkProcessoSpa || pagina.url;
+          campos.urlOrigem = campos.urlOrigem || pagina.url;
 
-        if (btn) btn.title = campos.assuntoBruto ? 'Buscando links do processo...' : 'Buscando assunto do processo...';
-        campos = await enriquecerDadosPeloProcessoPrincipalEmRaiz(pagina.doc, pagina.url, campos);
+          if (btn) btn.title = campos.assuntoBruto ? 'Buscando links do processo...' : 'Buscando assunto do processo...';
+          campos = await enriquecerDadosPeloProcessoPrincipalEmRaiz(pagina.doc, pagina.url, campos);
 
-        pacote = escolherPacoteMaisCompleto(pacote, criarPacote(campos, 'pagina-processo-via-caixa'));
+          const candidato = criarPacote(campos, 'pagina-processo-via-caixa');
+          const escolhido = escolherPacoteMaisCompleto(pacote, candidato);
+          pacote = preencherCamposAusentes(escolhido, escolhido === candidato ? pacote : candidato);
+        } catch (erro) {
+          if (!pacote || camposFaltantes(pacote).length) throw erro;
+          console.warn('[CDSP - Extrator] Falha ao buscar link do expediente:', erro);
+        }
       }
 
       if (!pacote || !pacote.processo) {
@@ -3067,7 +3221,7 @@
     if (timerVerificacaoCapturadoSigadoc) return;
     timerVerificacaoCapturadoSigadoc = setTimeout(() => {
       timerVerificacaoCapturadoSigadoc = null;
-      void verificarFluxoCapturadoETramitacaoSigadocPendente();
+      executarVerificacaoAutomatica(verificarFluxoCapturadoETramitacaoSigadocPendente);
     }, Math.max(500, atrasoMs));
   }
 
@@ -4298,6 +4452,7 @@
 
   function agendarAutomacaoListaSigadoc(delayMs = 700) {
     clearTimeout(timerAutomacaoListaSigadoc);
+    if (contextoExtensaoInvalidado) return;
     timerAutomacaoListaSigadoc = setTimeout(processarAutomacaoListaSigadoc, delayMs);
   }
 
@@ -4333,6 +4488,7 @@
   }
 
   function processarAutomacaoListaSigadoc() {
+    if (contextoExtensaoInvalidado) return;
     const estado = lerAutomacaoListaSigadoc();
     if (!estado || !estado.ativo) return;
 
@@ -4884,18 +5040,20 @@
     instalarExtracaoRemotaSpa();
     instalarApiOficiosSpa();
     removerBotoesSpaSoltos();
-    verificarFinalizacaoSpaPendente();
+    executarVerificacaoAutomatica(verificarFinalizacaoSpaPendente);
 
     let timer = null;
     const observer = new MutationObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(() => {
+        if (contextoExtensaoInvalidado) return;
         removerBotoesSpaSoltos();
-        verificarFinalizacaoSpaPendente();
+        executarVerificacaoAutomatica(verificarFinalizacaoSpaPendente);
         notificarMenuOficiosSpa();
       }, 350);
     });
 
+    observadoresExtensao.add(observer);
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
@@ -5399,10 +5557,10 @@
         registrarTraceTramitacaoSigadoc('Retomada', 'sem pendência');
       }
     }).catch(() => registrarTraceTramitacaoSigadoc('Erro', 'leitura do armazenamento'));
-    verificarPreenchimentoPendente();
-    verificarFluxoAssinaturaPendente();
-    verificarFluxoCapturadoETramitacaoSigadocPendente();
-    verificarTramitacaoSigadocPendente();
+    executarVerificacaoAutomatica(verificarPreenchimentoPendente);
+    executarVerificacaoAutomatica(verificarFluxoAssinaturaPendente);
+    executarVerificacaoAutomatica(verificarFluxoCapturadoETramitacaoSigadocPendente);
+    executarVerificacaoAutomatica(verificarTramitacaoSigadocPendente);
     agendarAutomacaoListaSigadoc(900);
 
     if (!window.CDSP_SIGADOC_LIST_AUTOMATION_PAGESHOW) {
@@ -5417,14 +5575,16 @@
     const observer = new MutationObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(() => {
+        if (contextoExtensaoInvalidado) return;
         injetarBotaoSigadoc();
-        verificarFluxoAssinaturaPendente();
-        verificarFluxoCapturadoETramitacaoSigadocPendente();
-        verificarTramitacaoSigadocPendente();
+        executarVerificacaoAutomatica(verificarFluxoAssinaturaPendente);
+        executarVerificacaoAutomatica(verificarFluxoCapturadoETramitacaoSigadocPendente);
+        executarVerificacaoAutomatica(verificarTramitacaoSigadocPendente);
         atualizarResumoAutomacaoListaSigadoc();
       }, 400);
     });
 
+    observadoresExtensao.add(observer);
     observer.observe(document.body, { childList: true, subtree: true });
   }
 

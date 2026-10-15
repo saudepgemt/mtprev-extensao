@@ -1,4 +1,15 @@
 #cdsp-general-shell {
+  --mt-bg: #17212b;
+  --mt-surface: #1f2d3a;
+  --mt-raised: #263544;
+  --mt-border: #344253;
+  --mt-text: #f1f5f9;
+  --mt-muted: #cfd8dc;
+  --mt-blue: #185fa5;
+  --mt-green: #0f6e56;
+  --mt-radius: 10px;
+  color-scheme: dark;
+  container-type: inline-size;
   position: fixed;
   left: 18px;
   top: 86px;
@@ -8,12 +19,12 @@
   max-height: calc(100vh - 104px);
   display: flex;
   flex-direction: column;
-  color: #fff;
-  background: #17212b;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-  font: 12px/1.35 "Segoe UI", Arial, sans-serif;
+  color: var(--mt-text);
+  background: var(--mt-bg);
+  border: 1px solid var(--mt-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 12px #00000033;
+  font: 12px/1.5 "Segoe UI", Arial, sans-serif;
   letter-spacing: 0;
   overflow: hidden;
 }
@@ -56,6 +67,14 @@
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+#cdsp-general-shell .cdsp-general-shell__logo {
+  display: block;
+  width: 96px;
+  max-width: 100%;
+  height: 54px;
+  object-fit: contain;
 }
 
 .cdsp-general-shell__status {
@@ -102,7 +121,7 @@
   gap: 6px;
   padding: 8px;
   background: #17212b;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid #344253;
 }
 
 .cdsp-general-shell__module-button {
@@ -122,7 +141,7 @@
 .cdsp-general-shell__module-button:hover,
 .cdsp-general-shell__module-button:focus-visible,
 .cdsp-general-shell__module-button.is-active {
-  border-color: #4db6ac;
+  border-color: #344253;
   background: #243a44;
   outline: none;
 }
@@ -207,25 +226,6 @@
   border: 1px solid #344253 !important;
   background: #17212b !important;
   color: #fff !important;
-}
-
-#cdsp-general-shell .cdsp-module-brand {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 54px !important;
-  border: 1px solid #344253 !important;
-  border-radius: 6px !important;
-  background: #1f2d3a !important;
-  line-height: 0 !important;
-}
-
-#cdsp-general-shell .cdsp-module-brand img {
-  display: block !important;
-  width: 100% !important;
-  height: auto !important;
-  max-height: 58px !important;
-  object-fit: contain !important;
 }
 
 #cdsp-general-shell #spa-cdsp-panel-content,
@@ -321,7 +321,7 @@
   color: #fff;
   background: #263544;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  box-shadow: none;
   font-size: 12px;
   font-weight: 650;
   line-height: 1.2;
@@ -416,5 +416,433 @@
     top: 70px;
     width: calc(100vw - 20px);
     max-width: calc(100vw - 20px);
+  }
+}
+
+/* MTPrev presentation layer. Keep inline visibility and operation states intact. */
+#cdsp-general-shell .cdsp-general-shell__header {
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--mt-surface);
+  border-bottom: 1px solid var(--mt-border);
+}
+
+#cdsp-general-shell .cdsp-general-shell__title {
+  flex: 1 1 80px;
+}
+
+#cdsp-general-shell .cdsp-general-shell__logo {
+  width: 88px;
+  height: 48px;
+}
+
+#cdsp-general-shell .cdsp-general-shell__status {
+  max-width: 96px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--mt-raised);
+}
+
+#cdsp-general-shell .cdsp-general-shell__memory {
+  gap: 4px;
+  min-height: 32px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mt-muted);
+}
+
+#cdsp-general-shell .cdsp-general-shell__toggle {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+#cdsp-general-shell .cdsp-general-shell__modules {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  background: transparent;
+  border-color: var(--mt-border);
+}
+
+#cdsp-general-shell .cdsp-general-shell__module-button {
+  min-height: 36px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  border-color: var(--mt-border);
+  background: var(--mt-surface);
+  color: var(--mt-muted);
+  box-shadow: none;
+}
+
+#cdsp-general-shell .cdsp-general-shell__module-button.is-active {
+  color: var(--mt-text);
+  border-color: var(--mt-border);
+  background: #304355;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+#cdsp-general-shell.cdsp-general-shell--collapsed .cdsp-general-shell__modules,
+#cdsp-general-shell.cdsp-general-shell--collapsed .cdsp-general-shell__body,
+#cdsp-general-shell.cdsp-general-shell--collapsed .cdsp-general-shell__status {
+  display: none;
+}
+
+#cdsp-general-shell .cdsp-general-shell__body {
+  min-height: 0;
+  padding: 8px 12px 12px;
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--mt-border) var(--mt-bg);
+}
+
+#cdsp-general-shell .cdsp-general-shell__pane,
+#cdsp-general-shell .cdsp-general-embedded-module div,
+#cdsp-general-shell .cdsp-general-embedded-module label {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+#cdsp-general-shell :is(#spa-cdsp-panel, #spa-cdsp-deadline-panel, #spa-cdsp-management-panel) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--mt-text) !important;
+}
+
+#cdsp-general-shell .cdsp-module-brand {
+  display: none !important;
+}
+
+#cdsp-general-shell .mtprev-context-nav {
+  gap: 4px !important;
+  padding: 4px;
+  border-radius: var(--mt-radius);
+  background: var(--mt-surface);
+  border: 1px solid var(--mt-border);
+  box-shadow: none;
+}
+
+#cdsp-general-shell .mtprev-context-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: auto !important;
+  min-height: 32px;
+  padding: 4px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-color: var(--mt-border) !important;
+  background: transparent !important;
+  color: var(--mt-muted) !important;
+}
+
+#cdsp-general-shell .mtprev-context-nav .mtprev-context-active {
+  background: var(--mt-raised) !important;
+  color: var(--mt-text) !important;
+  box-shadow: none;
+  font-weight: 600 !important;
+}
+
+#cdsp-general-shell .mtprev-field-row {
+  flex-wrap: wrap;
+  gap: 8px !important;
+  margin: 8px 0 !important;
+}
+
+#cdsp-general-shell .mtprev-field-row label {
+  min-width: 80px !important;
+  color: var(--mt-muted) !important;
+}
+
+#cdsp-general-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--mt-border) !important;
+  border-radius: 6px !important;
+  padding: 6px 8px !important;
+  background: var(--mt-surface) !important;
+  color: var(--mt-text) !important;
+  font: 12px/1.5 "Segoe UI", Arial, sans-serif !important;
+}
+
+#cdsp-general-shell textarea {
+  resize: vertical;
+}
+
+#cdsp-general-shell input::placeholder,
+#cdsp-general-shell textarea::placeholder {
+  color: var(--mt-muted);
+  opacity: 1;
+}
+
+#cdsp-general-shell input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--mt-blue);
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+#cdsp-general-shell details {
+  margin: 8px 0 !important;
+  padding: 8px !important;
+  border: 1px solid var(--mt-border) !important;
+  border-radius: var(--mt-radius) !important;
+  background: var(--mt-surface) !important;
+}
+
+#cdsp-general-shell summary {
+  min-height: 32px;
+  padding: 4px 0;
+  line-height: 24px;
+  color: var(--mt-text) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+#cdsp-general-shell button {
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 8px !important;
+  box-shadow: none;
+  transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+
+#cdsp-general-shell .mtprev-action {
+  min-height: 36px !important;
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  border: 1px solid var(--mt-border) !important;
+  background: var(--mt-raised) !important;
+  color: var(--mt-text) !important;
+}
+
+#cdsp-general-shell :is(.mtprev-action--primary, .mtprev-action--info) {
+  background: #116da6 !important;
+  border-color: var(--mt-border) !important;
+}
+
+#cdsp-general-shell :is(.mtprev-action--success, .mtprev-action--teal) {
+  background: #234d40 !important;
+  border-color: #397b62 !important;
+}
+
+#cdsp-general-shell :is(.mtprev-action--danger, .mtprev-action--red),
+#cdsp-general-shell button[title="Encerrar fluxo em andamento"] {
+  background: #42282d !important;
+  border: 1px solid #86515b !important;
+  color: #ffced4 !important;
+}
+
+#cdsp-general-shell .mtprev-utility {
+  min-height: 32px;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  background: transparent !important;
+  border-color: var(--mt-border) !important;
+  color: var(--mt-muted) !important;
+}
+
+#cdsp-general-shell .cdsp-oficios-button {
+  border: 1px solid var(--mt-border);
+  box-shadow: none;
+  font-size: 12px;
+}
+
+#cdsp-general-shell button:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: #50718d !important;
+}
+
+#cdsp-general-shell :is(.cdsp-general-shell__module-button, .mtprev-context-nav button, .mtprev-utility):hover:not(:disabled) {
+  background-color: #243a50 !important;
+}
+
+#cdsp-general-shell button:active:not(:disabled) {
+  box-shadow: none;
+}
+
+#cdsp-general-shell :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #62b7ec !important;
+  outline-offset: 2px;
+}
+
+#cdsp-general-shell :is(button, input, select, textarea):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+#cdsp-general-shell :is([aria-busy="true"], .copiando) {
+  cursor: progress;
+}
+
+#cdsp-general-shell :is(#spa-cdsp-log, #spa-cdsp-deadline-log, #spa-cdsp-management-log) {
+  padding: 8px !important;
+  border-color: var(--mt-border) !important;
+  background: #0d141b !important;
+  line-height: 1.5 !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+
+#cdsp-general-shell .cdsp-general-shell__header {
+  box-shadow: none;
+}
+
+#cdsp-general-shell .cdsp-general-shell__module-button,
+#cdsp-general-shell .mtprev-context-nav {
+  box-shadow: none;
+}
+
+#cdsp-general-shell :is(#spa-cdsp-panel, #spa-cdsp-deadline-panel, #spa-cdsp-management-panel) > div:first-child {
+  background: var(--mt-surface) !important;
+  border-color: var(--mt-border) !important;
+}
+
+#cdsp-general-shell #spa-cdsp-panel-content > div:last-child {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+#cdsp-general-shell #spa-cdsp-panel-content > div:has(> #spa-cdsp-active-filters-label) {
+  background: var(--mt-surface) !important;
+  border-color: var(--mt-border) !important;
+  border-radius: var(--mt-radius) !important;
+  padding: 8px !important;
+}
+
+/* Local Material Symbols Rounded masks are decorative (empty content).
+   Labels and their accessible names remain in the original DOM. */
+#cdsp-general-shell [data-cdsp-module-button="triagem"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/inbox.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="prazos"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/edit_document.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="gestao"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/account_tree.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="oficios"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/outgoing_mail.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Triagem"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/fact_check.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Duplicados"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/content_copy.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Peças"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/description.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Filtros"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/filter_alt.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Programada"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/event.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Registro"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/history.svg'); }
+#cdsp-general-shell label[for="spa-cdsp-use-date"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/calendar_month.svg'); }
+#cdsp-general-shell label[for="spa-cdsp-limit"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/format_list_numbered.svg'); }
+
+#cdsp-general-shell :is([data-cdsp-module-button], .mtprev-context-nav button)::before,
+#cdsp-general-shell button[title="Encerrar fluxo em andamento"]::before,
+#cdsp-general-shell .cdsp-general-shell__status[data-tone="ok"]::before,
+#cdsp-general-shell #spa-cdsp-active-filters-label + div > button::before,
+#cdsp-general-shell .mtprev-field-row label::before,
+#cdsp-general-shell #spa-cdsp-panel-content > div:last-child > div:nth-child(2) .mtprev-action::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: -4px;
+  background-color: currentColor;
+  flex-shrink: 0;
+  -webkit-mask: var(--mt-icon) center / contain no-repeat;
+  mask: var(--mt-icon) center / contain no-repeat;
+}
+
+#cdsp-general-shell .mtprev-context-nav button::before {
+  margin-right: 0;
+}
+
+#cdsp-general-shell .mtprev-field-row label {
+  min-width: 100px !important;
+}
+
+#cdsp-general-shell button[title="Encerrar fluxo em andamento"] {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/power_settings_new.svg');
+  height: 32px !important;
+}
+
+#cdsp-general-shell .cdsp-general-shell__status[data-tone="ok"] {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/check_circle.svg');
+  color: #b3e9d9;
+}
+
+#cdsp-general-shell .cdsp-general-shell__status[data-tone="ok"]::before {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: -3px;
+}
+
+#cdsp-general-shell #spa-cdsp-active-filters-label + div > button {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/close.svg');
+  padding: 4px 6px !important;
+}
+
+#cdsp-general-shell #spa-cdsp-active-filters-label + div > button:last-child {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/filter_alt_off.svg');
+}
+
+#cdsp-general-shell #spa-cdsp-active-filters-label + div > button::before {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: -3px;
+}
+
+#cdsp-general-shell #spa-cdsp-panel-content > div:last-child > div:nth-child(2) .mtprev-action--amber {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/open_in_new.svg');
+  background: #126fa1 !important;
+  border-color: var(--mt-border) !important;
+  box-shadow: none;
+}
+
+#cdsp-general-shell #spa-cdsp-panel-content > div:last-child > div:nth-child(2) .mtprev-action--info {
+  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/summarize.svg');
+  background: var(--mt-raised) !important;
+  border-color: var(--mt-border) !important;
+  box-shadow: none;
+}
+
+@container (max-width: 380px) {
+  #cdsp-general-shell .mtprev-context-nav button {
+    flex-direction: column;
+    gap: 2px;
+    min-height: 48px;
+  }
+}
+
+@container (max-width: 360px) {
+  #cdsp-general-shell .cdsp-general-shell__header {
+    gap: 4px;
+    padding: 8px;
+  }
+  #cdsp-general-shell .cdsp-general-shell__memory {
+    max-width: 88px;
+    white-space: normal;
+  }
+  #cdsp-general-shell .cdsp-general-shell__status {
+    max-width: 84px;
+  }
+  #cdsp-general-shell .cdsp-general-shell__body {
+    padding: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #cdsp-general-shell *,
+  #cdsp-general-shell *::before,
+  #cdsp-general-shell *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
   }
 }

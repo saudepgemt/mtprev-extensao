@@ -1,6 +1,13 @@
 CDSP Extensao Geral - Guia de updates
 
-Estado atual publicado: extensao 2.64 (manifest 2.0.64).
+Versao em desenvolvimento: extensao 2.65 (manifest 2.0.65).
+Publicado anteriormente: extensao 2.64 (manifest 2.0.64).
+- Acompanhamento por CNJ: preservar js/process_watch_background.js e js/process_watch_panel.js,
+  o alarme independente de 30 minutos, a referencia inicial sem alertas retroativos,
+  a preservacao dos dados em falhas e o historico local com indicador de nao lido.
+- Consultar apenas PJe/TJMT via Worker institucional existente. Nao afirmar que
+  encerramentos internos do SPA sao monitorados. Nao incluir credenciais locais.
+- Notifications e usada para alertas; badge e painel continuam disponiveis sem notificacoes.
 - Preservar a confirmacao de classificacao e destinatario antes dos campos livres e do editor, com conferencia da tabela tambem no campo usado para gravacao.
 - A selecao de Capturado usa um unico clique nativo. Falha confirmada do anexo deve registrar o aviso e prosseguir sem o Capturado; a tramitacao continua obrigatoria.
 - Cadastrar Agravo seleciona exatamente Urgencia. Nao retornar a Multas e demais Sancoes nem aceitar correspondencia parcial de assunto.

@@ -6408,6 +6408,7 @@
     };
     const button = document.createElement("button");
     button.type = "button";
+    button.classList.add("mtprev-action", "mtprev-action--" + (variant || "primary"));
     button.textContent = text;
     button.style.cssText =
       "border:0;padding:8px 10px;border-radius:5px;cursor:pointer;" +

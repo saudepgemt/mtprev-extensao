@@ -1,5 +1,7 @@
 "use strict";
 
+// Imported after initialization below so the watcher can reuse the PJe query.
+
 let pdfJsLoadError = "";
 
 try {
@@ -4691,8 +4693,8 @@ async function injectManagementPanel(sender) {
       args: [
         {
           version: chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version,
-          headerImageUrl: chrome.runtime.getURL("images/cabecalho_cdsp_triagem.png"),
-          iconImageUrl: chrome.runtime.getURL("images/icon128.png"),
+          headerImageUrl: chrome.runtime.getURL("images/logo-mtprev.png"),
+          iconImageUrl: chrome.runtime.getURL("images/icon-mtprev128.png"),
           teamDatabase: {
             file: CDSP_GENERAL_TEAM_DATABASE_FILE,
             mode: "base interna"
@@ -4736,7 +4738,7 @@ async function injectDeadlinePanel(sender) {
       args: [
         {
           version: chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version,
-          headerImageUrl: chrome.runtime.getURL("images/cabecalho_cdsp_triagem.png")
+          headerImageUrl: chrome.runtime.getURL("images/logo-mtprev.png")
         }
       ]
     });
@@ -5089,7 +5091,7 @@ async function injectPanel(sender) {
       args: [
         {
           version: chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version,
-          headerImageUrl: chrome.runtime.getURL("images/cabecalho_cdsp_triagem.png")
+          headerImageUrl: chrome.runtime.getURL("images/logo-mtprev.png")
         }
       ]
     });
@@ -5432,3 +5434,5 @@ chrome.action.onClicked.addListener((tab) => {
     void chrome.runtime.lastError;
   });
 });
+
+importScripts("process_watch_background.js");

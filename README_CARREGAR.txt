@@ -1,4 +1,16 @@
-CDSP Extensao Geral - 2.64
+CDSP Extensao Geral - 2.65
+
+Acompanhar processos: no menu principal do SPA, clique em Acompanhar processos,
+informe o numero CNJ e a instancia e clique em Acompanhar este processo.
+A primeira consulta cria a referencia, sem alertar sobre movimentos antigos.
+Consultas seguintes ocorrem a cada 30 minutos com o Chrome aberto, ou pelo
+botao Verificar agora. Novas movimentacoes e alteracoes nos expedientes do
+PJe/TJMT geram historico, indicador no icone e notificacao do Chrome quando permitida.
+Os dados ficam neste perfil do Chrome; nao ha envio de email nem lista compartilhada.
+Encerramentos internos do SPA nao sao consultados. Confira falhas e ultima consulta
+no painel; o acompanhamento nao substitui a conferencia dos prazos oficiais.
+Recarregue a extensao e as paginas do SPA apos atualizar. A versao usa a permissao
+notifications para os avisos de novas alteracoes.
 
 Menu compacto no SPA:
 - Triagem e Protocolo
