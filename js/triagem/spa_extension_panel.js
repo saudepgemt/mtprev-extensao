@@ -3427,15 +3427,11 @@
   }
 
   function procedureExpedienteOpenStatus(expediente) {
-    return expediente && !expediente.closed && !expediente.returned;
+    return expediente && !expediente.closed && !expediente.returned && !expediente.manuallyClosedAt;
   }
 
   function procedureExpedienteStateDeadline(expediente) {
-    const text = normalizeText([expediente && expediente.party, expediente && expediente.procuradoria].join(" ")).toLowerCase();
-    return (
-      text.indexOf("estado de mato grosso") >= 0 ||
-      text.indexOf("procuradoria geral do estado de mato grosso") >= 0
-    );
+    return window.MTPrevTriageRules.recipient(expediente || {}).kind === "estado";
   }
 
   function formatProcedureExpedienteInfo(expediente) {
@@ -3443,7 +3439,7 @@
     const responseIds = collectProcedureExpedienteResponseIds(expediente);
     const id = normalizeText((expediente && expediente.id) || "");
     const documentType = normalizeText((expediente && expediente.documentType) || "Expediente");
-    const closed = expediente && expediente.closed === true;
+    const closed = expediente && (expediente.closed === true || Boolean(expediente.manuallyClosedAt));
     const returned = expediente && expediente.returned === true;
     const titleParts = [];
     const summaryParts = [];
@@ -3488,6 +3484,9 @@
       returned,
       isOpenDeadline: !closed && !returned,
       isStateDeadline: procedureExpedienteStateDeadline(expediente),
+      isMtprevDeadline: window.MTPrevTriageRules.recipient(expediente || {}).kind === "mtprev",
+      recipientId: expediente && (expediente.recipientId || expediente.partyId) || "",
+      recipientName: expediente && (expediente.recipientName || expediente.party) || "",
       flags,
     };
   }
@@ -3952,17 +3951,10 @@
   }
 
   function movementExpedientePartyLabel(expediente) {
+    const recipient = window.MTPrevTriageRules.recipient(expediente || {});
+    if (recipient.kind !== "unknown") return recipient.label;
     const party = normalizeText(expediente && expediente.party);
-    const procuradoria = normalizeText(expediente && expediente.procuradoria);
-    const combined = normalizeText([party, procuradoria].filter(Boolean).join(" ")).toLowerCase();
-
-    if (combined.indexOf("procuradoria geral do estado de mato grosso") >= 0 || combined.indexOf("estado de mato grosso") >= 0) {
-      return "Estado de Mato Grosso";
-    }
-    if (combined.indexOf("ministerio publico") >= 0) return "Ministerio Publico";
-    if (combined.indexOf("defensoria publica") >= 0) return "Defensoria Publica";
-
-    const label = party || procuradoria;
+    const label = recipient.label !== "Não identificado" ? recipient.label : party;
     if (!label) return "parte informada no expediente";
     return label.length > 54 ? label.slice(0, 51).trim() + "..." : label;
   }
@@ -4056,7 +4048,7 @@
 
     (Array.isArray(items) ? items : []).forEach((item) => {
       (Array.isArray(item.expedientes) ? item.expedientes : []).forEach((expediente) => {
-        if (!expediente || !expediente.isOpenDeadline || !expediente.isStateDeadline) return;
+        if (!expediente || !expediente.isOpenDeadline || (!expediente.isStateDeadline && !expediente.isMtprevDeadline)) return;
         const key = openStateDeadlineSummaryKey(expediente);
         if (key && seen.has(key)) return;
         if (key) seen.add(key);
@@ -4076,7 +4068,7 @@
 
     const title = document.createElement("div");
     title.className = "spa-cdsp-movement-open-deadlines-title";
-    title.textContent = "Prazos em aberto do Estado";
+    title.textContent = "Prazos em aberto — Estado e MTPrev";
     box.appendChild(title);
 
     const list = document.createElement("div");
@@ -4086,6 +4078,7 @@
       const item = document.createElement("div");
       item.className = "spa-cdsp-movement-open-deadline-item";
       item.innerHTML =
+        '<span>Destinatário: ' + escapeHtml(movementExpedientePartyLabel(expediente)) + '</span>' +
         '<strong>' +
         escapeHtml(expediente.title || movement.type || "Expediente") +
         "</strong>" +
@@ -4125,13 +4118,14 @@
     if (!expediente) return "";
 
     const id = normalizeText(expediente.id).toLowerCase();
-    if (id) return "expediente:" + id;
+    const recipientKey = [expediente.recipientId, expediente.recipientName, expediente.party].filter(Boolean).join("|");
+    if (id) return "expediente:" + id + "|destinatario:" + recipientKey;
 
     const documentIds = (Array.isArray(expediente.documentIds) ? expediente.documentIds : [])
       .map((value) => normalizeText(value).toLowerCase())
       .filter(Boolean)
       .sort();
-    if (documentIds.length) return "documentos:" + documentIds.join("|");
+    if (documentIds.length) return "documentos:" + documentIds.join("|") + "|destinatario:" + recipientKey;
 
     return [
       normalizeText(expediente.title).toLowerCase(),
@@ -12840,6 +12834,55 @@
     return button;
   }
 
+  function mtprevPopRecords() {
+    const records = rows().map((row, index) => {
+      const record = pieceReportRecord(row, index + 1, 1);
+      const noticeDate = rowColumnText(row, ["data da intimacao", "data da intimação", "data de intimacao", "data de intimação"]);
+      const awareDate = rowColumnText(row, ["data da ciencia", "data da ciência", "data de ciencia", "data de ciência"]);
+      const documentId = rowColumnText(row, ["id do documento", "identificador do documento"]);
+      return Object.assign(record, {
+        party: rowColumnText(row, ["destinatario da intimacao", "destinatário da intimação", "parte intimada", "destinatario", "destinatário"]),
+        recipientId: row.getAttribute("data-recipient-id") || rowColumnText(row, ["id do destinatario", "id do destinatário"]),
+        actionClass: rowColumnText(row, ["classe processual", "classe da acao", "classe da ação", "classe"]),
+        processParties: rowColumnText(row, ["partes do processo", "partes"]),
+        manifestationSuggested: duplicateReportManifestationText(row),
+        pjeDeadline: duplicateReportPjeDeadlineText(row),
+        deadlineStatus: ({ late: "Indicador da tela: vencido; conferir", short: "Indicador da tela: prazo próximo; conferir", long: "Prazo informado na tela; conferir", none: "Não identificado" })[rowDeadlineStatus(row)] || "Necessita conferência",
+        relevantDate: noticeDate || awareDate,
+        dateSource: noticeDate ? "Data da intimação (SPA)" : awareDate ? "Data da ciência (SPA)" : "",
+        documentIds: documentId ? [documentId] : [],
+        metadataSource: "Colunas visíveis do SPA; não confundir distribuição com intimação"
+      });
+    });
+    if (!records.length && isProcedureDetailPage()) {
+      const item = findCurrentProcedureExpedienteItem();
+      const date = readProcedureHeaderValue("Data da Intimação");
+      records.push({
+        id: "mtprev-current-" + readMainProcedureId(), rowKey: readMainProcedureId(),
+        processNumber: readCurrentProcedureProcessNumber(), expedienteId: readProcedureHeaderValue("ID do Expediente") || readProcedureHeaderValue("Número do Expediente"),
+        party: readProcedureHeaderValue("Destinatário da Intimação") || readProcedureHeaderValue("Parte Intimada"),
+        actionClass: readProcedureHeaderValue("Classe Processual"), assunto: readProcedureHeaderValue("Assunto"), processParties: readProcedureHeaderValue("Partes"),
+        pjeDeadline: readProcedureHeaderValue("Prazo PJe") || readProcedureHeaderValue("Prazo"),
+        deadlineStatus: readProcedureHeaderValue("Situação do Prazo"), manifestationSuggested: readProcedureHeaderValue("Manifestação Sugerida"),
+        relevantDate: date, dateSource: date ? "Data da intimação (SPA)" : "", documentIds: [],
+        pendencyUrl: location.href, expedientes: item ? [{ url: getExternalDocumentOpenUrl(item), label: "Expediente atual" }] : [], expedienteCount: item ? 1 : 0
+      });
+    }
+    const unique = new Map();
+    records.forEach((record) => {
+      const key = record.rowKey || (record.expedienteId && record.expedienteId !== "Sem ID" ? record.processNumber + "|" + record.expedienteId : record.id);
+      if (!unique.has(key)) unique.set(key, record);
+    });
+    return Array.from(unique.values());
+  }
+
+  function createMtprevPopSupport(mode) {
+    return window.MTPrevPopPanel.create({
+      getRecords: mtprevPopRecords,
+      readDocuments: (records) => classifyPieceRecordsThroughExtension(records.map((record) => Object.assign({}, record, pieceReportBackgroundPayload(record), { popSupport: true })))
+    }, mode);
+  }
+
   function createModuleTabs(tabs) {
     const nav = document.createElement("div");
     nav.classList.add("mtprev-context-nav");
@@ -13060,6 +13103,7 @@
     content.style.cssText = "max-height:calc(100vh - 96px);overflow:auto;margin-top:8px;padding-right:2px;";
 
     const triagemPage = document.createElement("div");
+    triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
     const triagemButtons = createButtonGrid();
     triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit()), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
@@ -13084,6 +13128,7 @@
     duplicadosPage.appendChild(duplicadosButtons);
 
     const pecasPage = document.createElement("div");
+    pecasPage.appendChild(createMtprevPopSupport("priorities"));
     const pecasButtons = createButtonGrid();
     appendFullWidthButton(
       pecasButtons,

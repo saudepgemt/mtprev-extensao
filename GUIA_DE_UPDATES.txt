@@ -1,6 +1,35 @@
 CDSP Extensao Geral - Guia de updates
 
-Versao em desenvolvimento: extensao 2.65 (manifest 2.0.65).
+Versao em desenvolvimento: extensao 2.70 (manifest 2.0.70).
+- Cabecalho radial operacional: logo, titulo da opcao selecionada e apenas Voltar.
+  Preservar controles antigos no DOM para compatibilidade, ocultos no modo radial.
+  Voltar retorna o mesmo botao ao anel sem acumular listeners. Acompanhamento usa
+  cabecalho equivalente. Nao iniciar leitura de PDF apenas ao abrir um submenu.
+- Duplicados usa exclusivamente o fluxo antigo (Abrir Duplicados e Relatorio
+  Duplicados), compartilhado entre Saude e MTPrev. Nao recriar relatorio ou
+  criterios separados de duplicidade no apoio POP. Diagnostico remete ao relatorio comum.
+- Acompanhamento Especial no topo do primeiro nivel radial reutiliza
+  MTPrevProcessWatch e CDSP_PROCESS_WATCH_V1; nao migrar nem recriar a lista.
+- Diagnostico e relatorios POP: js/shared/mtprev_triage_rules.js e
+  js/triagem/mtprev_pop_panel.js, injetados antes do painel principal.
+  Regras especificas MTPrev, separadas dos relatorios e automacoes da Saude.
+- Fonte adicional: Manual de Demandas Judiciais.pdf, somente SPA p.10-14 e 34-54.
+  Nao implementar fluxos do sistema antigo nem aplicar prazos/valores fixos do manual.
+- Preservar destinatario explicito distinto de procuradoria; sem identificadores
+  comprovados, nao inventar CNPJs/IDs. Dados ausentes exigem conferencia.
+- Sugestoes nao preenchem nem confirmam analise, prazos, redistribuicao, CI ou protocolo.
+- Navegacao circular pura: wrapper transparente, sem borda/sombra e com
+  pointer-events:none; somente os circulos e Voltar recebem cliques.
+- Cabecalho e controles auxiliares aparecem somente no painel operacional.
+  Escolha final oculta a navegacao e Voltar ao menu restaura o submenu.
+- Navegacao radial: js/radial_menu.js e css/radial_menu.css usam os modulos reais
+  do content_bridge e os handlers existentes. Preservar marcadores
+  data-mtprev-radial-option nas secoes de Redacao/Coordenacao.
+- Centro arrastavel por Pointer Events com limiar de 6px, captura e translate3d;
+  salvar pela mesma CDSP_GENERAL_SHELL_POSITION/CDSP_GENERAL_SHELL_STATE.
+- Manter SVGs locais, prefers-reduced-motion, inert no anel recolhido, Escape,
+  Voltar ao menu, Voltar e controles auxiliares de acompanhamento no painel.
+- Testes locais: tests/run_radial_browser.ps1; nao substituem homologacao no SPA.
 Publicado anteriormente: extensao 2.64 (manifest 2.0.64).
 - Acompanhamento por CNJ: preservar js/process_watch_background.js e js/process_watch_panel.js,
   o alarme independente de 30 minutos, a referencia inicial sem alertas retroativos,

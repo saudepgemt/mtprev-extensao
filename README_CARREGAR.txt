@@ -1,4 +1,31 @@
-CDSP Extensao Geral - 2.65
+CDSP Extensao Geral - 2.70
+
+Cabecalho dos paineis: logo MTPrev, nome da opcao aberta e somente Voltar.
+Pronto, Abrir minimizado e minimizar foram ocultados da apresentacao radial.
+Relatorio Pecas le PDFs para classificar; Relatorio Duplicados compara o texto
+dos PDFs. Diagnostico e grupos POP so leem PDFs ao marcar Consultar texto dos
+expedientes. Abrir o submenu nao dispara essa leitura por si so.
+
+POP MTPrev (apoio em leitura): Acompanhamento Especial de Processos agora e a
+quinta entrada radial, no topo, usando a mesma lista salva anteriormente.
+Em Triagem: Diagnostico da Triagem. Em Duplicados: Abrir Duplicados e
+Relatorio Duplicados, usando a logica antiga para todas as unidades, sem
+separacao entre Saude e MTPrev.
+Em Pecas: Grupos prioritarios MTPrev. As novas secoes sao de apoio e exigem
+conferencia humana. A leitura dos PDFs e opcional e usa o leitor existente.
+O diagnostico usa apenas linhas expandidas/visiveis da pagina e filtros atuais,
+ou a pendencia aberta. Nao confirma prazos nem executa atos processuais.
+Andamento PJe diferencia destinatarios Estado/MTPrev; nao presume destinatario
+pela procuradoria representante. Recarregue a extensao e as abas do SPA.
+
+Menu radial MTPrev: clique no circulo central para abrir/recolher, selecione um
+modulo e depois uma opcao real. Arraste pelo centro (limiar de 6px) ou cabecalho.
+Navegacao sem card: recolhido mostra apenas o centro; expandido mostra os
+quatro modulos; selecionar um modulo mostra suas opcoes radiais. A escolha
+final oculta os circulos e abre o painel operacional com Voltar ao menu.
+Cabecalho, configuracoes e acompanhamento ficam no painel operacional.
+Escape retorna ao nivel anterior ou recolhe. A preferencia Abrir minimizado e
+o duplo clique no cabecalho continuam disponiveis. Recarregue extensao e abas.
 
 Acompanhar processos: no menu principal do SPA, clique em Acompanhar processos,
 informe o numero CNJ e a instancia e clique em Acompanhar este processo.

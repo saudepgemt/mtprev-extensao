@@ -2,7 +2,7 @@
 
 Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
 
-Versão atual versionada neste repositório: **2.65** (`manifest.version = 2.0.65`).
+Versão atual versionada neste repositório: **2.70** (`manifest.version = 2.0.70`).
 
 O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
 
@@ -38,3 +38,17 @@ Os arquivos `.zip` gerados para publicação não ficam no Git por padrão.
 No menu do SPA, use **Acompanhar processos**, informe o CNJ e a instancia e clique em **Acompanhar este processo**. A consulta PJe/TJMT roda a cada 30 minutos com o Chrome aberto, com verificacao manual, historico local, indicador de novas alteracoes e notificacoes. A primeira consulta cria a referencia. Falhas preservam os dados anteriores e aparecem no painel. A lista pertence ao perfil do Chrome. Encerramentos internos do SPA nao sao consultados. Recarregue a extensao e as abas do SPA apos atualizar.
 
 Teste automatizado: node --test tests/process_watch.test.cjs
+
+## Menu radial MTPrev (2.66)
+
+Navegacao pelos quatro modulos existentes com logo central, submenus radiais, SVGs locais, arraste por Pointer Events e preservacao dos paineis operacionais. Detalhes e limites dos testes em [docs/menu-radial.md](docs/menu-radial.md).
+
+Na versao 2.67, a navegacao radial fica visualmente solta, sem card. O painel operacional aparece somente apos selecionar uma opcao final; Voltar ao menu restaura o submenu.
+
+## Apoio ao POP MTPrev (2.68)
+
+Acompanhamento Especial no topo do menu radial, identificacao separada de destinatarios Estado/MTPrev no Andamento PJe e novas secoes de diagnostico, duplicidade e grupos prioritarios para revisao humana. Somente fluxos SPA do manual fornecido. Detalhes, fontes e limites: [adequacao-pop-mtprev.md](docs/adequacao-pop-mtprev.md).
+
+Na versao 2.69, Duplicados volta a usar somente a logica antiga, com Abrir Duplicados e Relatorio Duplicados compartilhados entre Saude e MTPrev. A conferencia separada de duplicidade MTPrev foi removida.
+
+Na versao 2.70, os paineis apresentam logo MTPrev, titulo da opcao e apenas Voltar no cabecalho. O carregamento de PDFs continua vinculado aos comandos de leitura, nao a abertura do menu.

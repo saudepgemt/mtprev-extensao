@@ -4278,6 +4278,7 @@
     );
     button.type = "button";
     button.addEventListener("click", generateManagementReport);
+    body.dataset.mtprevRadialOption = "Gerar painel gerencial";
     body.appendChild(button);
     body.appendChild(
       createElement(

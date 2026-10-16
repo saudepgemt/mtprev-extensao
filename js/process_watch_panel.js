@@ -44,11 +44,17 @@
     }
     panel.querySelector("[role=status]").textContent = "Lista atualizada.";
   }
-  async function open() {
-    if (panel) { panel.hidden = !panel.hidden; if (!panel.hidden) await render(); return; }
+  function close() {
+    if (panel) panel.hidden = true;
+    window.dispatchEvent(new Event('mtprev-process-watch-closed'));
+  }
+  async function open(forceOpen = false) {
+    if (panel) { if (!forceOpen && !panel.hidden) { close(); return; } panel.hidden = false; await render(); return; }
     panel = element("section", "", document.body); panel.id = "cdsp-process-watch";
-    element("h2", "Acompanhar processos", panel);
-    button("Fechar", panel, () => { panel.hidden = true; });
+    const header = element('div', '', panel); header.className = 'cdsp-watch-header';
+    const logo = element('img', '', header); logo.src = chrome.runtime.getURL('images/logo-mtprev.png'); logo.alt = 'MTPrev';
+    element("h2", "Acompanhamento Especial de Processos", header);
+    button("Voltar", header, close);
     element("p", "PJe/TJMT: consulta a cada 30 minutos enquanto o Chrome estiver aberto. A primeira consulta cria a referência; as seguintes detectam movimentações e alterações de expedientes. Não verifica encerramentos internos do SPA. Lista salva neste perfil do Chrome.", panel);
     const label = element("label", "Número do processo (CNJ)", panel);
     const input = element("input", "", label); input.placeholder = "0000000-00.0000.8.11.0000";
@@ -62,6 +68,7 @@
     element("div", "", panel).className = "cdsp-watch-list";
     await render();
   }
+  window.MTPrevProcessWatch = { open: () => open(true), close };
   function install() {
     const nav = document.querySelector(".cdsp-general-shell__modules");
     if (!nav || document.getElementById("cdsp-watch-open")) return;

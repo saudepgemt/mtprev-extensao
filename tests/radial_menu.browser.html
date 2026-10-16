@@ -1,0 +1,119 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teste integrado da camada radial MTPrev</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css">
+<link rel="stylesheet" href="../css/process_watch.css">
+<style>body{background:#edf1f5}#results{white-space:pre-wrap;margin:8px;font:12px monospace;max-width:650px}</style>
+<pre id="results">Executando…</pre>
+<section id="cdsp-general-shell">
+ <div class="cdsp-general-shell__header"><div class="cdsp-general-shell__title">MTPrev</div><span class="cdsp-general-shell__status">Pronto</span><label class="cdsp-general-shell__memory"><input type="checkbox">Abrir minimizado</label><button class="cdsp-general-shell__toggle">−</button></div>
+ <div class="cdsp-general-shell__modules"></div>
+ <div class="cdsp-general-shell__body"><div data-cdsp-module-pane="triagem"><div class="mtprev-context-nav"></div><p id="operation">Conteúdo operacional preservado</p><input id="preserved" value="estado preservado"></div><div data-cdsp-module-pane="prazos" hidden></div><div data-cdsp-module-pane="gestao" hidden></div><div data-cdsp-module-pane="oficios" hidden></div></div>
+</section>
+<script>
+window.watchFixtureRecords={'00000000020268110001':{number:'00000000020268110001',initialized:true,unread:false,history:[],latest:[]}};
+window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>message.action==='list'?{ok:true,records:window.watchFixtureRecords}:{ok:false,error:'Ato não autorizado no teste'}},storage:{onChanged:{addListener(){}}}};
+</script>
+<script src="../js/process_watch_panel.js"></script>
+<script src="../js/radial_menu.js"></script>
+<script>
+(async () => {
+ const shell = document.querySelector('#cdsp-general-shell');
+ const params = new URLSearchParams(location.search);
+ if(params.has('preview')) document.querySelector('#results').hidden=true;
+ if(params.has('width')) shell.style.width=params.get('width')+'px';
+ const results = [], output = document.querySelector('#results');
+ const wait = () => new Promise(r => setTimeout(r, 420));
+ const assert = (value, name) => { if (!value) throw Error(name); results.push('PASS ' + name); };
+ let selected = '', saved;
+ const modules = [{key:'triagem',title:'Triagem e Protocolo'},{key:'prazos',title:'Redação e Correção'},{key:'gestao',title:'Coordenação'},{key:'oficios',title:'Ofícios'}];
+ for (const title of ['Triagem','Duplicados','Peças','Filtros','Programada','Registro']) {
+  const b = document.createElement('button'); b.textContent = title;
+  b.onclick = () => { selected = title; document.querySelector('#operation').textContent = title; };
+  shell.querySelector('.mtprev-context-nav').append(b);
+ }
+ for(const key of ['prazos','gestao','oficios']) {
+  const section=document.createElement('div');section.dataset.mtprevRadialOption=key==='prazos'?'Fluxo de Correção':key==='gestao'?'Gerar painel gerencial':'Processo';
+  const field=document.createElement('input');field.value='preservado';section.append(field);
+  shell.querySelector(`[data-cdsp-module-pane="${key}"]`).append(section);
+ }
+ const api = { modules, url: p => '../'+p, expand: () => {}, load: key => {shell.querySelectorAll('[data-cdsp-module-pane]').forEach(p=>p.hidden=p.dataset.cdspModulePane!==key);},
+  clamp: (node,left,top) => ({left:Math.min(Math.max(8,left),Math.max(8,innerWidth-node.offsetWidth-8)),top:Math.min(Math.max(8,top),Math.max(8,innerHeight-node.offsetHeight-8))}),
+  save: node => { const r=node.getBoundingClientRect();saved={left:r.left,top:r.top};localStorage.setItem('CDSP_GENERAL_SHELL_POSITION',JSON.stringify(saved)); }
+ };
+ MTPrevRadialMenu(shell,api);
+ const center=shell.querySelector('.mtprev-orbit__center'), ring=shell.querySelector('.mtprev-orbit__ring');
+ // Synthetic pointer events cannot acquire native capture; shim only capture in this fixture.
+ center.setPointerCapture=()=>{};center.hasPointerCapture=()=>false;
+ const pointer=(type,x,y)=>center.dispatchEvent(new PointerEvent(type,{pointerId:1,button:0,clientX:x,clientY:y,bubbles:true}));
+ try {
+  assert(getComputedStyle(shell).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(shell).boxShadow==='none'&&getComputedStyle(shell).borderTopWidth==='0px','wrapper sem fundo, sombra ou borda');
+  assert(getComputedStyle(shell.querySelector('.cdsp-general-shell__header')).display==='none'&&getComputedStyle(shell.querySelector('.mtprev-orbit__tools')).display==='none','recolhido mostra somente o centro');
+  assert(getComputedStyle(shell).pointerEvents==='none'&&getComputedStyle(center).pointerEvents==='auto','áreas vazias deixam passar cliques');
+  center.click();await wait();assert(center.getAttribute('aria-expanded')==='true','1. clique central abre');
+  assert(getComputedStyle(center).borderRadius==='50%','centro circular apesar dos estilos legados');
+  assert(getComputedStyle(ring.children[0]).transitionProperty.includes('transform')||matchMedia('(prefers-reduced-motion: reduce)').matches,'animação inclui transform');
+  assert(ring.children.length===5,'cinco entradas reais no primeiro nível');
+  assert(ring.children[0].textContent.includes('Acompanhamento Especial'),'acompanhamento especial no topo');
+  assert(ring.children[0].getBoundingClientRect().top<center.getBoundingClientRect().top,'acompanhamento ocupa posição superior');
+  if(params.has('preview')&&params.has('root')) { output.dataset.result='pass';return; }
+  const originalWatch=JSON.stringify(window.watchFixtureRecords);
+  ring.children[0].click();await wait();
+  assert(!document.querySelector('#cdsp-process-watch').hidden&&shell.classList.contains('mtprev-radial-external'),'acompanhamento existente abre diretamente, sem submenu');
+  assert(document.activeElement===document.querySelector('#cdsp-process-watch'),'foco acompanha a abertura do acompanhamento');
+  assert(JSON.stringify(window.watchFixtureRecords)===originalWatch,'processos e histórico cadastrados preservados');
+  document.querySelector('#cdsp-process-watch button').click();await wait();
+  assert(ring.children.length===5&&!shell.classList.contains('mtprev-radial-external'),'retorno do acompanhamento ao menu');
+  center.click();await wait();assert(center.getAttribute('aria-expanded')==='false' && ring.inert,'2. segundo clique recolhe e remove interação');
+  let before=shell.getBoundingClientRect();
+  pointer('pointerdown',100,100);pointer('pointermove',120,120);pointer('pointerup',120,120);
+  center.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}));
+  assert(center.getAttribute('aria-expanded')==='false','3. arrastar não abre nem fecha');
+  assert(saved && saved.top>=before.top,'5. soltar mantém posição');
+  assert(JSON.parse(localStorage.getItem('CDSP_GENERAL_SHELL_POSITION')).top===saved.top,'10. posição usa armazenamento persistente');
+  center.click();await wait();
+  const itemBefore=ring.children[0].getBoundingClientRect(), centerBefore=center.getBoundingClientRect();
+  pointer('pointerdown',100,100);pointer('pointermove',100,80);pointer('pointerup',100,80);
+  const itemAfter=ring.children[0].getBoundingClientRect(), centerAfter=center.getBoundingClientRect();
+  assert(Math.abs((itemAfter.top-itemBefore.top)-(centerAfter.top-centerBefore.top))<1,'4. círculos acompanham o centro');
+  assert(center.getAttribute('aria-expanded')==='true','arraste aberto preserva expansão');
+  ring.children[1].click();await wait();await wait();
+  assert(ring.children.length===6,'6 e 7. botão externo seleciona módulo e mostra seis opções reais');
+  const rects=[...ring.children].map(b=>b.getBoundingClientRect());
+  const labels=[...ring.querySelectorAll('.mtprev-orbit__label')].map(b=>b.getBoundingClientRect());
+  const bounds=shell.getBoundingClientRect();
+  assert(labels.every(r=>r.left>=bounds.left&&r.right<=bounds.right),'legendas dentro do widget');
+  assert(rects.every(r=>r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight),'círculos dentro da janela');
+  assert(rects.every((a,i)=>rects.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top)),'círculos não se sobrepõem');
+  if(params.has('preview')&&!params.has('operation')){output.textContent=results.join('\n')+'\nALL PASS preview';return;}
+  ring.children[1].click();await wait();
+  assert(selected==='Duplicados'&&shell.classList.contains('mtprev-radial-operational'),'8. handler original abre painel correto');
+  assert(getComputedStyle(shell.querySelector('.mtprev-orbit')).display==='none','opção final oculta toda a navegação radial');
+  assert(getComputedStyle(shell.querySelector('.cdsp-general-shell__header')).display!=='none','painel operacional preserva cabeçalho');
+  const header=shell.querySelector('.cdsp-general-shell__header');
+  assert(header.querySelector('img')?.alt==='MTPrev'&&header.querySelector('.mtprev-panel-theme').textContent==='Duplicados','cabeçalho com logo e nome da opção selecionada');
+  const headerButtons=[...header.querySelectorAll('button')].filter(node=>getComputedStyle(node).display!=='none');
+  assert(headerButtons.length===1&&headerButtons[0].textContent==='Voltar','cabeçalho tem somente o botão Voltar');
+  assert(getComputedStyle(header.querySelector('.cdsp-general-shell__status')).display==='none'&&getComputedStyle(header.querySelector('.cdsp-general-shell__memory')).display==='none','Pronto e Abrir minimizado ocultos');
+  if(params.has('preview')&&params.has('operation')){output.dataset.result='pass';return;}
+  assert(document.querySelector('#preserved').value==='estado preservado','formulário mantém estado');
+  shell.querySelector('.mtprev-orbit__back').click();await wait();
+  shell.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait();
+  assert(ring.children.length===5,'Escape volta aos módulos');
+  for(const index of [1,2,3]) {
+   ring.children[index+1].click();await wait();await wait();
+   assert(ring.children.length===1,'opções reais do módulo '+modules[index].title);
+   ring.children[0].click();await wait();
+   assert(!shell.querySelector(`[data-cdsp-module-pane="${modules[index].key}"]`).hidden,'painel correto '+modules[index].title);
+   shell.querySelector('.mtprev-orbit__back').click();await wait();shell.querySelector('.mtprev-orbit__tools button').click();await wait();
+  }
+  pointer('pointerdown',100,100);pointer('pointermove',10000,10000);pointer('pointerup',10000,10000);
+  const end=shell.getBoundingClientRect();assert(end.right<=innerWidth+1&&end.bottom<=innerHeight+1,'9. arraste limitado à janela');
+  center.click();await wait();center.click();await wait();
+  const reopened=shell.getBoundingClientRect();assert(reopened.right<=innerWidth+1&&reopened.bottom<=innerHeight+1,'expandir junto à borda mantém widget na janela');
+  assert([...ring.children].every(b=>b.tagName==='BUTTON'&&b.textContent.trim()),'botões semânticos com nomes e ícones locais');
+  MTPrevRadialMenu(shell,api);assert(shell.querySelectorAll('.mtprev-orbit').length===1,'instalação idempotente');
+  output.textContent=results.join('\n')+'\nALL PASS '+innerWidth+'x'+innerHeight;
+  output.dataset.result='pass';
+ } catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message;output.dataset.result='fail';}
+})();
+</script></html>

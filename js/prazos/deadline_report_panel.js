@@ -7480,6 +7480,8 @@
     actions.style.cssText = "display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;";
     actions.appendChild(createButton("Gerar relat\u00f3rio", generateSelectedScreenReport, "primary"));
     actions.appendChild(createAgravoActionGroup());
+    actions.children[0].dataset.mtprevRadialOption = actions.children[0].textContent.trim();
+    actions.children[1].dataset.mtprevRadialOption = "Cadastrar Agravo";
 
     const logBox = document.createElement("div");
     logBox.id = "spa-cdsp-deadline-log";
@@ -7515,8 +7517,12 @@
     header.appendChild(toggleButton);
 
     content.appendChild(actions);
-    content.appendChild(createCorrectionFlowSection());
-    content.appendChild(createSimpleClosureSection());
+    const correctionSection = createCorrectionFlowSection();
+    correctionSection.dataset.mtprevRadialOption = "Fluxo de Correção";
+    content.appendChild(correctionSection);
+    const closureSection = createSimpleClosureSection();
+    closureSection.dataset.mtprevRadialOption = "Simples Encerramento";
+    content.appendChild(closureSection);
     content.appendChild(logBox);
 
     panel.appendChild(header);

@@ -1,5 +1,7 @@
 "use strict";
 
+importScripts("shared/mtprev_triage_rules.js");
+
 // Imported after initialization below so the watcher can reuse the PJe query.
 
 let pdfJsLoadError = "";
@@ -597,7 +599,10 @@ function normalizeMcpExpedientes(payload) {
 
       return {
         id: pickValue(expediente.id, expedienteInfo.id),
-        party: expediente.party || null,
+        party: typeof expediente.party === "object" && expediente.party ? (expediente.party.name || expediente.party.nome || expediente.party.label || "") : expediente.party || null,
+        partyId: expediente.partyId || (expediente.party && typeof expediente.party === "object" ? expediente.party.id || expediente.party.cnpj : null) || null,
+        recipientName: expediente.recipientName || (expediente.recipient && typeof expediente.recipient === "object" ? expediente.recipient.name || expediente.recipient.nome : expediente.recipient) || null,
+        recipientId: expediente.recipientId || (expediente.recipient && typeof expediente.recipient === "object" ? expediente.recipient.id || expediente.recipient.cnpj : null) || null,
         procuradoria: expediente.procuradoria || null,
         responseId: expediente.responseId || null,
         documentId: pickValue(expediente.documentId, expedienteInfo.documentId),
@@ -2595,6 +2600,8 @@ async function fingerprintDuplicateReportRecord(record) {
     textLength,
     byteLength,
     expedienteCount: urls.length,
+    complete: pieces.length === urls.length,
+    readErrors: errors,
     error: ""
   };
 }
@@ -3589,6 +3596,9 @@ async function classifyPieceRecords(message) {
         id: record && record.id ? record.id : "",
         ok: true,
         classification,
+        popSupport: record && record.popSupport ? MTPrevTriageRules.diagnose(record, reliableText ? text : "") : undefined,
+        popReadReliable: record && record.popSupport ? reliableText : undefined,
+        popReadComplete: record && record.popSupport ? diagnosticsItems.length === expedienteUrls.length && diagnosticsItems.every((item) => item.downloadedLength >= 80 && !item.weak) : undefined,
         diagnostics: diagnosticsItems,
         textLength: text.length
       });
@@ -5099,7 +5109,7 @@ async function injectPanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
 

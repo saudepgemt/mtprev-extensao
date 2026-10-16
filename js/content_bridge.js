@@ -248,16 +248,17 @@
 
     handle.addEventListener("pointermove", (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
-      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 6) {
         handle.dataset.mtprevDragged = '1';
       }
+      if (handle.dataset.mtprevDragged !== '1') return;
       const position = clampPosition(
         shell,
         drag.left + event.clientX - drag.startX,
         drag.top + event.clientY - drag.startY
       );
-      shell.style.left = position.left + "px";
-      shell.style.top = position.top + "px";
+      shell.style.transform = `translate3d(${position.left - drag.left}px,${position.top - drag.top}px,0)`;
+      drag.position = position;
     });
 
     function finish(event) {
@@ -266,6 +267,11 @@
         handle.releasePointerCapture(event.pointerId);
       } catch (_error) {
         // Captura ja liberada.
+      }
+      shell.style.transform = '';
+      if (drag.position) {
+        shell.style.left = drag.position.left + 'px';
+        shell.style.top = drag.position.top + 'px';
       }
       drag = null;
       savePosition(shell);
@@ -763,6 +769,16 @@
       ensureModuleLoaded(lastActive);
     }
 
+    if (window.MTPrevRadialMenu) window.MTPrevRadialMenu(shell, {
+      modules: MODULES,
+      load: ensureModuleLoaded,
+      url: safeResourceUrl,
+      clamp: clampPosition,
+      save: savePosition,
+      expand: () => setShellCollapsed(shell, false)
+    });
+    // Restore again with the final compact dimensions, especially near the bottom edge.
+    applySavedPosition(shell);
     installRootToolsWatcher();
   }
 

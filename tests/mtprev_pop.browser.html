@@ -1,0 +1,54 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Testes de apoio ao POP MTPrev</title>
+<pre id="results">Executando…</pre><div id="fixture"></div>
+<script src="../js/shared/mtprev_triage_rules.js"></script><script src="../js/triagem/mtprev_pop_panel.js"></script>
+<script>
+(async()=>{
+ const output=document.querySelector('#results'), results=[];
+ const assert=(value,name)=>{if(!value)throw Error(name);results.push('PASS '+name);};
+ const R=MTPrevTriageRules;
+ try {
+  assert(R.recipient({party:'Estado de Mato Grosso'}).kind==='estado','Estado reconhecido');
+  assert(R.recipient({party:'Fundação Mato Grosso Previdência'}).kind==='mtprev','Fundação reconhecida com acentos');
+  assert(R.recipient({party:'MTPrev',procuradoria:'Procuradoria Geral do Estado de Mato Grosso'}).kind==='mtprev','PGE não substitui destinatário Fundação');
+  assert(R.recipient({party:'Maria',procuradoria:'Procuradoria Geral do Estado de Mato Grosso'}).kind==='unknown','PGE não transforma terceiro em Estado');
+  assert(R.recipient({procuradoria:'Estado de Mato Grosso'}).kind==='unknown','Procuradoria isolada não determina destinatário');
+  assert(R.recipient({recipient:{id:'known',name:'Alias autorizado'}},{recipientIds:{mtprev:['known']}}).kind==='mtprev','identificador estruturado configurado');
+  assert(R.recipient({recipientId:'known',party:'Estado de Mato Grosso'},{recipientIds:{mtprev:['known']}}).kind==='unknown','conflito identificador/nome exige conferência');
+  assert(R.recipient({party:'Instituto que não é MTPrev'}).kind==='unknown','substring MTPrev não identifica parte');
+  let d=R.diagnose({assunto:'Revisão de aposentadoria',party:'Estado de Mato Grosso'});
+  assert(d.competence==='Competência provável da MTPrev','tema previdenciário sem Fundação como parte');
+  assert(d.requiresHumanReview&&d.suggestedPiece.includes('conferência'),'sugestão não determina peça nem dispensa revisão');
+  assert(R.diagnose({manifestationSuggested:'Contestação'}).suggestedPiece.includes('Informada no SPA: Contestação'),'peça previamente sugerida pelo SPA mantém fonte explícita');
+  assert(R.diagnose({assunto:'Abono de permanência'}).competence==='Competência que exige conferência','exceção abono de permanência');
+  assert(R.diagnose({actionClass:'Mandado de segurança',processParties:'MTPrev e outra autoridade'}).competence==='Competência que exige conferência','mandado de segurança exige conferência do ato e autoridade');
+  assert(R.diagnose({}).competence==='Não identificada pelos critérios disponíveis','dados ausentes não geram competência');
+  assert(R.diagnose({}).procedure==='Não identificado','procedimento ausente não inventado');
+  assert(R.diagnose({party:'MTPrev',assunto:'RPV'}).competence==='Competência que exige conferência','orientação de redistribuição SPA do manual exige conferência');
+  assert(R.diagnose({actionClass:'Cumprimento de sentença coletiva'}).manualChecks.some(item=>item.source.includes('38 e 44')),'fluxo SPA de sentença coletiva documentado sem redistribuir');
+  assert(R.diagnose({actionClass:'Cumprimento de sentença'}).manualChecks.some(item=>item.instruction.includes('Comunicação Interna')),'manual SPA orienta conferência de tarefas e CI sem criar atos');
+  for(const name of ['Procedimento comum','Juizado Especial','Mandado de segurança','Cumprimento de sentença','Execução','Incidentes']) assert(R.diagnose({actionClass:name}).procedure===name,'categoria POP '+name);
+  assert(R.diagnose({actionClass:'Juizado Especial',lastProgress:'Cumprimento de sentença'}).procedure==='Juizado Especial','classe estruturada prevalece sobre histórico');
+  const historic=R.diagnose({},'No ano anterior houve impugnação ao cumprimento de sentença. A pauta de julgamento foi mencionada em histórico. Esta ação civil pública está encerrada.');
+  assert(historic.priorities.length===3&&historic.priorities.every(p=>p.status==='Necessita conferência'),'menções históricas não são classificações definitivas');
+  const long=R.diagnose({},'x'.repeat(800)+' impugnação ao cumprimento de sentença ');
+  assert(long.priorities[0].sample.includes('impugnacao'),'evidência documental contém expressão encontrada');
+  const a={id:'a',rowKey:'p1',processNumber:'0000000-00.2026.8.11.0001',expedienteId:'1',party:'MTPrev',relevantDate:'15/10/2026',dateSource:'Data da intimação (SPA)',documentIds:['doc1'],pjeDeadline:'20/10/2026',expedientes:[{url:'https://spa.pge.mt.gov.br/document/1',label:'Expediente 1'}]};
+  const b={...a,id:'b',rowKey:'p2',expedienteId:'2',documentIds:['doc1']};
+  const fixture=document.querySelector('#fixture');let reads=0;
+  const api={getRecords:()=>[a,b],readDocuments:async()=>{reads++;return{ok:true,results:[]};}};
+  const panel=MTPrevPopPanel.create(api);fixture.append(panel);panel.open=true;
+  panel.querySelector('button').click();await new Promise(r=>setTimeout(r,0));
+  assert(panel.textContent.includes('Diagnóstico da Triagem')&&panel.querySelectorAll('article').length===2,'diagnóstico renderiza dados e fontes');
+  assert(reads===0,'gerar diagnóstico não consulta documentos sem escolha explícita');
+  assert(panel.textContent.includes('20/10/2026'),'prazo oficial mantido sem recalcular');
+  const review=panel.querySelector('article select');review.value='Conferido — corrigir indicação';review.dispatchEvent(new Event('change'));
+  assert(Object.keys(JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS'))).length>=1,'revisão humana salva separadamente, sem ato no SPA');
+  panel.querySelector('select').value='saude';panel.querySelector('button').click();await new Promise(r=>setTimeout(r,0));
+  assert(panel.querySelector('[role=status]').textContent.includes('Selecione MTPrev'),'regras de apoio isoladas por unidade');
+  const priorities=MTPrevPopPanel.create({...api,getRecords:()=>[{...a,assunto:'Ação civil pública'},{...b,assunto:'Procedimento comum'}]},'priorities');fixture.append(priorities);
+  priorities.querySelectorAll('select')[1].value='coletivas';priorities.querySelector('button').click();await new Promise(r=>setTimeout(r,0));
+  assert(priorities.querySelectorAll('article').length===1&&priorities.textContent.includes('Necessita conferência'),'filtro de grupos prioritários preserva caráter sugestivo');
+  output.textContent=results.join('\n')+'\nALL PASS POP';output.dataset.result='pass';
+ }catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.stack;output.dataset.result='fail';}
+})();
+</script></html>

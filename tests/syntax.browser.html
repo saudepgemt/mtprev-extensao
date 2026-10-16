@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>Verificação de sintaxe dos scripts integrais</title><pre id="results">Executando…</pre>
+<script>
+window.syntaxErrors=[];
+window.addEventListener('error',event=>{if(event.error instanceof SyntaxError)syntaxErrors.push(event.message+' '+event.filename+':'+event.lineno);});
+window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED=true;
+window.importScripts=()=>{};
+window.chrome={runtime:{onMessage:{addListener(){}},onStartup:{addListener(){}},onInstalled:{addListener(){}},getURL:()=>''},action:{onClicked:{addListener(){}}}};
+</script>
+<script src="../js/shared/mtprev_triage_rules.js"></script>
+<script src="../js/triagem/mtprev_pop_panel.js"></script>
+<script src="../js/triagem/spa_extension_panel.js"></script>
+<script src="../js/background.js"></script>
+<script>
+const output=document.querySelector('#results');
+output.textContent=syntaxErrors.length?'FAIL '+syntaxErrors.join('\n'):'ALL PASS: scripts integrais analisados pelo parser do Chrome; SPA não inicializado, APIs simuladas.';
+output.dataset.result=syntaxErrors.length?'fail':'pass';
+</script>
