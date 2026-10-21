@@ -34,8 +34,8 @@
   const TEMPO_FLUXO_ASSINATURA_MS = 1000 * 60 * 15;
   const TEMPO_FLUXO_FINALIZACAO_MS = 1000 * 60 * 60 * 8;
 
-  const URL_PROCESSO = /spa\.pge\.mt\.gov\.br\/procedures\/\d+\/?(?:[?#].*)?$/;
-  const URL_FOLDER = /spa\.pge\.mt\.gov\.br\/procedures\/\d+\/folder\/?(?:[?#].*)?$/;
+  const URL_PROCESSO = /(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br)\/procedures\/\d+\/?(?:[?#].*)?$/;
+  const URL_FOLDER = /(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br)\/procedures\/\d+\/folder\/?(?:[?#].*)?$/;
   const HOST_SIGADOC = /(^|\.)sigadoc\.mt\.gov\.br$/;
 
   const ASSUNTOS_SAUDE_PJE = Object.freeze({
@@ -1093,10 +1093,10 @@
   async function salvarExpedienteInternoDoSpa(pacote) {
     if (!pacote || pacote.expedienteArquivoId) return pacote && pacote.expedienteArquivoId;
     let url = String(pacote.linkExpedienteSpa || '');
-    if (!/^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
+    if (!/^https:\/\/(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br)\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
       url = await localizarPdfExpedienteParaAnexo(pacote);
     }
-    if (!/^https:\/\/spa\.pge\.mt\.gov\.br\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
+    if (!/^https:\/\/(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br)\/coresigner\/info\/[^/]+\.pdf(?:[?#].*)?$/i.test(url)) {
       const erro = new Error('Não foi possível identificar com segurança o PDF do expediente nas páginas consultadas. Verifique o documento e o ID do expediente no SPA.');
       erro.code = 'EXPEDIENTE_LINK_NOT_FOUND';
       throw erro;
@@ -1312,7 +1312,7 @@
     })();
     const idAtual = (pathname.match(/\/procedures\/(\d+)/) || [])[1];
     const processoJudicial = normalizarTexto(campos && campos.processo);
-    const links = Array.from(raiz.querySelectorAll('a[href^="/procedures/"], a[href^="https://spa.pge.mt.gov.br/procedures/"]'));
+    const links = Array.from(raiz.querySelectorAll('a[href^="/procedures/"], a[href^="https://spa.pge.mt.gov.br/procedures/"], a[href^="https://pge.mt.spa.coreplan.com.br/procedures/"]'));
 
     const linkPorNumero = links.find((link) => {
       const href = link.getAttribute('href') || '';
@@ -1346,7 +1346,7 @@
     const adicionar = (valor, contexto = '') => {
       try {
         const url = new URL(String(valor || '').replace(/&amp;/g, '&'), baseUrl);
-        if (url.origin !== 'https://spa.pge.mt.gov.br' ||
+        if (!['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br'].includes(url.origin) ||
             !/^\/coresigner\/info\/[^/]+\.pdf$/i.test(url.pathname)) return;
         const corresponde = contemId(contexto) || contemId(decodeURIComponent(url.pathname));
         candidatos.set(url.href, Boolean(candidatos.get(url.href) || corresponde));
@@ -1528,7 +1528,7 @@
 
     try {
       const url = new URL(bruto, window.location.href);
-      if (url.hostname !== 'spa.pge.mt.gov.br') return '';
+      if (!['spa.pge.mt.gov.br', 'pge.mt.spa.coreplan.com.br'].includes(url.hostname) || url.protocol !== 'https:') return '';
       if (!/^\/procedures\/\d+(?:\/folder)?\/?$/i.test(url.pathname)) return '';
       return url.href;
     } catch (_erro) {
@@ -1543,7 +1543,7 @@
     const direto = normalizarUrlProcessoSpa(texto);
     if (direto) lista.push(direto);
 
-    const encontrados = texto.match(/(?:https?:\/\/spa\.pge\.mt\.gov\.br)?\/procedures\/\d+(?:\/folder)?\/?(?:[?#][^\s"'<>)]*)?/gi) || [];
+    const encontrados = texto.match(/(?:https?:\/\/(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br))?\/procedures\/\d+(?:\/folder)?\/?(?:[?#][^\s"'<>)]*)?/gi) || [];
     encontrados.forEach((url) => {
       const normalizado = normalizarUrlProcessoSpa(url);
       if (normalizado) lista.push(normalizado);
@@ -5588,7 +5588,7 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  if (window.location.hostname === 'spa.pge.mt.gov.br') {
+  if (['spa.pge.mt.gov.br', 'pge.mt.spa.coreplan.com.br'].includes(window.location.hostname)) {
     inicializarSpa();
   } else if (HOST_SIGADOC.test(window.location.hostname)) {
     inicializarSigadoc();

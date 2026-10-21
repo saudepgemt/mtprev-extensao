@@ -62,7 +62,7 @@
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (message?.type !== "CDSP_PROCESS_WATCH") return false;
-    if (!sender.tab?.url?.startsWith("https://spa.pge.mt.gov.br/")) { reply({ ok: false, error: "Origem não permitida." }); return false; }
+    if (!normalizeAllowedUrl(sender.tab?.url)) { reply({ ok: false, error: "Origem não permitida." }); return false; }
     serial(() => handle(message)).then(reply, (error) => reply({ ok: false, error: error.message }));
     return true;
   });

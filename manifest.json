@@ -1,12 +1,23 @@
+
 {
   "manifest_version": 3,
-  "name": "CDSP - Extensão Geral",
-  "version": "2.0.70",
-  "version_name": "2.70",
-  "description": "Menu CDSP no SPA com relatorios, fluxo de correcao, autos, oficios e duplicados por PDF.",
-  "permissions": ["scripting", "offscreen", "alarms", "storage", "clipboardWrite", "downloads", "unlimitedStorage", "notifications"],
+  "name": "MTPrev - Extensão Geral",
+  "version": "2.0.71",
+  "version_name": "2.71",
+  "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
+  "permissions": [
+    "scripting",
+    "offscreen",
+    "alarms",
+    "storage",
+    "clipboardWrite",
+    "downloads",
+    "unlimitedStorage",
+    "notifications"
+  ],
   "host_permissions": [
     "https://spa.pge.mt.gov.br/*",
+    "https://pge.mt.spa.coreplan.com.br/*",
     "https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/*",
     "https://pje.tjmt.jus.br/*",
     "https://pje2.tjmt.jus.br/*",
@@ -18,14 +29,21 @@
     "service_worker": "js/background.js"
   },
   "icons": {
-    "16": "images/icon-mtprev16.png",
+    "16": "images/icon-mtprev48.png",
     "48": "images/icon-mtprev48.png",
     "128": "images/icon-mtprev128.png"
   },
   "content_scripts": [
     {
-      "matches": ["https://spa.pge.mt.gov.br/*"],
+      "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ],
       "js": [
+        "js/shared/spa_selectors.js",
+        "js/shared/spa_adapter.js",
+        "js/spa_inspector.js",
+        "js/drawer.js",
         "js/radial_menu.js",
         "js/content_bridge.js",
         "js/process_watch_panel.js",
@@ -35,7 +53,8 @@
         "css/extrator.css",
         "css/menu.css",
         "css/radial_menu.css",
-        "css/process_watch.css"
+        "css/process_watch.css",
+        "css/drawer.css"
       ],
       "run_at": "document_idle"
     },
@@ -55,16 +74,25 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["images/logo-mtprev.png", "images/icon-mtprev128.png", "images/material-rounded/*.svg", "data/equipe.xlsx"],
-      "matches": ["https://spa.pge.mt.gov.br/*"]
+      "resources": [
+        "images/logo-mtprev.png",
+        "images/icon-mtprev128.png",
+        "images/material-rounded/*.svg",
+        "data/equipe.xlsx"
+      ],
+      "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ]
     }
   ],
   "action": {
-    "default_title": "CDSP - Extensão Geral",
+    "default_title": "MTPrev - Extensão Geral",
     "default_icon": {
-      "16": "images/icon-mtprev16.png",
+      "16": "images/icon-mtprev48.png",
       "48": "images/icon-mtprev48.png",
       "128": "images/icon-mtprev128.png"
     }
   }
 }
+  

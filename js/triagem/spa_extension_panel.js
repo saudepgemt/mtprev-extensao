@@ -7380,6 +7380,9 @@
 
         const info = rowInfo(row);
         const record = scienceRecordFromRow(row, processItem.key, label);
+        if (manualScienceConfirmation && rowHasScienceButton(row) && !(await window.SpaAdapter.actions.confirm('Dar Ciência', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
+          state.stopped = true; break;
+        }
         const ok = activateScience(row);
         if (ok) {
           processTotal += 1;
@@ -7439,6 +7442,9 @@
           }
 
           const record = scienceRecordFromRow(row, processItem.key, processItem.label);
+          if (manualScienceConfirmation && rowHasScienceButton(row) && !(await window.SpaAdapter.actions.confirm('Dar Ciência — lote preparado', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
+            state.stopped = true; break;
+          }
           const ok = activateScience(row);
           if (ok) {
             processTotal += 1;
@@ -7468,8 +7474,10 @@
     return total;
   }
 
-  async function takeScienceAllPages(limit) {
+  let manualScienceConfirmation = false;
+  async function takeScienceAllPages(limit, options = {}) {
     guardStart();
+    manualScienceConfirmation = Boolean(options.confirm);
     try {
       limit = normalizeLimit(limit);
       logActionLimit(limit);
@@ -7509,11 +7517,12 @@
       }
 
       log("Fase de ciencia concluida. Numeros de processo acionados: " + total + ".", "ok");
-      setStatus("Ciencias concluidas: " + total);
+      setStatus(state.stopped ? "Ciência interrompida; confira o resultado no SPA" : "Ciencias concluidas: " + total);
     } catch (error) {
       log("Erro na fase de ciencia: " + error.message, "error");
       setStatus("Erro na fase de ciencia");
     } finally {
+      manualScienceConfirmation = false;
       state.running = false;
     }
   }
@@ -8228,7 +8237,7 @@
       .trim();
     if (!text) return "";
 
-    const spaUrl = text.match(/https?:\/\/spa\.pge\.mt\.gov\.br\/[^\s"'<>\\)]+/i);
+    const spaUrl = text.match(/https?:\/\/(?:spa\.pge\.mt\.gov\.br|pge\.mt\.spa\.coreplan\.com\.br)\/[^\s"'<>\\)]+/i);
     if (spaUrl) return resolveUrl(spaUrl[0]);
 
     const coresigner = text.match(/\/coresigner\/info\/[^\s"'<>\\)]+\.pdf/i);
@@ -9634,7 +9643,7 @@
 
     if (blocked) {
       log(
-        "Algumas abas foram bloqueadas. Autorize pop-ups para spa.pge.mt.gov.br e rode novamente.",
+        "Algumas abas foram bloqueadas. Autorize pop-ups para este SPA e rode novamente.",
         "error"
       );
     }
@@ -9820,6 +9829,8 @@
   }
 
   function isSpaCdspDarkMode() {
+    const selectedTheme = document.querySelector('#cdsp-general-shell')?.dataset.theme;
+    if (selectedTheme) return selectedTheme === 'dark';
     return Boolean(
       document.documentElement &&
         document.documentElement.classList &&
@@ -9853,11 +9864,11 @@
         warningBg: "var(--cdsp-warning-bg,#3a2e19)",
         warningText: "var(--cdsp-text,#f4f8ff)",
         danger: "#ffb4b4",
-        selectBg: "#f8fbff",
-        selectText: "#10243a",
+        selectBg: "#1f2d3a",
+        selectText: "#f1f5f9",
         selectBorder: "#7aa7ff",
-        selectOptionBg: "#ffffff",
-        selectOptionText: "#10243a",
+        selectOptionBg: "#1f2d3a",
+        selectOptionText: "#f1f5f9",
         shadow: "0 22px 70px rgba(0,0,0,.58)",
         rowShadow: "0 1px 4px rgba(0,0,0,.25)",
       };
@@ -10428,9 +10439,47 @@
     };
   }
 
+  function setDuplicateLoading(loading, message) {
+    document.querySelectorAll('.mtprev-duplicates-loading').forEach(node => {
+      node.hidden = !loading;
+      node.textContent = message || 'Carregando duplicados…';
+    });
+    document.querySelector('.mtprev-duplicates-page')?.setAttribute('aria-busy', String(loading));
+  }
+
   async function buildDuplicateReport(includeValidated) {
     guardStart();
     try {
+      setDuplicateLoading(true, 'Gerando relatório de duplicados…');
+      if (window.SpaAdapter?.locate('workspace','list').nodes.length) {
+        const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total}) => {
+          if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
+          setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
+        }});
+        const grouped = new Map(); let skippedSes=0;
+        for(const item of collection.records) {
+          if(!item.processNumber || !item.expedienteId)continue;
+          if(isDuplicateReportSesProcessText([item.assunto,item.lastProgress,item.actionClass,...item.labels].join(' '))){skippedSes++;continue;}
+          if(isDuplicateReportExcludedLastProgress(item.lastProgress))continue;
+          const key=item.processNumber.replace(/\D/g,'');
+          if(!key)continue;
+          let group=grouped.get(key);
+          if(!group){group={key,processNumber:item.processNumber,label:item.processNumber,records:[],duplicateCount:0};grouped.set(key,group);}
+          if(group.records.some(record=>record.expedienteId===item.expedienteId))continue;
+          group.records.push(Object.assign({},item,{validated:false,distributionDate:normalizeDateOnly(item.distributionDate)}));
+          group.duplicateCount=group.records.length;
+        }
+        const final=finalizeDuplicateReportGroups(grouped,Boolean(includeValidated));
+        showDuplicateReport(Object.assign(final,{includeValidated:Boolean(includeValidated),generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection}));
+        setStatus(collection.reason==='complete'?'Relatorio pronto':'Relatorio parcial');
+        return;
+      }
+      if (window.SpaAdapter?.route().kind === 'workspace' && !window.SpaAdapter.locate('triagem','list').nodes.length) {
+        const previews = window.SpaAdapter.workspacePreviewRecords();
+        throw new Error(previews.length
+          ? 'Identificado o painel de detalhes de ' + previews.length + ' processo(s), mas a lista da caixa e os expedientes relacionados ainda não estão mapeados. Abra Expedientes nos detalhes e envie o HTML dos itens carregados e dos cards da lista principal.'
+          : 'A lista do workspace ainda não está mapeada. Envie o HTML de dois cards da lista principal e do contêiner para conectar o relatório.');
+      }
       includeValidated = Boolean(includeValidated);
       setStatus("Gerando relatorio...");
       log("Gerando relatorio de duplicados" + (includeValidated ? " com conferidos." : "."));
@@ -10481,6 +10530,7 @@
       log("Erro no relatorio de duplicados: " + error.message, "error");
       setStatus("Erro no relatorio");
     } finally {
+      setDuplicateLoading(false);
       state.running = false;
     }
   }
@@ -10695,6 +10745,7 @@
       theme.overlayBg +
       ";" +
       "display:flex;align-items:center;justify-content:center;padding:22px;font-family:Arial,sans-serif;";
+    overlay.style.colorScheme = isSpaCdspDarkMode() ? 'dark' : 'light';
 
     const modal = document.createElement("div");
     modal.style.cssText =
@@ -10706,6 +10757,12 @@
       ";border-radius:10px;box-shadow:" +
       theme.shadow +
       ";";
+
+    const loading = document.createElement('div');
+    loading.className = 'mtprev-duplicates-loading';
+    loading.hidden = true;
+    loading.setAttribute('role', 'status');
+    modal.appendChild(loading);
 
     const header = document.createElement("div");
     header.style.cssText =
@@ -10753,6 +10810,12 @@
 
     const body = document.createElement("div");
     body.style.cssText = "padding:16px;";
+
+    if(report.workspace){
+      const scope=document.createElement('p');scope.setAttribute('role','status');
+      scope.textContent=`Workspace: ${report.coverage.records.length} de ${report.coverage.total ?? '?'} cards lidos. `+(report.coverage.reason==='complete'?'Lista carregada conforme o contador do SPA. ':'Leitura parcial: o carregamento parou ou atingiu o limite de tempo. ')+ 'Comparação por número de processo e ID do expediente dos cards; expedientes dos relacionamentos e marcadores não carregados não foram conferidos.';
+      body.appendChild(scope);
+    }
 
     const summary = duplicateReportSummary(report);
     const summaryRow = document.createElement("div");
@@ -11063,6 +11126,11 @@
 
     modal.appendChild(header);
     modal.appendChild(body);
+    if(report.workspace)modal.querySelectorAll('button').forEach(button=>{
+      if(/validar|conferido$|sugerir encerramento|encerrar/i.test(button.textContent) && !/^abrir/i.test(button.textContent)){
+        button.disabled=true;button.title='Ação ainda não mapeada para os cards do workspace.';
+      }
+    });
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
   }
@@ -12101,7 +12169,7 @@
 
     if (blocked) {
       log(
-        "Algumas abas foram bloqueadas. Autorize pop-ups para spa.pge.mt.gov.br e rode novamente.",
+        "Algumas abas foram bloqueadas. Autorize pop-ups para este SPA e rode novamente.",
         "error"
       );
     }
@@ -12173,6 +12241,7 @@
   async function openDuplicateTabsAllPages(limit) {
     guardStart();
     try {
+      setDuplicateLoading(true, 'Abrindo duplicados…');
       limit = normalizeLimit(limit);
       logActionLimit(limit);
       logCustomFilters();
@@ -12215,6 +12284,7 @@
       log("Erro na fase de duplicados: " + error.message, "error");
       setStatus("Erro nos duplicados");
     } finally {
+      setDuplicateLoading(false);
       state.running = false;
     }
   }
@@ -12834,8 +12904,11 @@
     return button;
   }
 
+  let triageWorkspace = null;
   function mtprevPopRecords() {
-    const records = rows().map((row, index) => {
+    let visibleRows;
+    try { visibleRows = rows(); } catch (_) { return window.SpaAdapter ? window.SpaAdapter.records() : []; }
+    const records = visibleRows.map((row, index) => {
       const record = pieceReportRecord(row, index + 1, 1);
       const noticeDate = rowColumnText(row, ["data da intimacao", "data da intimação", "data de intimacao", "data de intimação"]);
       const awareDate = rowColumnText(row, ["data da ciencia", "data da ciência", "data de ciencia", "data de ciência"]);
@@ -12851,6 +12924,8 @@
         relevantDate: noticeDate || awareDate,
         dateSource: noticeDate ? "Data da intimação (SPA)" : awareDate ? "Data da ciência (SPA)" : "",
         documentIds: documentId ? [documentId] : [],
+        origin: rowColumnText(row, ["origem", "tribunal"]),
+        status: rowColumnText(row, ["situacao", "situação", "status"]),
         metadataSource: "Colunas visíveis do SPA; não confundir distribuição com intimação"
       });
     });
@@ -12868,9 +12943,10 @@
         pendencyUrl: location.href, expedientes: item ? [{ url: getExternalDocumentOpenUrl(item), label: "Expediente atual" }] : [], expedienteCount: item ? 1 : 0
       });
     }
+    if (!records.length && window.SpaAdapter) return window.SpaAdapter.records();
     const unique = new Map();
     records.forEach((record) => {
-      const key = record.rowKey || (record.expedienteId && record.expedienteId !== "Sem ID" ? record.processNumber + "|" + record.expedienteId : record.id);
+      const key = record.expedienteId && record.expedienteId !== "Sem ID" ? record.processNumber + "|" + record.expedienteId : record.pendencyUrl || record.rowKey || record.id;
       if (!unique.has(key)) unique.set(key, record);
     });
     return Array.from(unique.values());
@@ -12878,9 +12954,16 @@
 
   function createMtprevPopSupport(mode) {
     return window.MTPrevPopPanel.create({
-      getRecords: mtprevPopRecords,
+      getRecords: () => triageWorkspace ? triageWorkspace.selectedRecords() : mtprevPopRecords(),
       readDocuments: (records) => classifyPieceRecordsThroughExtension(records.map((record) => Object.assign({}, record, pieceReportBackgroundPayload(record), { popSupport: true })))
     }, mode);
+  }
+
+  async function confirmCurrentTriageAction(operation, details = []) {
+    if (!window.SpaAdapter) throw new Error('Recarregue a aba para habilitar a confirmação da operação.');
+    const procedureId = currentProcedureId();
+    if (!procedureId) throw new Error('Pendência não identificada. Nenhum ato foi autorizado.');
+    return window.SpaAdapter.actions.confirm(operation, [{ processNumber: readCurrentProcedureProcessNumber(), expedienteId: readProcedureHeaderValue('ID do Expediente') || procedureId }], () => currentProcedureId() === procedureId, details);
   }
 
   function createModuleTabs(tabs) {
@@ -12890,6 +12973,7 @@
       "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:8px 0 7px;";
 
     const pages = document.createElement("div");
+    pages.className = 'mtprev-context-pages';
     pages.style.cssText =
       "border:1px solid #344253;background:#101820;border-radius:7px;padding:7px;min-height:120px;";
 
@@ -12897,6 +12981,7 @@
     const activeId = storageGet("SPA_CDSP_ACTIVE_MODULE", tabs[0] ? tabs[0].id : "");
 
     function activate(id) {
+      pages.dataset.activeTab = id || (tabs[0] && tabs[0].id) || '';
       tabs.forEach((tab, index) => {
         const active = tab.id === id || (!id && index === 0);
         tab.page.style.display = active ? "" : "none";
@@ -13089,7 +13174,7 @@
 
     const help = document.createElement("div");
     help.textContent =
-      "Quantidade vazia ou 0 processa tudo. Com lote ativo, as acoes seguem a lista preparada. Depois das ciencias, use Atualizar lista.";
+      "Sem limite por padrão. Informe uma quantidade para limitar as ações. Com lote ativo, as ações seguem a lista preparada. Depois das ciências, use Atualizar lista.";
     help.style.cssText = "font-size:11px;color:#b0bec5;margin:0 0 8px 0;line-height:1.35;";
 
     const logBox = document.createElement("div");
@@ -13105,7 +13190,7 @@
     const triagemPage = document.createElement("div");
     triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
     const triagemButtons = createButtonGrid();
-    triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit()), "teal"));
+    triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
     appendFullWidthButton(
       triagemButtons,
@@ -13116,6 +13201,12 @@
     triagemPage.appendChild(triagemButtons);
 
     const duplicadosPage = document.createElement("div");
+    duplicadosPage.className = 'mtprev-duplicates-page';
+    const duplicateLoading = document.createElement('div');
+    duplicateLoading.className = 'mtprev-duplicates-loading';
+    duplicateLoading.hidden = true;
+    duplicateLoading.setAttribute('role', 'status');
+    duplicadosPage.appendChild(duplicateLoading);
     const duplicadosButtons = createButtonGrid();
     appendFullWidthButton(
       duplicadosButtons,
@@ -13198,6 +13289,11 @@
     panel.appendChild(header);
     content.appendChild(createHealthLogo());
     content.appendChild(moduleTabs.nav);
+    if (window.MTPrevTriageWorkspace) {
+      triageWorkspace?.dispose();
+      triageWorkspace = window.MTPrevTriageWorkspace.create({ getRecords: mtprevPopRecords });
+      content.appendChild(triageWorkspace.root);
+    }
     content.appendChild(createDateControls());
     content.appendChild(createLimitControls());
     content.appendChild(createActiveFiltersSummary());
@@ -13304,7 +13400,7 @@
     input.type = "number";
     input.min = "0";
     input.step = "1";
-    input.placeholder = "0 = tudo";
+    input.placeholder = "Sem limite";
     input.value = storageGet("SPA_CDSP_LIMIT", "");
     input.style.cssText =
       "height:28px;border:0;border-radius:4px;padding:4px 6px;font-size:12px;flex:1;";
@@ -13533,6 +13629,7 @@
       if (!canClassify() || state.running) return;
       try {
         state.running = true;
+        if (!(await confirmCurrentTriageAction('Classificar processo e designar responsável', [['Manifestação', flowState.manifestation], ['Assessor', flowState.assessor], ['Gerar ofício', flowState.hasOffice === 'yes' ? 'Sim' : 'Não']]))) { state.running = false; return; }
         await beginTriageClassification({
           additionalInfo: flowState.additionalInfo,
           manifestation: flowState.manifestation,
@@ -13615,6 +13712,7 @@
       if (state.running) return;
       try {
         state.running = true;
+        if (!(await confirmCurrentTriageAction("Sugerir encerramento de tarefa", [['Motivo', closureReason.value() || 'Outros'], ['Observação', closureObservation.value]]))) { state.running = false; return; }
         await beginTriageTaskClosure({ reason: closureReason.value() || "Outros", observation: closureObservation.value || "" });
       } catch (error) {
         state.running = false;

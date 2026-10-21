@@ -23,7 +23,7 @@ try {
   pdfJsLoadError = error && error.message ? error.message : String(error);
 }
 
-const ALLOWED_HOST = "spa.pge.mt.gov.br";
+const ALLOWED_HOSTS = new Set(["spa.pge.mt.gov.br", "pge.mt.spa.coreplan.com.br"]);
 const DEFAULT_DELAY_MS = 180;
 const MAX_TABS_PER_REQUEST = 100;
 const PDF_SCAN_TIMEOUT_MS = 45000;
@@ -52,7 +52,7 @@ const CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE = "js/shared/active_team_database.j
 const CDSP_GENERAL_TEAM_DATABASE_FILE = "data/equipe.xlsx";
 const SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN = "https://docs.google.com/*";
 const SIMPLE_CLOSURE_PLACEHOLDER = "INSERIR O TEXTO DO SIMPLES ENCERRAMENTO";
-const SCHEDULE_DEFAULT_INBOX_URL = "https://spa.pge.mt.gov.br/procedures";
+const SCHEDULE_DEFAULT_INBOX_URL = "https://pge.mt.spa.coreplan.com.br/procedures";
 const MNI_PJE_INSTANCES = {
   pje1: {
     id: "pje1",
@@ -207,11 +207,19 @@ function normalizeAllowedUrl(rawUrl) {
 
   try {
     const parsed = new URL(value);
-    if (parsed.protocol !== "https:" || parsed.hostname !== ALLOWED_HOST) return "";
+    if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname)) return "";
     return parsed.href;
   } catch (_error) {
     return "";
   }
+}
+
+function legacyMassiveFallbackUrl(rawUrl, kind) {
+  const url = normalizeAllowedUrl(rawUrl);
+  if (!url || new URL(url).hostname !== "spa.pge.mt.gov.br") return "";
+  if (kind === "close_assessoria") return new URL("/procedures/massive/2778", url).href;
+  if (kind === "protocol_petition" || kind === "protocol_ses_joins") return new URL("/procedures/massive/2760", url).href;
+  return "";
 }
 
 function normalizeRoutineUrl(rawUrl) {
@@ -221,7 +229,7 @@ function normalizeRoutineUrl(rawUrl) {
   try {
     const parsed = new URL(url);
     if (parsed.pathname === "/procedures" || parsed.pathname === "/procedures/") return parsed.href;
-    return SCHEDULE_DEFAULT_INBOX_URL;
+    return new URL("/procedures", parsed.origin).href;
   } catch (_error) {
     return SCHEDULE_DEFAULT_INBOX_URL;
   }
@@ -793,6 +801,7 @@ async function navigateScheduledTab(tabId, url, timeoutMs) {
 }
 
 async function findRoutineTab(config) {
+  const targetOrigin = new URL(normalizeRoutineUrl(config && config.targetUrl)).origin;
   const userId = config && config.targetUserId ? String(config.targetUserId) : "";
   const targetTabId = config && config.targetTabId ? parseInt(config.targetTabId, 10) : 0;
 
@@ -800,7 +809,7 @@ async function findRoutineTab(config) {
     try {
       const tab = await chrome.tabs.get(targetTabId);
       const parsed = new URL(tab.url || "");
-      if (parsed.hostname === ALLOWED_HOST && (!userId || parsed.searchParams.get("user_id") === userId)) {
+      if (ALLOWED_HOSTS.has(parsed.hostname) && parsed.origin === targetOrigin && (!userId || parsed.searchParams.get("user_id") === userId)) {
         return tab;
       }
     } catch (_error) {
@@ -808,11 +817,11 @@ async function findRoutineTab(config) {
     }
   }
 
-  const tabs = await chrome.tabs.query({ url: "https://spa.pge.mt.gov.br/procedures*" });
+  const tabs = await chrome.tabs.query({ url: Array.from(ALLOWED_HOSTS, (host) => "https://" + host + "/procedures*") });
   const inboxTabs = tabs.filter((tab) => {
     try {
       const parsed = new URL(tab.url || "");
-      if (parsed.hostname !== ALLOWED_HOST) return false;
+      if (!ALLOWED_HOSTS.has(parsed.hostname) || parsed.origin !== targetOrigin) return false;
       if (parsed.pathname !== "/procedures" && parsed.pathname !== "/procedures/") return false;
       if (userId && parsed.searchParams.get("user_id") !== userId) return false;
       return true;
@@ -953,10 +962,7 @@ async function resolveMassiveStepUrl(tabId, kind) {
   );
 
   if (result && result.href) return result.href;
-  if (kind === "close_assessoria") return "https://spa.pge.mt.gov.br/procedures/massive/2778";
-  if (kind === "protocol_petition" || kind === "protocol_ses_joins") return "https://spa.pge.mt.gov.br/procedures/massive/2760";
-  if (kind === "protocol_agravo_instrumento") return "";
-  return "";
+  return legacyMassiveFallbackUrl((await chrome.tabs.get(tabId)).url, kind);
 }
 
 async function massivePageHasStage(tabId, stageName) {
@@ -1790,12 +1796,7 @@ async function runMassiveWorkflow(tabId, config, kind) {
         .map((step) => SCHEDULE_STEP_LABELS[step])
         .join(" + ") || SCHEDULE_STEP_LABELS[kind]
     : SCHEDULE_STEP_LABELS[kind];
-  const fallbackUrl =
-    kind === "protocol_agravo_instrumento"
-      ? ""
-      : isProtocol
-      ? "https://spa.pge.mt.gov.br/procedures/massive/2760"
-      : "https://spa.pge.mt.gov.br/procedures/massive/2778";
+  const fallbackUrl = legacyMassiveFallbackUrl(inboxUrl, kind);
 
   await logScheduled(tabId, "Abrindo caixa para localizar passo em massa: " + workflowLabel + ".");
   await navigateScheduledTab(tabId, inboxUrl);
@@ -5109,7 +5110,7 @@ async function injectPanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/spa_selectors.js", "js/shared/spa_adapter.js", "js/shared/mtprev_triage_rules.js", "js/triagem/triage_workspace.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
 

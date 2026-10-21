@@ -54,7 +54,9 @@
       const width = stage.clientWidth;
       const size = Math.min(66, Math.max(48, width * .17));
       const radius = Math.max(60, Math.min(120, width / 2 - size / 2 - 32));
-      const height = Math.max(88, 2 * (radius + size / 2 + 30)) + 'px';
+      stage.style.setProperty('--orbit-radius', radius + 'px');
+      shell.style.setProperty('--orbit-radius', radius + 'px');
+      const height = Math.max(88, 2 * (radius + size / 2 + 52)) + 'px';
       stage.style.height = height;
       stage.style.setProperty('--orbit-height', height);
       nodes.forEach((node, i) => {
@@ -71,6 +73,7 @@
       center.setAttribute('aria-expanded', 'false');
     }
     function showPanel(target, label) {
+      shell.classList.remove('mtprev-panel-leaving');
       expanded = false; generation++; clearTimeout(timer); collapseItems();
       shell.classList.add('mtprev-radial-operational');
       api.expand();
@@ -113,6 +116,20 @@
       ring.replaceChildren();
       items.forEach((item) => {
         const button = create('button', 'mtprev-orbit__item', '', ring); button.type = 'button';
+        button.setAttribute('aria-label', item.title);
+        const describe = () => {
+          if (!expanded || context.classList.contains('is-notice')) return;
+          context.textContent = item.title;
+        };
+        const restoreDescription = () => {
+          if (!expanded || context.classList.contains('is-notice')) return;
+          const active = ring.querySelector(':hover')?.closest('.mtprev-orbit__item') || ring.querySelector(':focus');
+          context.textContent = active?.getAttribute('aria-label') || module?.title || 'Módulos MTPrev';
+        };
+        button.addEventListener('pointerenter', describe);
+        button.addEventListener('focus', describe);
+        button.addEventListener('pointerleave', restoreDescription);
+        button.addEventListener('blur', restoreDescription);
         if (item.special) button.classList.add('mtprev-orbit__special');
         const disc = create('span', 'mtprev-orbit__disc', '', button);
         const image = create('img', '', '', disc); image.src = api.url(`images/material-rounded/${item.icon || iconFor(item.title)}.svg`); image.alt = ''; image.draggable = false;
@@ -123,6 +140,7 @@
       requestAnimationFrame(() => { if (expanded) { ring.inert = false; ring.classList.add('is-open'); center.setAttribute('aria-expanded', 'true'); } });
     }
     function open() {
+      shell.classList.remove('mtprev-panel-leaving');
       expanded = true; generation++; clearTimeout(timer);
       context.classList.remove('is-notice');
       center.setAttribute('aria-expanded', 'true');
@@ -135,7 +153,8 @@
     }
     function close() {
       expanded = false; generation++; clearTimeout(timer); collapseItems();
-      timer = setTimeout(() => { if (!expanded) { shell.classList.remove('mtprev-radial-operational'); shell.classList.add('mtprev-radial-compact'); clamp(); } }, delay());
+      if (shell.classList.contains('mtprev-radial-operational')) shell.classList.add('mtprev-panel-leaving');
+      timer = setTimeout(() => { if (!expanded) { shell.classList.remove('mtprev-radial-operational', 'mtprev-panel-leaving'); shell.classList.add('mtprev-radial-compact'); clamp(); } }, delay());
       center.focus({ preventScroll: true });
     }
     async function select(item) {
@@ -158,6 +177,7 @@
       shell.classList.remove('mtprev-radial-compact');
       if (expanded) close(); else open();
     });
+    shell.addEventListener('mtprev-close-drawer', close);
     back.addEventListener('click', () => {
       if (shell.classList.contains('mtprev-radial-operational')) { open(); return; }
       collapseItems(); const token = ++generation;

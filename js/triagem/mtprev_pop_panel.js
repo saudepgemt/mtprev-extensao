@@ -6,7 +6,7 @@
   function field(parent, title, value) { const p = el('p', '', parent); el('strong', title + ': ', p); p.appendChild(document.createTextNode(value || 'Não identificado')); }
   function links(parent, record) {
     for (const item of [...(record.expedientes || []), ...(record.pendencyUrl ? [{ url: record.pendencyUrl, label: 'Pendência SPA' }] : [])]) {
-      try { const url = new URL(item.url, location.href); if (url.protocol !== 'https:' || url.hostname !== 'spa.pge.mt.gov.br') continue;
+      try { const url = new URL(item.url, location.href); if (url.protocol !== 'https:' || !['spa.pge.mt.gov.br', 'pge.mt.spa.coreplan.com.br'].includes(url.hostname)) continue;
         const link = el('a', item.label || 'Abrir expediente', parent); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.style.cssText = 'display:inline-block;margin:4px 10px 4px 0;color:#b9e0ff;';
       } catch (_) { /* Ignore invalid source links. */ }
     }
@@ -72,25 +72,36 @@
           shown++;
           const article = el('article', '', output); article.style.cssText = 'border-top:1px solid #52616c;padding:10px 0;';
           el('strong', `${record.processNumber || 'Processo não identificado'} — expediente ${record.expedienteId || 'não identificado'}`, article);
+          function section(title) { const node = el('section', '', article); node.className = 'mtprev-pop-section'; el('h4', title, node); return node; }
+          const facts = section('Dados identificados · fatos extraídos');
+          for (const [key, label] of [['processNumber','Processo'],['expedienteId','Expediente'],['party','Destinatário informado'],['actionClass','Classe informada'],['assunto','Assunto informado'],['relevantDate','Data informada']]) {
+            if (record[key]) field(facts, label, record[key]);
+          }
+          field(facts, 'Origem dos metadados', record.metadataSource || 'Leitura do SPA; conferir os campos originais');
+          const checks = section('Conferências · inferências e sugestões, não decisões');
+          const pending = section('Pendências · informações não confirmadas');
+          const guidance = section('Orientações · POP e revisão humana');
+          for (const [key, label] of [['party','Destinatário'],['actionClass','Classe processual'],['pjeDeadline','Prazo oficial']]) if (!record[key]) field(pending, label, 'Não disponível nos dados coletados; conferir no SPA/documento.');
+          field(guidance, 'Conferência obrigatória', 'Regularidade da intimação, legitimidade e prazo oficial devem ser conferidos pelo responsável. O diagnóstico não confirma esses requisitos e não pratica atos.');
           if (mode === 'diagnostic') {
-            field(article, 'Destinatário da intimação', diagnosis.recipient.label);
-            field(article, 'Origem do destinatário', diagnosis.recipient.reason);
-            if (diagnosis.recipient.id) field(article, 'Identificador do destinatário', diagnosis.recipient.id);
-            field(article, 'Competência sugerida', diagnosis.competence); field(article, 'Justificativa', diagnosis.reason);
-            field(article, 'Natureza da ação', diagnosis.nature); field(article, 'Procedimento identificado', diagnosis.procedure);
-            field(article, 'Origem do procedimento', diagnosis.procedureSource);
-            field(article, 'Assunto previdenciário', diagnosis.pensionSubject); field(article, 'Peça processual', diagnosis.suggestedPiece);
-            field(article, 'Prazo registrado no SPA/PJe', diagnosis.deadline);
-            field(article, 'Situação do prazo', diagnosis.deadlineStatus);
-            field(article, 'Duplicidade', 'Consulte o Relatorio Duplicados na aba Duplicados — mesma lógica para todas as unidades.');
-            for (const candidate of diagnosis.procedureCandidates) field(article, `Etapas do POP — ${candidate.name} (não define a peça)`, candidate.stages.join(' · '));
+            field(checks, 'Destinatário da intimação', diagnosis.recipient.label);
+            field(checks, 'Origem do destinatário', diagnosis.recipient.reason);
+            if (diagnosis.recipient.id) field(checks, 'Identificador do destinatário', diagnosis.recipient.id);
+            field(checks, 'Competência sugerida', diagnosis.competence); field(checks, 'Justificativa', diagnosis.reason);
+            field(checks, 'Natureza da ação', diagnosis.nature); field(checks, 'Procedimento identificado', diagnosis.procedure);
+            field(checks, 'Origem do procedimento', diagnosis.procedureSource);
+            field(checks, 'Assunto previdenciário', diagnosis.pensionSubject); field(checks, 'Peça processual', diagnosis.suggestedPiece);
+            field(checks, 'Prazo registrado no SPA/PJe', diagnosis.deadline);
+            field(checks, 'Situação do prazo', diagnosis.deadlineStatus);
+            field(checks, 'Duplicidade', 'Consulte o Relatorio Duplicados na aba Duplicados — mesma lógica para todas as unidades.');
+            for (const candidate of diagnosis.procedureCandidates) field(checks, `Etapas do POP — ${candidate.name} (não define a peça)`, candidate.stages.join(' · '));
           }
           if (!diagnosis.priorities.length && mode === 'priorities') el('p', 'Nenhum indício dos três grupos prioritários. Não significa exclusão jurídica.', article);
-          for (const priority of diagnosis.priorities) { field(article, priority.label, priority.status); field(article, 'Critério', priority.reason); field(article, priority.source, priority.sample); }
-          for (const check of diagnosis.manualChecks || []) field(article, check.source + ' — conferir', check.instruction);
-          if (consent.checked && (!read?.popReadReliable)) field(article, 'Leitura documental', read?.error || 'Inconclusiva ou sem texto confiável; mantidos apenas os metadados.');
-          else if (consent.checked && !read?.popReadComplete) field(article, 'Leitura documental', 'Parcial: os indícios usam apenas o texto disponível. Conferir os documentos não lidos.');
-          const evidence = el('details', '', article); el('summary', 'Dados utilizados e suas origens', evidence);
+          for (const priority of diagnosis.priorities) { field(checks, priority.label, priority.status); field(checks, 'Critério', priority.reason); field(checks, priority.source, priority.sample); }
+          for (const check of diagnosis.manualChecks || []) field(guidance, check.source + ' — conferir', check.instruction);
+          if (consent.checked && (!read?.popReadReliable)) field(pending, 'Leitura documental', read?.error || 'Inconclusiva ou sem texto confiável; mantidos apenas os metadados.');
+          else if (consent.checked && !read?.popReadComplete) field(pending, 'Leitura documental', 'Parcial: os indícios usam apenas o texto disponível. Conferir os documentos não lidos.');
+          const evidence = el('details', '', facts); el('summary', 'Dados utilizados e suas origens', evidence);
           for (const item of diagnosis.evidence) field(evidence, `${item.field} — ${item.source}`, item.value);
           links(article, record); review(article, record, diagnosis);
         }

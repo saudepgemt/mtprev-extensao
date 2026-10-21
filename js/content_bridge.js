@@ -456,6 +456,7 @@
       const route = window.location.pathname + window.location.search + window.location.hash;
       if (route === rootToolsLastRoute) return;
       rootToolsLastRoute = route;
+      window.dispatchEvent(new Event('mtprev-spa-routechange'));
       scheduleRootToolsRefresh();
     };
 
@@ -778,6 +779,7 @@
       expand: () => setShellCollapsed(shell, false)
     });
     // Restore again with the final compact dimensions, especially near the bottom edge.
+    if (window.MTPrevDrawer) window.MTPrevDrawer(shell);
     applySavedPosition(shell);
     installRootToolsWatcher();
   }

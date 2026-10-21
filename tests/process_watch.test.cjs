@@ -22,7 +22,10 @@ test('acompanhamento preserva referencia, detecta alteracoes e conserva dados em
     },
     alarms: { onAlarm: { addListener() {} }, get: async () => true, create: async () => {} }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/process_watch_background.js'), 'utf8'), {
+  const background = fs.readFileSync(path.join(__dirname, '../js/background.js'), 'utf8');
+  const validation = background.match(/^const ALLOWED_HOSTS = .*;$/m)[0] + '\n' + background.match(/^function normalizeAllowedUrl\(.*?^}/ms)[0];
+  vm.runInNewContext(validation + '\n' + fs.readFileSync(path.join(__dirname, '../js/process_watch_background.js'), 'utf8'), {
+    URL,
     chrome, fetchMniProcedureMovements: async () => response,
     inferMniPjeEndpoint: () => ({ id: 'pje1' })
   });

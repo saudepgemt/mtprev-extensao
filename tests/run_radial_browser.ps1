@@ -3,13 +3,14 @@ $ErrorActionPreference = 'Stop'
 $testRoot = Join-Path $env:TEMP ('mtprev-radial-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 foreach ($width in $Cases) {
-  $fixtureName = if ($width -eq 901) { 'syntax.browser.html' } elseif ($width -eq 900) { 'mtprev_pop.browser.html' } else { 'radial_menu.browser.html' }
+  $fixtureName = if ($width -eq 904) { 'workspace.browser.html' } elseif ($width -eq 903) { 'triage_modern.browser.html' } elseif ($width -eq 902) { 'spa_adapter.browser.html' } elseif ($width -eq 901) { 'syntax.browser.html' } elseif ($width -eq 900) { 'mtprev_pop.browser.html' } else { 'radial_menu.browser.html' }
   $fixture = ([System.Uri](Join-Path $PSScriptRoot $fixtureName)).AbsoluteUri
   $outputFile = Join-Path $testRoot "result-$width.txt"
   $errorFile = Join-Path $testRoot "error-$width.txt"
   $profile = Join-Path $testRoot "profile-$width"
   $argsList = @('--headless','--disable-gpu','--no-first-run','--disable-background-networking','--disable-renderer-backgrounding','--disable-background-timer-throttling','--run-all-compositor-stages-before-draw',"--user-data-dir=$profile",'--window-size=900,900','--virtual-time-budget=24000','--dump-dom',"$fixture`?width=$width")
   if ($width -eq 450) { $argsList += '--force-prefers-reduced-motion=reduce' }
+  if ($width -eq 903) { $argsList += "--screenshot=$testRoot\triage-modern.png" }
   Start-Process -FilePath $Chrome -ArgumentList $argsList -WindowStyle Hidden -RedirectStandardOutput $outputFile -RedirectStandardError $errorFile | Out-Null
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   do {
@@ -24,7 +25,9 @@ foreach ($width in $Cases) {
     } catch [IO.IOException] { $resultText = '' }
   } while ($resultText -notmatch 'data-result="(pass|fail)"' -and [DateTime]::UtcNow -lt $deadline)
   if ($resultText -notmatch 'data-result="pass"') { throw "FAIL largura $width. Consulte $outputFile e $errorFile" }
-  if ($width -eq 901) { Write-Output 'PASS: sintaxe dos scripts integrais no parser do Chrome, sem inicializar o SPA.' }
+  if ($width -eq 903) { Write-Output 'PASS: integração real de scripts de Triagem, drawer, leitura e diagnóstico em fixture sem rede.' }
+  elseif ($width -eq 902) { Write-Output 'PASS: SpaAdapter, espera/DOM, leitura, seleção, confirmação, inspetor e drawer.' }
+  elseif ($width -eq 901) { Write-Output 'PASS: sintaxe dos scripts integrais no parser do Chrome, sem inicializar o SPA.' }
   elseif ($width -eq 900) { Write-Output 'PASS: diagnostico e grupos prioritarios POP, destinatarios, excecoes e revisao humana.' }
   else { Write-Output "PASS: widget $width px; acompanhamento existente, clique, arraste sintetico, navegacao, geometria, estado e persistencia." }
 }

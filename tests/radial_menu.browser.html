@@ -82,6 +82,13 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   const labels=[...ring.querySelectorAll('.mtprev-orbit__label')].map(b=>b.getBoundingClientRect());
   const bounds=shell.getBoundingClientRect();
   assert(labels.every(r=>r.left>=bounds.left&&r.right<=bounds.right),'legendas dentro do widget');
+  const option=ring.children[1], caption=shell.querySelector('.mtprev-orbit__context');
+  option.focus();
+  assert(caption.textContent===option.getAttribute('aria-label'),'foco mostra nome acessível na legenda compartilhada');
+  const captionRect=caption.getBoundingClientRect();
+  assert(captionRect.left>=bounds.left&&captionRect.right<=bounds.right,'legenda compartilhada cabe no widget');
+  assert(getComputedStyle(option.querySelector('.mtprev-orbit__label')).pointerEvents==='none','rótulos não interceptam cliques nos ícones');
+  center.focus();
   assert(rects.every(r=>r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight),'círculos dentro da janela');
   assert(rects.every((a,i)=>rects.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top)),'círculos não se sobrepõem');
   if(params.has('preview')&&!params.has('operation')){output.textContent=results.join('\n')+'\nALL PASS preview';return;}
@@ -112,6 +119,9 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   const reopened=shell.getBoundingClientRect();assert(reopened.right<=innerWidth+1&&reopened.bottom<=innerHeight+1,'expandir junto à borda mantém widget na janela');
   assert([...ring.children].every(b=>b.tagName==='BUTTON'&&b.textContent.trim()),'botões semânticos com nomes e ícones locais');
   MTPrevRadialMenu(shell,api);assert(shell.querySelectorAll('.mtprev-orbit').length===1,'instalação idempotente');
+  assert(getComputedStyle(ring,'::before').pointerEvents==='none','anel decorativo não captura cliques');
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) assert(getComputedStyle(ring,'::before').transitionDuration==='0s','anel respeita movimento reduzido');
+  if(params.has('preview')&&center.getAttribute('aria-expanded')!=='true'){center.click();await wait();}
   output.textContent=results.join('\n')+'\nALL PASS '+innerWidth+'x'+innerHeight;
   output.dataset.result='pass';
  } catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message;output.dataset.result='fail';}

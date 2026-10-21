@@ -1,363 +1,318 @@
-/* CDSP - Extrator SPA/SIGADOC — painel.css */
+/* ===========================================================================
+   MTPrev - Extrator SPA / SIGADOC • painel.css / extrator.css
+   Visual SPA Coreplan: azul institucional, superfícies claras, estados claros.
+   Mantém nomes de classes, IDs, estados e pontos de ancoragem do CSS original.
+   =========================================================================== */
 
+/* Botões flutuantes originais (exibidos fora do menu SIGADOC) */
 #spa-extrator-btn,
 #spa-sigadoc-btn,
 #spa-sigadoc-assinar-btn,
 #spa-preencher-btn {
   position: fixed;
-  bottom: 24px;
   right: 24px;
+  bottom: 24px;
   z-index: 999999;
-  background: #1a3a5c;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-size: 13px;
-  font-family: 'Segoe UI', Arial, sans-serif;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-  letter-spacing: 0.3px;
-  transition: background 0.15s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-width: 156px;
-  min-height: 38px;
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #1769c2;
+  border-radius: 10px;
+  background: #1769c2;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(18,63,115,.22);
+  font: 650 12.5px/1.35 "Segoe UI", Arial, sans-serif;
+  letter-spacing: .01em;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
 }
-
 #spa-sigadoc-btn {
-  background: #245c45;
   min-width: 178px;
+  background: #087e96;
+  border-color: #087e96;
 }
-
 #spa-sigadoc-assinar-btn {
   bottom: 74px;
-  background: #6a4a12;
   min-width: 190px;
+  background: #966314;
+  border-color: #966314;
 }
-
 #spa-preencher-btn {
   bottom: 74px;
-  background: #245c45;
   min-width: 166px;
+  background: #087e96;
+  border-color: #087e96;
 }
-
-#spa-extrator-btn:hover,
+#spa-extrator-btn:hover { background: #11559e; border-color: #11559e; }
 #spa-sigadoc-btn:hover,
-#spa-sigadoc-assinar-btn:hover,
-#spa-preencher-btn:hover {
-  background: #245080;
-}
-
-#spa-sigadoc-btn:hover {
-  background: #2f7659;
-}
-
-#spa-sigadoc-assinar-btn:hover {
-  background: #825d1c;
-}
-
-#spa-preencher-btn:hover {
-  background: #2f7659;
-}
-
+#spa-preencher-btn:hover { background: #066478; border-color: #066478; }
+#spa-sigadoc-assinar-btn:hover { background: #7d520f; border-color: #7d520f; }
 #spa-extrator-btn .spa-icon,
 #spa-sigadoc-btn .spa-icon,
 #spa-sigadoc-assinar-btn .spa-icon,
-#spa-preencher-btn .spa-icon {
-  font-size: 16px;
-}
-
+#spa-preencher-btn .spa-icon { font-size: 16px; }
 #spa-extrator-btn:disabled,
 #spa-sigadoc-btn:disabled,
 #spa-sigadoc-assinar-btn:disabled,
-#spa-preencher-btn:disabled {
-  cursor: wait;
-  opacity: 0.92;
-}
+#spa-preencher-btn:disabled { cursor: wait; opacity: .78; }
 
 #spa-extrator-btn.sucesso,
 #spa-sigadoc-btn.sucesso,
 #spa-sigadoc-assinar-btn.sucesso,
-#spa-preencher-btn.sucesso {
-  background: #1f7a3f;
-}
-
+#spa-preencher-btn.sucesso { background: #176d52; border-color: #176d52; }
 #spa-extrator-btn.alerta,
 #spa-sigadoc-btn.alerta,
 #spa-sigadoc-assinar-btn.alerta,
-#spa-preencher-btn.alerta {
-  background: #9a5b00;
-}
-
+#spa-preencher-btn.alerta { background: #966314; border-color: #966314; }
 #spa-extrator-btn.erro,
 #spa-sigadoc-btn.erro,
 #spa-sigadoc-assinar-btn.erro,
-#spa-preencher-btn.erro {
-  background: #a83232;
-}
+#spa-preencher-btn.erro { background: #a53042; border-color: #a53042; }
 
 .spa-extrator-row-btn {
+  min-height: 28px;
   margin-right: 6px;
-  border: 0;
-  border-radius: 6px;
-  background: #1a3a5c;
+  padding: 6px 9px;
+  border: 1px solid #1769c2;
+  border-radius: 7px;
+  background: #1769c2;
   color: #fff;
-  font: 600 11px 'Segoe UI', Arial, sans-serif;
-  line-height: 1;
-  padding: 6px 8px;
+  font: 650 11px/1.2 "Segoe UI", Arial, sans-serif;
   cursor: pointer;
   vertical-align: middle;
 }
+.spa-extrator-row-btn:hover { background: #11559e; border-color: #11559e; }
+.spa-extrator-row-btn:disabled { cursor: wait; opacity: .78; }
 
-.spa-extrator-row-btn:hover {
-  background: #245080;
-}
-
-.spa-extrator-row-btn:disabled {
-  cursor: wait;
-  opacity: 0.82;
-}
-
+/* Painel SIGADOC — conserva .cdsp-sigadoc-menu para compatibilidade com JS */
 .cdsp-sigadoc-menu {
+  --sig-bg: #f4f7fb;
+  --sig-surface: #fff;
+  --sig-raised: #eaf0f7;
+  --sig-border: #dee6ef;
+  --sig-text: #24384b;
+  --sig-muted: #61758a;
+  --sig-blue: #1769c2;
+  --sig-header: #123f73;
+
   position: fixed;
   right: 18px;
   bottom: 18px;
-  width: 260px;
   z-index: 999999;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 36px);
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 8px;
-  background: #102131;
-  color: #f4f8fb;
-  box-shadow: 0 14px 34px rgba(0,0,0,0.28);
-  font-family: 'Segoe UI', Arial, sans-serif;
+  border: 1px solid var(--sig-border);
+  border-radius: 13px;
+  background: var(--sig-bg);
+  color: var(--sig-text);
+  box-shadow: 0 16px 48px rgba(18, 63, 115, .2);
+  font: 12.5px/1.45 "Segoe UI", Arial, sans-serif;
+  color-scheme: light;
 }
-
+.cdsp-sigadoc-menu *,
+.cdsp-sigadoc-menu *::before,
+.cdsp-sigadoc-menu *::after { box-sizing: border-box; }
 .cdsp-sigadoc-menu__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  min-height: 49px;
+  padding: 10px 12px;
+  background: var(--sig-header);
+  border-bottom: 1px solid rgba(255,255,255,.14);
+  color: #fff;
   cursor: move;
-  background: #172b3d;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
   user-select: none;
 }
-
 .cdsp-sigadoc-menu__header strong {
-  font-size: 12px;
-  line-height: 1;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
 }
-
 .cdsp-sigadoc-menu__header span {
   flex: 1;
-  color: #b9cad9;
+  color: #d5e7f5;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: .02em;
 }
-
 .cdsp-sigadoc-menu__minimize {
-  width: 24px;
-  height: 22px;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 5px;
-  background: #20384e;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255,255,255,.26);
+  border-radius: 8px;
+  background: rgba(255,255,255,.1);
   color: #fff;
-  font: 700 13px 'Segoe UI', Arial, sans-serif;
+  font: 700 15px "Segoe UI", Arial, sans-serif;
   cursor: pointer;
 }
-
+.cdsp-sigadoc-menu__minimize:hover { background: rgba(255,255,255,.2); }
 .cdsp-sigadoc-menu__body {
   display: grid;
-  gap: 8px;
-  padding: 9px;
+  gap: 10px;
+  padding: 12px;
+  max-height: calc(100dvh - 90px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b9cbdc transparent;
 }
-
-.cdsp-sigadoc-menu.is-collapsed .cdsp-sigadoc-menu__body {
-  display: none;
-}
-
+.cdsp-sigadoc-menu.is-collapsed .cdsp-sigadoc-menu__body { display: none; }
 .cdsp-sigadoc-menu__section {
   display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 7px;
-  background: rgba(255,255,255,0.035);
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--sig-border);
+  border-radius: 11px;
+  background: var(--sig-surface);
 }
-
 .cdsp-sigadoc-menu__section > strong {
-  color: #dce9f5;
-  font-size: 11px;
-}
-
-.cdsp-sigadoc-menu__hint {
-  color: #b9cad9;
-  font-size: 11px;
-  line-height: 1.25;
-}
-
-.cdsp-sigadoc-menu__password {
-  display: grid;
-  gap: 4px;
-  color: #dce9f5;
-  font-size: 11px;
+  color: var(--sig-text);
+  font-size: 12px;
   font-weight: 700;
 }
-
+.cdsp-sigadoc-menu__hint {
+  color: var(--sig-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.cdsp-sigadoc-menu__password {
+  display: grid;
+  gap: 6px;
+  color: var(--sig-text);
+  font-size: 12px;
+  font-weight: 600;
+}
 .cdsp-sigadoc-menu__password input {
   width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #496078;
-  border-radius: 4px;
-  background: #142536;
-  color: #ffffff;
-  font: inherit;
-  font-weight: 400;
-  padding: 7px 8px;
-}
-
-.cdsp-sigadoc-menu__password input:focus {
-  border-color: #2f9cab;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--sig-border);
+  border-radius: 9px;
   outline: none;
+  background: var(--sig-surface);
+  color: var(--sig-text);
+  font: 400 12.5px/1.4 "Segoe UI", Arial, sans-serif;
 }
-
+.cdsp-sigadoc-menu__password input:focus {
+  border-color: var(--sig-blue);
+  box-shadow: 0 0 0 3px rgba(23,105,194,.12);
+}
+/* Os IDs estão no DOM do menu: removemos apenas o posicionamento flutuante. */
 .cdsp-sigadoc-menu .cdsp-sigadoc-menu__button,
 .cdsp-sigadoc-menu #spa-sigadoc-btn,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn {
   position: static;
-  width: 100%;
-  min-width: 0;
-  min-height: 32px;
-  bottom: auto;
   right: auto;
+  bottom: auto;
   z-index: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
   margin: 0;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
   padding: 8px 10px;
-  background: #245c45;
+  border: 1px solid #087e96;
+  border-radius: 9px;
+  background: #087e96;
   color: #fff;
-  font: 700 12px 'Segoe UI', Arial, sans-serif;
-  letter-spacing: 0;
   box-shadow: none;
+  font: 650 12px/1.35 "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
   cursor: pointer;
+  transition: background-color .15s, border-color .15s;
 }
-
 .cdsp-sigadoc-menu .cdsp-sigadoc-menu__button:hover,
-.cdsp-sigadoc-menu #spa-sigadoc-btn:hover {
-  background: #2f7659;
-}
-
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary {
-  background: #1a5c8d;
-}
-
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary:hover {
-  background: #226fa8;
-}
-
+.cdsp-sigadoc-menu #spa-sigadoc-btn:hover { background: #066478; border-color: #066478; }
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary { background: #1769c2; border-color: #1769c2; }
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-primary:hover { background: #11559e; border-color: #11559e; }
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning {
-  background: #6a4a12;
-}
-
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning { background: #966314; border-color: #966314; }
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn:hover,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning:hover {
-  background: #825d1c;
-}
-
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger {
-  background: #7a2630;
-}
-
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger:hover {
-  background: #93313c;
-}
-
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-warning:hover { background: #7d520f; border-color: #7d520f; }
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger { background: #a53042; border-color: #a53042; }
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.is-danger:hover { background: #832436; border-color: #832436; }
 .cdsp-sigadoc-menu .cdsp-sigadoc-menu__button:disabled,
 .cdsp-sigadoc-menu #spa-sigadoc-btn:disabled,
-.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn:disabled {
-  cursor: wait;
-  opacity: 0.86;
-}
-
+.cdsp-sigadoc-menu #spa-sigadoc-assinar-btn:disabled { cursor: wait; opacity: .75; }
 .cdsp-sigadoc-menu #spa-sigadoc-btn.copiando,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.copiando,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.copiando {
-  background: #1a5c8d;
-}
-
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.copiando { background: #1769c2; border-color: #1769c2; }
 .cdsp-sigadoc-menu #spa-sigadoc-btn.sucesso,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.sucesso,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.sucesso {
-  background: #1f7a3f;
-}
-
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.sucesso { background: #176d52; border-color: #176d52; }
 .cdsp-sigadoc-menu #spa-sigadoc-btn.alerta,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.alerta,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.alerta {
-  background: #9a5b00;
-}
-
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.alerta { background: #966314; border-color: #966314; }
 .cdsp-sigadoc-menu #spa-sigadoc-btn.erro,
 .cdsp-sigadoc-menu #spa-sigadoc-assinar-btn.erro,
-.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.erro {
-  background: #a83232;
-}
+.cdsp-sigadoc-menu .cdsp-sigadoc-menu__button.erro { background: #a53042; border-color: #a53042; }
 
 .cdsp-sigadoc-menu__status {
-  min-height: 28px;
-  max-height: 84px;
+  min-height: 34px;
+  max-height: 100px;
   overflow: auto;
-  padding: 7px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 6px;
-  background: #0b1824;
-  color: #cbd8e4;
-  font-size: 11px;
-  line-height: 1.3;
+  padding: 9px 10px;
+  border: 1px solid var(--sig-border);
+  border-radius: 9px;
+  background: var(--sig-raised);
+  color: var(--sig-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
-
-.cdsp-sigadoc-menu__status[data-tone='ok'] {
-  color: #a9f0c0;
-}
-
-.cdsp-sigadoc-menu__status[data-tone='alerta'] {
-  color: #ffd18a;
-}
-
-.cdsp-sigadoc-menu__status[data-tone='busy'] {
-  color: #9bd1ff;
-}
-
+.cdsp-sigadoc-menu__status[data-tone="ok"] { color: #176d52; }
+.cdsp-sigadoc-menu__status[data-tone="alerta"] { color: #966314; }
+.cdsp-sigadoc-menu__status[data-tone="busy"] { color: #1769c2; }
 #cdsp-sigadoc-trace > summary {
-  color: #f4f8fb !important;
+  color: var(--sig-text) !important;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
 }
-
 #cdsp-sigadoc-trace-content {
-  max-height: 140px;
+  max-height: 150px;
   overflow: auto;
-  margin: 6px 0 0;
-  padding: 7px;
-  border: 1px solid #496078;
-  border-radius: 5px;
-  background: #081521 !important;
-  color: #f4f8fb !important;
-  font: 12px/1.5 Consolas, 'Courier New', monospace !important;
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid var(--sig-border);
+  border-radius: 8px;
+  background: #eef3f9 !important;
+  color: #24384b !important;
+  font: 11.5px/1.55 Consolas, "Courier New", monospace !important;
   opacity: 1 !important;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* Acessibilidade e preferências do sistema. */
+#spa-extrator-btn:focus-visible,
+#spa-sigadoc-btn:focus-visible,
+#spa-sigadoc-assinar-btn:focus-visible,
+#spa-preencher-btn:focus-visible,
+.spa-extrator-row-btn:focus-visible,
+.cdsp-sigadoc-menu :is(button,input,summary):focus-visible {
+  outline: 3px solid #59cade;
+  outline-offset: 2px;
+}
+@media (max-width: 380px) {
+  .cdsp-sigadoc-menu { right: 8px; bottom: 8px; width: calc(100vw - 16px); }
+  .cdsp-sigadoc-menu__body { padding: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cdsp-sigadoc-menu *,
+  #spa-extrator-btn,
+  #spa-sigadoc-btn,
+  #spa-sigadoc-assinar-btn,
+  #spa-preencher-btn,
+  .spa-extrator-row-btn { transition: none !important; }
 }
