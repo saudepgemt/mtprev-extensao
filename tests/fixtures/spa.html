@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>SPA local</title>
+<h1>Caixa SPA de teste</h1>
+<button id="native-button" style="background:rgb(120,0,120);color:white">Botão do SPA</button>
+<table id="procedures-box">
+  <thead><tr><th>Processo</th><th>Id do Expediente</th><th>Assunto(s) do TJ</th><th>Último andamento</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div id="procedures-box_processing" style="display:none">Carregando</div>
+<script>
+// Apenas a API da tabela é simulada; expansão, eventos, atraso, DOM e relatório
+// são exercitados pelo Firefox com os scripts reais da extensão.
+window.fixture = { clicks: {}, page: 0, fail: false, hang: false };
+const processA = '0000001-00.2026.8.11.0001';
+const processB = '0000002-00.2026.8.11.0001';
+const pages = [
+  [{ key: 'lazy', process: processA, ids: [10001,10002], delay: 900 },
+   { key: 'hidden', process: processB, ids: [20001,20002], preload: true },
+   { key: 'single', process: '0000003-00.2026.8.11.0001', ids: [30001], delay: 150 }],
+  [{ key: 'next-page', process: processA, ids: [10003], delay: 250 },
+   { key: 'ses', process: '0000004-00.2026.8.11.0001', ids: [40001,40002], delay: 150, subject: 'SES - Secretaria de Estado de Saúde' }]
+];
+function renderTable() {
+  const body = document.querySelector('tbody');
+  body.replaceChildren();
+  for (const group of pages[fixture.page]) {
+    const header = document.createElement('tr');
+    header.className = 'group-row';
+    header.dataset.group = group.key;
+    header.innerHTML = `<td colspan="4"><button type="button" class="toggle-icon">+</button> Número do Processo: ${group.process} <span class="badge">${group.ids.length}</span></td>`;
+    body.append(header);
+    const addRow = id => {
+      const row = document.createElement('tr');
+      row.className = 'group-item';
+      row.dataset.procedureId = id;
+      row.innerHTML = `<td>${group.process}</td><td>${id}</td><td>${group.subject || 'Assunto local para teste'}</td><td>Recebido</td>`;
+      let last = header;
+      while (last.nextElementSibling?.classList.contains('group-item')) last = last.nextElementSibling;
+      last.after(row);
+      return row;
+    };
+    if (group.preload) group.ids.forEach(id => { addRow(id).style.display = 'none'; });
+    header.addEventListener('click', () => {
+      fixture.clicks[group.key] = (fixture.clicks[group.key] || 0) + 1;
+      if (header.getAttribute('aria-expanded') === 'true') throw Error('Grupo acionado duas vezes');
+      header.setAttribute('aria-expanded', 'true');
+      if (fixture.hang) return;
+      if (group.preload) {
+        let row = header.nextElementSibling;
+        while (row?.classList.contains('group-item')) { row.style.display = ''; row = row.nextElementSibling; }
+      } else {
+        group.ids.forEach((id,index) => setTimeout(() => addRow(id), group.delay + index * 600));
+      }
+    });
+  }
+}
+function page(number) {
+  if (number !== undefined) fixture.page = number === 'first' ? 0 : number === 'next' ? fixture.page+1 : number;
+  return dtProceduresBox;
+}
+page.info = () => {
+  if (fixture.fail) throw Error('Falha simulada no carregamento da tabela');
+  return { page: fixture.page, pages: 2 };
+};
+page.len = () => 100;
+window.dtProceduresBox = { page, draw: renderTable };
+window.jQuery = selector => ({ toArray: () => [...document.querySelectorAll(selector.replace(':visible',''))].filter(row => row.getBoundingClientRect().height > 0) });
+window.jQuery.fn = {};
+renderTable();
+</script>
+</html>

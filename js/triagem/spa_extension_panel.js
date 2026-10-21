@@ -1,8 +1,7 @@
 ﻿(function () {
   "use strict";
 
-  if (window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED) return;
-  window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
+  if (window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.getElementById("spa-cdsp-panel")) return;
 
   const CONFIG = {
     pageLength: 100,
@@ -60,6 +59,7 @@
     allowBrowserOpenFallback: false,
     processingTimeoutMs: 0,
     processingProgressLogMs: 30000,
+    groupLoadTimeoutMs: 20000,
   };
 
   const PIECE_REPORT_CATEGORIES = [
@@ -6404,7 +6404,8 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  async function waitProcessingDone() {
+  async function waitProcessingDone(timeoutMs) {
+    const deadlineMs = timeoutMs ?? CONFIG.processingTimeoutMs;
     const started = Date.now();
     let nextProgressLog = CONFIG.processingProgressLogMs;
 
@@ -6417,7 +6418,10 @@
       if (!visible) return;
 
       const elapsed = Date.now() - started;
-      if (CONFIG.processingTimeoutMs && elapsed > CONFIG.processingTimeoutMs) {
+      if (deadlineMs && elapsed > deadlineMs) {
+        if (timeoutMs !== undefined) {
+          throw new Error('A tabela do SPA não terminou de carregar. Aguarde a página e tente novamente.');
+        }
         log("Tempo de espera excedido aguardando carregamento da tabela. O fluxo seguira com os dados disponiveis.", "error");
         return;
       }
@@ -6456,7 +6460,7 @@
     return inputs.find((input) => (input.getAttribute("name") || "") === "search_by_column[" + exactName + "]");
   }
 
-  async function applyDateFilterIfNeeded() {
+  async function applyDateFilterIfNeeded(timeoutMs) {
     const filter = currentDateFilter();
     if (!filter) return;
 
@@ -6470,7 +6474,7 @@
         input.value = value;
         input.dispatchEvent(new Event("change", { bubbles: true }));
         await sleep(CONFIG.delayPageMs);
-        await waitProcessingDone();
+        await waitProcessingDone(timeoutMs);
       } else {
         log("Filtro de data ja aplicado: " + filter.date + ".");
       }
@@ -6480,14 +6484,14 @@
     log("Filtro nativo de data nao encontrado. Usarei filtro por linha: " + filter.date + ".");
   }
 
-  async function setPageLength() {
+  async function setPageLength(timeoutMs) {
     const dt = getDataTable();
     const current = dt.page.len();
     if (current !== CONFIG.pageLength) {
       log("Alterando paginacao para " + CONFIG.pageLength + ".");
       dt.page.len(CONFIG.pageLength).draw(false);
       await sleep(CONFIG.delayPageMs);
-      await waitProcessingDone();
+      await waitProcessingDone(timeoutMs);
     }
 
     const select = document.querySelector("select[name='procedures-box_length']");
@@ -6495,7 +6499,7 @@
       select.value = String(CONFIG.pageLength);
       select.dispatchEvent(new Event("change", { bubbles: true }));
       await sleep(CONFIG.delayPageMs);
-      await waitProcessingDone();
+      await waitProcessingDone(timeoutMs);
     }
   }
 
@@ -6613,7 +6617,7 @@
     }
   }
 
-  async function goToPageNumber(pageNumber) {
+  async function goToPageNumber(pageNumber, timeoutMs) {
     const dt = getDataTable();
     const info = dt.page.info();
     const total = Math.max(1, normalizeLimit(info.pages) || 1);
@@ -6624,7 +6628,7 @@
       log("Indo para a pagina " + targetPage + ".");
       dt.page(targetIndex).draw("page");
       await sleep(CONFIG.delayPageMs);
-      await waitProcessingDone();
+      await waitProcessingDone(timeoutMs);
     }
 
     return targetPage;
@@ -7380,7 +7384,7 @@
 
         const info = rowInfo(row);
         const record = scienceRecordFromRow(row, processItem.key, label);
-        if (manualScienceConfirmation && rowHasScienceButton(row) && !(await window.SpaAdapter.actions.confirm('Dar Ciência', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
+        if (manualScienceConfirmation && rowHasScienceButton(row) && !(await confirmTriageAction('Dar Ciência', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
           state.stopped = true; break;
         }
         const ok = activateScience(row);
@@ -7442,7 +7446,7 @@
           }
 
           const record = scienceRecordFromRow(row, processItem.key, processItem.label);
-          if (manualScienceConfirmation && rowHasScienceButton(row) && !(await window.SpaAdapter.actions.confirm('Dar Ciência — lote preparado', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
+          if (manualScienceConfirmation && rowHasScienceButton(row) && !(await confirmTriageAction('Dar Ciência — lote preparado', [record], () => row.isConnected && rowHasScienceButton(row) && scienceRecordKey(scienceRecordFromRow(row, record.processKey, record.label)) === scienceRecordKey(record)))) {
             state.stopped = true; break;
           }
           const ok = activateScience(row);
@@ -8154,6 +8158,7 @@
 
   function showTriageClosureDialog(title, onConfirm) {
     const overlay = document.createElement("div");
+    overlay.className = 'mtprev-dialog';
     overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(2,8,23,.62);display:grid;place-items:center;padding:18px;";
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
@@ -9829,7 +9834,10 @@
   }
 
   function isSpaCdspDarkMode() {
-    const selectedTheme = document.querySelector('#cdsp-general-shell')?.dataset.theme;
+    const resolvedTheme = getComputedStyle(document.documentElement).getPropertyValue('--mtprev-color-scheme').trim();
+    if (resolvedTheme) return resolvedTheme === 'dark';
+    const shell = document.querySelector('#cdsp-general-shell');
+    const selectedTheme = shell?.dataset.mtTheme || shell?.dataset.theme;
     if (selectedTheme) return selectedTheme === 'dark';
     return Boolean(
       document.documentElement &&
@@ -10224,6 +10232,7 @@
 
     log("Conferindo texto de " + payload.length + " expediente(s) para duplicidade real.");
     setStatus("Conferindo PDFs...");
+    setDuplicateLoading(true, "Processos carregados. Conferindo o conteúdo de " + payload.length + " expediente(s)…");
 
     const response = await requestExtensionMessage(
       "SPA_CDSP_FINGERPRINT_EXPEDIENTES",
@@ -10383,6 +10392,14 @@
   async function collectDuplicateReportCurrentPage(groupsByKey) {
     let scanned = 0;
     let skippedSes = 0;
+    // Grupos podem carregar seus expedientes somente depois do clique. Acione
+    // todos antes de decidir se há duplicidade, inclusive os sem badge/itens.
+    const allGroups = groupRows();
+    for (let index = 0; index < allGroups.length; index += 1) {
+      if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
+      setDuplicateLoading(true, "Carregando processos da página: " + (index + 1) + " de " + allGroups.length + "…");
+      await expandGroup(allGroups[index]);
+    }
     const duplicateRows = groupRows().filter(isDuplicateProcessGroup);
 
     if (duplicateRows.length) {
@@ -10391,7 +10408,7 @@
 
         const label = groupLabel(groupRow);
         const processNumber = groupProcessNumber(groupRow) || label;
-        const items = (await expandGroup(groupRow)).filter(rowMatchesAllFilters);
+        const items = groupItems(groupRow);
         if (!items.length) continue;
 
         scanned += 1;
@@ -10439,16 +10456,20 @@
     };
   }
 
-  function setDuplicateLoading(loading, message) {
+  function setDuplicateLoading(loading, message, error = false) {
     document.querySelectorAll('.mtprev-duplicates-loading').forEach(node => {
-      node.hidden = !loading;
-      node.textContent = message || 'Carregando duplicados…';
+      node.hidden = !loading && !message;
+      if (message || loading) node.textContent = message || 'Carregando duplicados…';
+      node.dataset.tone = error ? 'error' : 'info';
+      node.setAttribute('role', error ? 'alert' : 'status');
     });
     document.querySelector('.mtprev-duplicates-page')?.setAttribute('aria-busy', String(loading));
+    document.querySelectorAll('.mtprev-duplicates-page button').forEach(button => { button.disabled = loading; });
   }
 
   async function buildDuplicateReport(includeValidated) {
     guardStart();
+    let failure = '';
     try {
       setDuplicateLoading(true, 'Gerando relatório de duplicados…');
       if (window.SpaAdapter?.locate('workspace','list').nodes.length) {
@@ -10483,8 +10504,9 @@
       includeValidated = Boolean(includeValidated);
       setStatus("Gerando relatorio...");
       log("Gerando relatorio de duplicados" + (includeValidated ? " com conferidos." : "."));
-      await setPageLength();
-      await applyDateFilterIfNeeded();
+      await waitProcessingDone(CONFIG.groupLoadTimeoutMs);
+      await setPageLength(CONFIG.groupLoadTimeoutMs);
+      await applyDateFilterIfNeeded(CONFIG.groupLoadTimeoutMs);
       const pageInfo = tablePageInfo();
       if (!state.pageBatch) {
         loadStoredPageSelection(pageInfo.total);
@@ -10507,9 +10529,10 @@
       const groupsByKey = new Map();
 
       for (const pageNumber of pages) {
-        if (state.stopped) break;
+        if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
 
-        await goToPageNumber(pageNumber);
+        setDuplicateLoading(true, "Carregando página " + pageNumber + " de " + pageInfo.total + "…");
+        await goToPageNumber(pageNumber, CONFIG.groupLoadTimeoutMs);
         log("Relatorio de duplicados, pagina " + pageNumber + ".");
         const pageReport = await collectDuplicateReportCurrentPage(groupsByKey);
         report.pages += 1;
@@ -10522,15 +10545,20 @@
       report.scanned = finalReport.scanned;
       report.skippedValidated = finalReport.skippedValidated;
 
+      if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
       await enrichDuplicateReportWithPdfFingerprints(report);
+      if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
       showDuplicateReport(report);
       log("Relatorio de duplicados gerado: " + report.groups.length + " grupo(s) exibido(s).", "ok");
       setStatus("Relatorio pronto");
     } catch (error) {
+      failure = error.name === 'AbortError'
+        ? 'Relatório interrompido. Clique em Relatorio Duplicados para tentar novamente.'
+        : 'Não foi possível gerar o relatório: ' + error.message;
       log("Erro no relatorio de duplicados: " + error.message, "error");
       setStatus("Erro no relatorio");
     } finally {
-      setDuplicateLoading(false);
+      setDuplicateLoading(false, failure, Boolean(failure));
       state.running = false;
     }
   }
@@ -11926,12 +11954,12 @@
     return normalizeText(groupLabel(groupRow)).toLowerCase().indexOf("numero do processo") >= 0;
   }
 
-  function groupItems(groupRow) {
+  function groupItems(groupRow, applyFilters = true) {
     const items = [];
     let current = groupRow.nextElementSibling;
 
     while (current && !current.classList.contains("group-row")) {
-      if (current.classList.contains("group-item") && rowMatchesAllFilters(current)) {
+      if (current.classList.contains("group-item") && (!applyFilters || rowMatchesAllFilters(current))) {
         items.push(current);
       }
       current = current.nextElementSibling;
@@ -11941,32 +11969,43 @@
   }
 
   async function expandGroup(groupRow) {
-    let items = groupItems(groupRow);
-    if (!items.length || items.some(isVisible)) return items;
+    const label = groupLabel(groupRow);
+    const groupKey = groupRow.getAttribute('data-group');
+    const itemsReady = () => {
+      const items = groupItems(groupRow, false);
+      return items.length > 0 && items.length >= groupCount(groupRow) && items.every(isVisible);
+    };
+    if (itemsReady()) return groupItems(groupRow);
 
-    groupRow.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
-    await sleep(700);
-    await waitProcessingDone();
+    // O evento no ícone também propaga para o cabeçalho. Um único clique
+    // evita recolher novamente o grupo enquanto a resposta ainda chega.
+    const trigger = groupRow.querySelector('.toggle-icon') || groupRow;
+    const expanded = groupRow.getAttribute('aria-expanded') === 'true' || trigger.getAttribute('aria-expanded') === 'true';
+    if (!expanded) trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 
-    items = groupItems(groupRow);
-    if (items.some(isVisible)) return items;
-
-    const icon = groupRow.querySelector(".toggle-icon");
-    if (icon) {
-      icon.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
-      await sleep(700);
-      await waitProcessingDone();
+    const started = Date.now();
+    let readySince = 0;
+    let previousCount = 0;
+    while (Date.now() - started < CONFIG.groupLoadTimeoutMs) {
+      if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
+      if (!groupRow.isConnected) {
+        groupRow = groupRows().find(row => groupKey
+          ? row.getAttribute('data-group') === groupKey : groupLabel(row) === label);
+        if (!groupRow) throw new Error('O grupo mudou durante a leitura: ' + label + '. Tente novamente.');
+      }
+      const processing = document.querySelector('#procedures-box_processing');
+      const count = groupItems(groupRow, false).length;
+      if (count !== previousCount) readySince = 0;
+      previousCount = count;
+      if (itemsReady() && (!processing || !isVisible(processing))) {
+        if (!readySince) readySince = Date.now();
+        if (Date.now() - readySince >= 400) return groupItems(groupRow);
+      } else {
+        readySince = 0;
+      }
+      await sleep(100);
     }
-
-    items = groupItems(groupRow);
-    if (!items.some(isVisible)) {
-      items.forEach((row) => {
-        row.style.display = "";
-      });
-      log("Grupo expandido por fallback visual: " + groupLabel(groupRow) + ".");
-    }
-
-    return items;
+    throw new Error('Os expedientes do grupo não terminaram de carregar: ' + label + '. Aguarde a página e tente novamente.');
   }
 
   function expedienteIdFromText(text) {
@@ -12959,11 +12998,27 @@
     }, mode);
   }
 
+  async function confirmTriageAction(operation, records, validate, details = []) {
+    if (window.SpaAdapter?.actions?.confirm) {
+      return window.SpaAdapter.actions.confirm(operation, records, validate, details);
+    }
+    if (!(await validate())) throw new Error('O processo mudou. Confira a página antes de confirmar a operação.');
+    const targets = records.map((record) => {
+      const process = record.processNumber || record.processKey || record.label || 'Não identificado';
+      return 'Processo: ' + process + '\nExpediente: ' + (record.expedienteId || 'Não identificado');
+    });
+    const fields = details.map(([label, value]) => label + ': ' + (value || 'Não informado'));
+    const message = [operation, ...targets, ...fields, 'Confirma esta operação no SPA?'].join('\n\n');
+    // Use the original dialog: automation may override window.confirm while running.
+    if (!originalConfirm.call(window, message)) return false;
+    if (!(await validate())) throw new Error('O processo mudou durante a confirmação. Nenhuma operação foi autorizada.');
+    return true;
+  }
+
   async function confirmCurrentTriageAction(operation, details = []) {
-    if (!window.SpaAdapter) throw new Error('Recarregue a aba para habilitar a confirmação da operação.');
     const procedureId = currentProcedureId();
     if (!procedureId) throw new Error('Pendência não identificada. Nenhum ato foi autorizado.');
-    return window.SpaAdapter.actions.confirm(operation, [{ processNumber: readCurrentProcedureProcessNumber(), expedienteId: readProcedureHeaderValue('ID do Expediente') || procedureId }], () => currentProcedureId() === procedureId, details);
+    return confirmTriageAction(operation, [{ processNumber: readCurrentProcedureProcessNumber(), expedienteId: readProcedureHeaderValue('ID do Expediente') || procedureId }], () => currentProcedureId() === procedureId, details);
   }
 
   function createModuleTabs(tabs) {
@@ -13338,6 +13393,7 @@
 
     createPanel();
     setupExternalDocumentsPanel();
+    window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
     setTimeout(continuePendingTriageClassification, 450);
     setTimeout(continuePendingTriageTaskClosure, 650);
     log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");

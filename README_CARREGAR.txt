@@ -1,4 +1,13 @@
-CDSP Extensao Geral - 2.70
+CDSP Extensao Geral - 2.71
+
+Firefox (128 ou superior):
+1. Na pasta do projeto, execute: node scripts/build-firefox.js (Node.js 18+).
+2. Abra about:debugging#/runtime/this-firefox no Firefox.
+3. Clique em Carregar extensao temporaria e selecione dist/firefox/manifest.json.
+4. Autorize o acesso aos sites, se solicitado, e recarregue as abas SPA/SIGADOC.
+Depois de reiniciar o Firefox, carregue a extensao temporaria novamente.
+Depois de alterar o codigo, gere o pacote novamente e clique em Recarregar.
+Detalhes e limites de validacao: secao Carregar no Firefox do README.md.
 
 Cabecalho dos paineis: logo MTPrev, nome da opcao aberta e somente Voltar.
 Pronto, Abrir minimizado e minimizar foram ocultados da apresentacao radial.
