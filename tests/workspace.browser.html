@@ -1,0 +1,34 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Workspace anônimo</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css"><link rel="stylesheet" href="../css/drawer.css">
+<pre id="results">Executando</pre>
+<main class="workspace-main"><form class="workspace-search"><input name="q" value=""><input name="user_id" value="fixture"></form><div class="workspace-process-list"></div><div class="workspace-infinite-scroll" data-loaded-count="1" data-total-count="3"><button class="workspace-infinite-scroll__button">Carregar mais</button></div></main>
+<script>
+window.chrome={runtime:{getURL:p=>new URL('../'+p,location.href).href,onMessage:{addListener(){}},sendMessage:(message,reply)=>reply?.({ok:true})}};
+window.SPA_CDSP_TRIAGEM_CONFIG={version:'fixture',headerImageUrl:chrome.runtime.getURL('images/logo-mtprev.png')};
+window.fetch=async()=>{throw Error('Rede desabilitada')};
+window.fixtureErrors=[];addEventListener('error',e=>fixtureErrors.push(e.message));addEventListener('unhandledrejection',e=>fixtureErrors.push(String(e.reason)));
+function card(id,process,expediente){const node=document.createElement('article');node.className='workspace-process-card';node.dataset.procedureId=id;
+node.innerHTML='<a class="workspace-process-card__main" href="/procedures/'+id+'"></a>'+[['Número do processo',process],['ID do expediente',expediente],['Classe','Classe anônima'],['Data da distribuição','01/01/2026']].map(([label,value])=>'<span class="workspace-process-card__field"><small data-full-label="'+label+'">'+label+'</small><span class="workspace-process-card__field-value"><strong data-full-value="'+value+'">'+value+'</strong></span></span>').join('');return node;}
+const list=document.querySelector('.workspace-process-list'),pager=document.querySelector('.workspace-infinite-scroll');list.append(card('101','0000001-00.2026.8.00.0000','exp-a'));
+let clicks=0;document.querySelector('.workspace-infinite-scroll__button').onclick=()=>{clicks++;const button=document.querySelector('.workspace-infinite-scroll__button');button.disabled=true;setTimeout(()=>{list.append(clicks===1?card('102','0000001-00.2026.8.00.0000','exp-b'):card('103','0000002-00.2026.8.00.0000','exp-c'));pager.dataset.loadedCount=String(list.children.length);button.disabled=false;if(list.children.length===3)button.remove();},50)};
+</script><script src="../js/shared/spa_selectors.js"></script><script src="../js/shared/spa_adapter.js"></script><script src="../js/drawer.js"></script><script src="../js/radial_menu.js"></script><script src="../js/content_bridge.js"></script>
+<script>
+addEventListener('DOMContentLoaded',async()=>{
+const output=document.getElementById('results'),results=[],wait=ms=>new Promise(r=>setTimeout(r,ms));const assert=(condition,text)=>{if(!condition)throw Error(text);results.push('PASS '+text)};
+try{
+assert(SpaAdapter.records().length===1&&SpaAdapter.records()[0].expedienteId==='exp-a','lê campo do card sem tabela');
+const controller=new AbortController();controller.abort();let cancelled=false;try{await SpaAdapter.collectWorkspaceRecords({signal:controller.signal})}catch(e){cancelled=e.name==='AbortError'}assert(cancelled&&clicks===0,'cancelamento não aciona carregar mais');
+for(const file of ['js/shared/mtprev_triage_rules.js','js/triagem/triage_workspace.js','js/triagem/mtprev_pop_panel.js','js/triagem/spa_extension_panel.js'])await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=chrome.runtime.getURL(file);script.onload=resolve;script.onerror=reject;document.body.append(script)});
+await wait(250);const shell=document.getElementById('cdsp-general-shell');shell.querySelector('.mtprev-orbit__center').click();await wait(450);shell.querySelector('.mtprev-orbit__ring').children[1].click();await wait(800);shell.querySelector('.mtprev-orbit__ring').children[1].click();await wait(450);
+[...shell.querySelectorAll('button')].find(button=>button.textContent==='Relatorio Duplicados').click();
+for(let i=0;i<30&&!document.getElementById('spa-cdsp-duplicate-report-overlay');i++)await wait(150);
+const report=document.getElementById('spa-cdsp-duplicate-report-overlay');assert(report,'relatório abre a partir do módulo real');
+assert(clicks===2&&SpaAdapter.workspaceRecords().length===3,'carrega todas as páginas incrementais');
+assert([...report.querySelectorAll('[role="status"]')].some(node=>node.textContent.includes('3 de 3')),'relatório informa cobertura completa');
+assert(report.textContent.includes('exp-a')&&report.textContent.includes('exp-b'),'agrupa dois expedientes do mesmo processo');
+assert(!report.textContent.includes('exp-c'),'processo sem duplicidade não entra no grupo');
+assert(shell.querySelector('.mtprev-duplicates-loading').hidden,'indicador finaliza');
+assert(!fixtureErrors.length,'sem erros de execução');
+output.textContent=results.join('\n')+'\nALL PASS';output.dataset.result='pass';
+}catch(e){output.textContent=results.join('\n')+'\nFAIL '+e.message;output.dataset.result='fail'}
+});</script></html>

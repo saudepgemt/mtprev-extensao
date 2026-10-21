@@ -1,0 +1,38 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Triagem moderna · integração local</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css"><link rel="stylesheet" href="../css/drawer.css">
+<style>body{background:#f4f7fb;font:14px 'Segoe UI',sans-serif}#results{white-space:pre-wrap;max-width:420px}table{border-collapse:collapse;background:white}td,th{padding:10px;border:1px solid #dee6ef}</style>
+<pre id="results">Executando…</pre><h1>Ambiente de teste anônimo</h1>
+<table id="procedures-box"><thead><tr><th data-name="numero do processo">Processo</th><th data-name="id do expediente">Expediente</th><th data-name="assunto">Assunto</th></tr></thead><tbody><tr class="group-item"><td>0000000-00.2026.8.00.0000</td><td>fixture-01</td><td>Classe não informada</td></tr></tbody></table>
+<script>
+window.integrationErrors=[];addEventListener('error',e=>integrationErrors.push(e.message));addEventListener('unhandledrejection',e=>integrationErrors.push(e.reason?.message||String(e.reason)));
+window.chrome={runtime:{getURL:p=>new URL('../'+p,location.href).href,onMessage:{addListener(){}},sendMessage:(message,reply)=>reply?.({ok:true})}};
+window.SPA_CDSP_TRIAGEM_CONFIG={version:'fixture',headerImageUrl:chrome.runtime.getURL('images/logo-mtprev.png')};
+window.fetch=async()=>{throw Error('Rede desabilitada na fixture')};
+</script><script src="../js/shared/spa_selectors.js"></script><script src="../js/shared/spa_adapter.js"></script><script src="../js/spa_inspector.js"></script><script src="../js/drawer.js"></script><script src="../js/radial_menu.js"></script><script src="../js/content_bridge.js"></script>
+<script>
+addEventListener('DOMContentLoaded',async()=>{
+const output=document.getElementById('results'),results=[],wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(condition,name)=>{if(!condition)throw Error(name);results.push('PASS '+name)};
+try{
+for(const file of ['js/shared/mtprev_triage_rules.js','js/triagem/triage_workspace.js','js/triagem/mtprev_pop_panel.js','js/triagem/spa_extension_panel.js'])await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=chrome.runtime.getURL(file);s.onload=resolve;s.onerror=reject;document.body.append(s)});
+await wait(250);const shell=document.getElementById('cdsp-general-shell');shell.querySelector('.mtprev-orbit__center').click();await wait(450);shell.querySelector('.mtprev-orbit__ring').children[1].click();await wait(800);shell.querySelector('.mtprev-orbit__ring').children[0].click();await wait(450);
+assert(shell.classList.contains('mtprev-radial-operational'),'módulo real abre no drawer');assert(shell.querySelector('.mtprev-triage-workspace'),'lista de leitura montada no módulo real');assert(shell.querySelector('#spa-cdsp-limit').placeholder==='Sem limite','semântica de quantidade preservada sem jargão');assert(shell.querySelector('.mtprev-panel-theme').textContent==='Triagem'&&getComputedStyle(shell.querySelector('.mtprev-panel-theme')).color==='rgb(255, 255, 255)'&&getComputedStyle(shell.querySelector('.cdsp-general-shell__header')).backgroundColor==='rgb(18, 63, 115)','título legível no tema claro');
+for(const width of [350,390,450]){shell.style.setProperty('--drawer-width',width+'px');const body=shell.querySelector('.cdsp-general-shell__body');assert(body.scrollWidth<=body.clientWidth+1,'sem overflow no módulo real em '+width)}
+const pop=[...shell.querySelectorAll('.mtprev-pop-support')].find(node=>node.querySelector('summary').textContent==='Diagnóstico da Triagem');pop.open=true;pop.querySelector('button').click();await wait(150);assert(pop.querySelector('.mtprev-pop-section'),'diagnóstico real renderiza grupos de evidência');assert(!integrationErrors.length,'nenhum erro JS sem tratamento: '+integrationErrors.join('; '));
+shell.querySelector('.cdsp-general-shell__toggle').click();await wait(450);assert(!shell.classList.contains('mtprev-radial-operational'),'minimizar original retorna ao lançador');shell.querySelector('.mtprev-orbit__center').click();await wait(450);shell.querySelector('.mtprev-orbit__ring').children[0].click();await wait(450);assert(shell.classList.contains('mtprev-radial-operational'),'reabre sem remontar controles');
+[...shell.querySelectorAll('.cdsp-general-shell__header button')].find(button=>button.textContent==='Fechar').click();await wait(450);assert(!shell.classList.contains('mtprev-radial-operational'),'fechar reutiliza recolhimento do radial');shell.querySelector('.mtprev-orbit__center').click();await wait(450);shell.querySelector('.mtprev-orbit__ring').children[0].click();await wait(450);assert(shell.querySelectorAll('.mtprev-triage-workspace').length===1,'reabrir não duplica lista');
+const loading=shell.querySelector('.mtprev-duplicates-loading');assert(loading.hidden&&loading.getAttribute('role')==='status','indicador de duplicados inicia oculto e acessível');
+shell.querySelector('.mtprev-context-nav button[title="Duplicados"]').click();
+assert(getComputedStyle(shell.querySelector('.mtprev-triage-workspace')).display==='none','duplicados oculta formulário inicial');
+assert(getComputedStyle(shell.querySelector('#spa-cdsp-limit')).display!=='none','duplicados preserva filtro de quantidade');
+shell.querySelector('.mtprev-context-nav button[title="Triagem"]').click();
+const themeButton=[...shell.querySelectorAll('.cdsp-general-shell__header button')].find(button=>button.textContent.startsWith('Tema'));
+for(const target of ['dark','light']){
+if(shell.dataset.theme!==target)themeButton.click();
+await wait(250);
+assert(shell.dataset.mtTheme===target,'camadas de tema sincronizadas em '+target);
+const pages=shell.querySelector('.mtprev-context-pages');assert(getComputedStyle(pages).backgroundColor===(target==='dark'?'rgb(23, 33, 43)':'rgb(244, 247, 251)'),'fundo das opções acompanha '+target);
+}
+shell.style.setProperty('--drawer-width','450px');output.textContent=results.join('\n')+'\nALL PASS';output.dataset.result='pass';
+}catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message+' '+integrationErrors.join('; ');output.dataset.result='fail'}
+});
+</script></html>

@@ -1,0 +1,44 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>MTPrev · fixtures anônimas</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css"><link rel="stylesheet" href="../css/drawer.css">
+<pre id="results">Executando…</pre>
+<table id="procedures-box"><thead><tr><th data-name="numero do processo">Processo</th><th data-name="id do expediente">Expediente</th><th data-name="assunto">Assunto</th></tr></thead><tbody><tr class="group-item" data-id="fixture-a"><td>0001-22</td><td>17</td><td>Teste anônimo</td></tr><tr class="group-item" data-id="fixture-b"><td>0002-33</td><td>18</td><td>Teste anônimo</td></tr></tbody></table>
+<section id="cdsp-general-shell"><header class="cdsp-general-shell__header"><div class="cdsp-general-shell__title">MTPrev</div><button class="cdsp-general-shell__toggle">−</button></header><div class="cdsp-general-shell__modules"></div><div class="cdsp-general-shell__body"></div></section>
+<script src="../js/shared/spa_selectors.js"></script><script src="../js/shared/spa_adapter.js"></script><script src="../js/triagem/triage_workspace.js"></script><script src="../js/drawer.js"></script><script src="../js/spa_inspector.js"></script>
+<script>
+(async()=>{
+const results=[],output=document.getElementById('results'),wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const assert=(condition,name)=>{if(!condition)throw Error(name);results.push('PASS '+name)};
+try{
+assert(SpaAdapter.records().length===2,'detecta linhas e colunas da fixture');
+assert(SpaAdapter.records()[0].expedienteId==='17','obtém identificador sem XPath');
+const preview=document.createElement('div');preview.className='workspace-preview__document';preview.dataset.procedureId='fixture-preview';
+preview.innerHTML='<div class="workspace-preview__field"><small>Número do processo</small><span><strong>0003-44</strong><span data-copy-value="0003-44"></span></span></div><div class="workspace-preview__field"><small>ID do expediente</small><span><strong>19</strong><span data-copy-value="19"></span></span></div><button data-workspace-relationship-tab="pending_notice" data-url="/workspace/processes/fixture-preview/relationships/pending_notice"><strong>5</strong></button><div data-workspace-relationship-content>Selecione uma categoria</div>';
+document.body.append(preview);
+const previewRecords=SpaAdapter.workspacePreviewRecords();
+assert(previewRecords.length===1&&previewRecords[0].processNumber==='0003-44'&&previewRecords[0].expedienteId==='19','detalhes do workspace usam campos observados');
+assert(previewRecords[0].relatedExpedienteCount===5&&previewRecords[0].readingScope==='workspace-preview','contador relacionado não fabrica cinco expedientes');
+assert(SpaAdapter.records().length===2,'preview não substitui caixa reconhecida');
+const table=document.getElementById('procedures-box');table.hidden=true;assert(SpaAdapter.records().length===1&&SpaAdapter.records()[0].readingScope==='workspace-preview','fallback identifica escopo de um único detalhe');table.hidden=false;preview.remove();
+const report=SpaAdapter.inspect();assert(report.modules.triagem.rows.count===2,'evidência do seletor presente');assert(!JSON.stringify(report).includes('Teste anônimo'),'inspetor não exporta conteúdo');
+const shell=document.getElementById('cdsp-general-shell');shell.classList.add('mtprev-radial-shell','mtprev-radial-operational');
+const workspace=MTPrevTriageWorkspace.create({getRecords:()=>SpaAdapter.records()});shell.querySelector('.cdsp-general-shell__body').append(workspace.root);await wait(50);
+const search=workspace.root.querySelector('input[type=search]');search.value='000122';search.dispatchEvent(new Event('input'));await wait(200);assert(workspace.selectedRecords().length===1,'busca filtra somente o diagnóstico');assert(SpaAdapter.records().length===2,'busca não altera caixa');
+const checkbox=workspace.root.querySelector('.mtprev-workspace-list input');checkbox.click();assert(workspace.selectedRecords().length===0,'seleção explícita vazia é preservada');
+const row=document.querySelector('tr.group-item');row.querySelector('td').textContent='0001-22';await wait(150);assert(workspace.selectedRecords().length===0,'remontagem mantém seleção por identidade');
+search.value='';search.dispatchEvent(new Event('input'));await wait(200);
+let changes=0;const unsubscribe=SpaAdapter.observe(()=>changes++);document.querySelector('tbody').append(row.cloneNode(true));await wait(160);assert(changes>0,'observador detecta atualização assíncrona');unsubscribe();
+const missing=document.getElementById('procedures-box_paginate');assert(!missing,'paginação não inventada');
+const pending=SpaAdapter.waitFor('triagem','pagination',{timeout:1000});setTimeout(()=>{const node=document.createElement('div');node.id='procedures-box_paginate';node.textContent='Página 1';document.body.append(node)},20);assert((await pending).nodes.length===1,'wait específico resolve após montagem');
+const controller=new AbortController();controller.abort();let aborted=false;try{await SpaAdapter.waitFor('protocolo','massive',{signal:controller.signal})}catch(error){aborted=error.name==='AbortError'}assert(aborted,'wait cancelável');
+const confirmation=SpaAdapter.actions.confirm('Operação simulada',[{processNumber:'0001-22',expedienteId:'17'}]);document.querySelector('.mtprev-action-confirm button').click();assert(await confirmation===false,'cancelamento não autoriza operação');
+const approval=SpaAdapter.actions.confirm('Operação simulada',[{expedienteId:'17'}]);document.querySelector('.mtprev-action-confirm button:last-child').click();assert(await approval===true,'confirmação explícita autoriza somente o conjunto revisado');
+let valid=true;const accepted=SpaAdapter.actions.confirm('Operação simulada',[{expedienteId:'17'}],()=>valid);valid=false;document.querySelector('.mtprev-action-confirm button:last-child').click();assert(document.querySelector('.mtprev-action-confirm').open,'DOM alterado exige revisão');document.querySelector('.mtprev-action-confirm button').click();assert(await accepted===false,'resultado inconclusivo não pratica ato');
+MTPrevDrawer(shell);MTPrevDrawer(shell);assert(shell.querySelectorAll('.mtprev-drawer-resize').length===1,'drawer idempotente');
+const handle=shell.querySelector('.mtprev-drawer-resize');handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));assert(Number(localStorage.getItem('MTPREV_DRAWER_WIDTH'))>420,'largura persiste via teclado');
+assert(shell.dataset.theme==='light'||shell.dataset.theme==='dark','tema inicial válido');const previous=shell.dataset.theme;[...shell.querySelectorAll('header button')].find(b=>b.textContent.startsWith('Tema')).click();assert(shell.dataset.theme!==previous&&localStorage.getItem('MTPREV_UI_THEME')===shell.dataset.theme,'tema persiste');
+for(const width of [350,390,450]){shell.style.setProperty('--drawer-width',width+'px');assert(shell.getBoundingClientRect().width<=width+1,'drawer na largura '+width);assert(shell.querySelector('.cdsp-general-shell__body').scrollWidth<=shell.querySelector('.cdsp-general-shell__body').clientWidth+1,'conteúdo sem overflow em '+width)}
+MTPrevSpaInspector.open();assert(document.querySelector('#mtprev-spa-inspector').open,'inspetor acessível');document.querySelector('#mtprev-spa-inspector button:last-of-type').click();await wait(40);assert(!document.getElementById('mtprev-spa-inspector'),'inspetor limpa DOM ao fechar');
+workspace.dispose();SpaAdapter.dispose();output.textContent=results.join('\n')+'\nALL PASS';output.dataset.result='pass';
+}catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message;output.dataset.result='fail'}
+})();
+</script></html>
