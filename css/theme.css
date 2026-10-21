@@ -1,0 +1,210 @@
+/* Paleta compartilhada pelos controles do menu e das janelas independentes.
+   A camada dá prioridade às cores sobre os estilos legados, inclusive inline.
+   O escopo abaixo nunca seleciona botões nativos do SPA. */
+:root {
+  --mtprev-color-scheme: light;
+  --mtprev-bg: #f4f7fb;
+  --mtprev-surface: #ffffff;
+  --mtprev-raised: #eaf0f7;
+  --mtprev-border: #b5c5d5;
+  --mtprev-text: #24384b;
+  --mtprev-muted: #52677b;
+  --mtprev-button-bg: #eaf0f7;
+  --mtprev-button-hover: #d5e2ef;
+  --mtprev-primary: #1769c2;
+  --mtprev-primary-hover: #11559e;
+  --mtprev-on-primary: #ffffff;
+  --mtprev-success: #08758b;
+  --mtprev-success-hover: #065c70;
+  --mtprev-on-success: #ffffff;
+  --mtprev-warning: #855700;
+  --mtprev-warning-hover: #694400;
+  --mtprev-on-warning: #ffffff;
+  --mtprev-danger: #a53042;
+  --mtprev-danger-hover: #832436;
+  --mtprev-on-danger: #ffffff;
+  --mtprev-purple: #6046a6;
+  --mtprev-purple-hover: #493280;
+  --mtprev-on-purple: #ffffff;
+  --mtprev-disabled-bg: #e8edf3;
+  --mtprev-disabled-text: #526274;
+  --mtprev-orbit: #123f73;
+}
+
+/* Mesmos marcadores aceitos pelo menu, pelo SPA e pelos relatórios.
+   Um tema explícito no menu tem precedência sobre o tema da página. */
+:root:is(.cdsp-spa-dark-mode, .dark, [data-theme="dark"], [data-bs-theme="dark"], [data-mt-theme="dark"]):not(:has(#cdsp-general-shell:is([data-theme="light"], [data-mt-theme="light"]))),
+:root:has(body:is(.cdsp-spa-dark-mode, .dark, [data-theme="dark"], [data-bs-theme="dark"])):not(:has(#cdsp-general-shell:is([data-theme="light"], [data-mt-theme="light"]))),
+:root:has(#cdsp-general-shell:is([data-theme="dark"], [data-mt-theme="dark"], .mtprev-theme-dark)) {
+  --mtprev-color-scheme: dark;
+  --mtprev-bg: #17212b;
+  --mtprev-surface: #1f2d3a;
+  --mtprev-raised: #263544;
+  --mtprev-border: #627c94;
+  --mtprev-text: #eff5fa;
+  --mtprev-muted: #c3d0dc;
+  --mtprev-button-bg: #263544;
+  --mtprev-button-hover: #354b60;
+  --mtprev-primary: #8ec5ff;
+  --mtprev-primary-hover: #b8dcff;
+  --mtprev-on-primary: #10243a;
+  --mtprev-success: #65d8d0;
+  --mtprev-success-hover: #93e8e2;
+  --mtprev-on-success: #102b2d;
+  --mtprev-warning: #ffd28a;
+  --mtprev-warning-hover: #ffe4b5;
+  --mtprev-on-warning: #352209;
+  --mtprev-danger: #ffb4bf;
+  --mtprev-danger-hover: #ffd0d7;
+  --mtprev-on-danger: #40151d;
+  --mtprev-purple: #ceb8ff;
+  --mtprev-purple-hover: #e1d2ff;
+  --mtprev-on-purple: #2b1b45;
+  --mtprev-disabled-bg: #26313e;
+  --mtprev-disabled-text: #adbaca;
+  --mtprev-orbit: #263544;
+}
+
+/* Substitui as antigas paletas locais, mantendo os nomes usados no layout. */
+#cdsp-general-shell,
+#cdsp-general-shell:is([data-mt-theme="dark"], .mtprev-theme-dark) {
+  --mt-bg: var(--mtprev-bg);
+  --mt-surface: var(--mtprev-surface);
+  --mt-raised: var(--mtprev-raised);
+  --mt-border: var(--mtprev-border);
+  --mt-text: var(--mtprev-text);
+  --mt-muted: var(--mtprev-muted);
+  --mt-blue: var(--mtprev-primary);
+  --mt-blue-hover: var(--mtprev-primary-hover);
+  --mt-green: var(--mtprev-success);
+  --mt-accent: var(--mtprev-success);
+  color-scheme: var(--mtprev-color-scheme);
+}
+
+@layer mtprev-controls {
+  :is(#cdsp-general-shell, [id^="spa-cdsp-"], #cdsp-process-watch, #cdsp-sigadoc-menu, .mtprev-dialog) :is(button, input[type="button"], input[type="submit"], a[role="button"]),
+  :is(#spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn, #cdsp-watch-open, .spa-extrator-row-btn, .cdsp-oficios-button, .mtprev-action, .mtprev-utility) {
+    background: var(--mt-control-bg, var(--mtprev-button-bg)) !important;
+    color: var(--mt-control-text, var(--mtprev-text)) !important;
+    border-color: var(--mt-control-border, var(--mtprev-border)) !important;
+    text-shadow: none !important;
+    filter: none !important;
+    color-scheme: var(--mtprev-color-scheme);
+  }
+
+  :is(#cdsp-general-shell, [id^="spa-cdsp-"], #cdsp-process-watch, #cdsp-sigadoc-menu, .mtprev-dialog) :is(button, input[type="button"], input[type="submit"], a[role="button"]):is(:hover, :active):not(:disabled):not([aria-disabled="true"]),
+  :is(#spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn, #cdsp-watch-open, .spa-extrator-row-btn, .cdsp-oficios-button, .mtprev-action, .mtprev-utility):is(:hover, :active):not(:disabled) {
+    background: var(--mt-control-hover, var(--mtprev-button-hover)) !important;
+    color: var(--mt-control-text, var(--mtprev-text)) !important;
+  }
+
+  /* Variantes semânticas compartilham pares de fundo/texto, inclusive nos modais. */
+  :is(.mtprev-action--primary, .mtprev-action--info, .mtprev-action--blue, .cdsp-oficios-button--sig, .cdsp-oficios-button--sig-row, #spa-extrator-btn, .spa-extrator-row-btn, .cdsp-sigadoc-menu__button.is-primary) {
+    --mt-control-bg: var(--mtprev-primary);
+    --mt-control-hover: var(--mtprev-primary-hover);
+    --mt-control-text: var(--mtprev-on-primary);
+    --mt-control-border: var(--mtprev-primary);
+  }
+  :is(.mtprev-action--success, .mtprev-action--teal, .cdsp-oficios-button--spa, #spa-sigadoc-btn, #spa-preencher-btn) {
+    --mt-control-bg: var(--mtprev-success);
+    --mt-control-hover: var(--mtprev-success-hover);
+    --mt-control-text: var(--mtprev-on-success);
+    --mt-control-border: var(--mtprev-success);
+  }
+  :is(.mtprev-action--warning, .mtprev-action--amber, .cdsp-oficios-button--siga, #spa-sigadoc-assinar-btn, .cdsp-sigadoc-menu__button.is-warning) {
+    --mt-control-bg: var(--mtprev-warning);
+    --mt-control-hover: var(--mtprev-warning-hover);
+    --mt-control-text: var(--mtprev-on-warning);
+    --mt-control-border: var(--mtprev-warning);
+  }
+  :is(.mtprev-action--danger, .mtprev-action--red, .cdsp-sigadoc-menu__button.is-danger),
+  #cdsp-general-shell button[title="Encerrar fluxo em andamento"] {
+    --mt-control-bg: var(--mtprev-danger);
+    --mt-control-hover: var(--mtprev-danger-hover);
+    --mt-control-text: var(--mtprev-on-danger);
+    --mt-control-border: var(--mtprev-danger);
+  }
+  .mtprev-action--purple {
+    --mt-control-bg: var(--mtprev-purple);
+    --mt-control-hover: var(--mtprev-purple-hover);
+    --mt-control-text: var(--mtprev-on-purple);
+    --mt-control-border: var(--mtprev-purple);
+  }
+  :is(.cdsp-oficios-button, .cdsp-sigadoc-menu__button, #spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn).sucesso {
+    --mt-control-bg: var(--mtprev-success);
+    --mt-control-hover: var(--mtprev-success-hover);
+    --mt-control-text: var(--mtprev-on-success);
+    --mt-control-border: var(--mtprev-success);
+  }
+  :is(.cdsp-oficios-button, .cdsp-sigadoc-menu__button, #spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn).alerta {
+    --mt-control-bg: var(--mtprev-warning);
+    --mt-control-hover: var(--mtprev-warning-hover);
+    --mt-control-text: var(--mtprev-on-warning);
+    --mt-control-border: var(--mtprev-warning);
+  }
+  :is(.cdsp-oficios-button, .cdsp-sigadoc-menu__button, #spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn).erro {
+    --mt-control-bg: var(--mtprev-danger);
+    --mt-control-hover: var(--mtprev-danger-hover);
+    --mt-control-text: var(--mtprev-on-danger);
+    --mt-control-border: var(--mtprev-danger);
+  }
+  :is(#cdsp-general-shell, [id^="spa-cdsp-"], #cdsp-process-watch, #cdsp-sigadoc-menu, .mtprev-dialog) :is(button, a[role="button"]):is(.is-active, .mtprev-context-active, .spa-cdsp-external-docs-process-option-active, [aria-pressed="true"]) {
+    --mt-control-bg: var(--mtprev-primary);
+    --mt-control-hover: var(--mtprev-primary-hover);
+    --mt-control-text: var(--mtprev-on-primary);
+    --mt-control-border: var(--mtprev-primary);
+  }
+  :is(#cdsp-general-shell, [id^="spa-cdsp-"], #cdsp-process-watch, #cdsp-sigadoc-menu, .mtprev-dialog) :is(button, input, a[role="button"]):is(:disabled, [aria-disabled="true"]),
+  :is(#spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn, #cdsp-watch-open, .spa-extrator-row-btn, .cdsp-oficios-button, .mtprev-action, .mtprev-utility):disabled {
+    background: var(--mtprev-disabled-bg) !important;
+    color: var(--mtprev-disabled-text) !important;
+    border-color: var(--mtprev-border) !important;
+    opacity: 1 !important;
+    cursor: not-allowed !important;
+  }
+  :is(#cdsp-general-shell, [id^="spa-cdsp-"], #cdsp-process-watch, #cdsp-sigadoc-menu, .mtprev-dialog) :is(button, input, a[role="button"]):focus-visible,
+  :is(#spa-extrator-btn, #spa-sigadoc-btn, #spa-sigadoc-assinar-btn, #spa-preencher-btn, #cdsp-watch-open, .spa-extrator-row-btn, .cdsp-oficios-button, .mtprev-action, .mtprev-utility):focus-visible {
+    outline: 3px solid var(--mtprev-primary) !important;
+    outline-offset: 3px !important;
+  }
+
+  /* O anel conserva as áreas transparentes e a geometria do arraste. */
+  #cdsp-general-shell .mtprev-orbit__item,
+  #cdsp-general-shell .mtprev-orbit__item:is(:hover, :active):not(:disabled):not([aria-disabled="true"]) {
+    background: transparent !important;
+    color: #ffffff !important;
+  }
+  #cdsp-general-shell .mtprev-orbit__ring::before {
+    background: var(--mtprev-orbit) !important;
+  }
+  #cdsp-general-shell .mtprev-orbit__center {
+    --mt-control-bg: var(--mtprev-surface);
+    --mt-control-hover: var(--mtprev-raised);
+    --mt-control-border: var(--mtprev-success);
+  }
+  #cdsp-general-shell .mtprev-orbit__item:is(:hover, :focus-visible) .mtprev-orbit__disc {
+    background: #1769c2 !important;
+  }
+  #cdsp-general-shell .mtprev-orbit__special .mtprev-orbit__disc {
+    background: #08758b !important;
+  }
+  #cdsp-general-shell :is(.mtprev-orbit__context, .mtprev-orbit__label) {
+    background: var(--mtprev-surface) !important;
+    color: var(--mtprev-text) !important;
+    border-color: var(--mtprev-border) !important;
+  }
+}
+
+.mtprev-duplicates-loading {
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--mtprev-surface);
+  color: var(--mtprev-text);
+  border: 1px solid var(--mtprev-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.mtprev-duplicates-loading[data-tone="error"] {
+  background: var(--mtprev-danger);
+  color: var(--mtprev-on-danger);
+}

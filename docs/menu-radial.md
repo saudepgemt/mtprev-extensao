@@ -26,6 +26,10 @@ Os controles operacionais permanecem no DOM e mantêm seus estados.
 O centro abre e recolhe o anel, com transições de 240 ms e escalonamento de 20 ms.
 O arraste usa Pointer Events, captura do ponteiro, limiar de 6 px, atualização
 por requestAnimationFrame/translate3d e gravação da posição ao soltar.
+Quando recolhido, o limite considera apenas o círculo visível, com margem de
+8 px das bordas da janela. O anel invisível não restringe o movimento. Ao abrir,
+o menu completo é reposicionado para caber na tela. A posição recolhida é
+restaurada antes de carregar o módulo ativo, inclusive junto às bordas.
 O cabeçalho mantém arraste e duplo clique. Não há fonte ou biblioteca remota.
 
 `Voltar`, `Voltar ao menu` e Escape permitem navegar sem recriar os
@@ -33,6 +37,11 @@ formulários. O anel fechado usa inert. Os controles de acompanhamento permanece
 na barra auxiliar do painel operacional. Anéis extensos usam páginas de opções reais.
 
 ## Verificação executada
+
+No Firefox instalado, `python3 tests/firefox_menu.py` verifica o pacote real em
+perfil temporário: arraste com ponteiro nativo aos quatro cantos, supressão do
+clique após arrastar, posição após recarregar e expansão dentro da janela,
+além dos submenus de Triagem. Usa uma página SPA local sem atos nos portais.
 
 Executar `powershell -File tests/run_radial_browser.ps1` em um Windows com Chrome.
 O teste carrega os arquivos reais JS/CSS do componente em uma página local com

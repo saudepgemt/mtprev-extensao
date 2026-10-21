@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 function combinePdfTextItems(items) {
@@ -242,6 +243,9 @@ async function searchPdfText(input, query, exact) {
   };
 }
 
+// Also used directly by Firefox's background document, which has no offscreen API.
+globalThis.MTPrevPdfReader = { extractPdfText, searchPdfText };
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
 
@@ -281,3 +285,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+})();

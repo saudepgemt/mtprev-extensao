@@ -1264,29 +1264,29 @@
 
    Labels and their accessible names remain in the original DOM. */
 
-#cdsp-general-shell [data-cdsp-module-button="triagem"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/inbox.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="triagem"] { --mt-icon: url('../images/material-rounded/inbox.svg'); }
 
-#cdsp-general-shell [data-cdsp-module-button="prazos"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/edit_document.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="prazos"] { --mt-icon: url('../images/material-rounded/edit_document.svg'); }
 
-#cdsp-general-shell [data-cdsp-module-button="gestao"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/account_tree.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="gestao"] { --mt-icon: url('../images/material-rounded/account_tree.svg'); }
 
-#cdsp-general-shell [data-cdsp-module-button="oficios"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/outgoing_mail.svg'); }
+#cdsp-general-shell [data-cdsp-module-button="oficios"] { --mt-icon: url('../images/material-rounded/outgoing_mail.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Triagem"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/fact_check.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Triagem"] { --mt-icon: url('../images/material-rounded/fact_check.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Duplicados"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/content_copy.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Duplicados"] { --mt-icon: url('../images/material-rounded/content_copy.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Peças"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/description.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Peças"] { --mt-icon: url('../images/material-rounded/description.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Filtros"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/filter_alt.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Filtros"] { --mt-icon: url('../images/material-rounded/filter_alt.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Programada"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/event.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Programada"] { --mt-icon: url('../images/material-rounded/event.svg'); }
 
-#cdsp-general-shell .mtprev-context-nav button[title="Registro"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/history.svg'); }
+#cdsp-general-shell .mtprev-context-nav button[title="Registro"] { --mt-icon: url('../images/material-rounded/history.svg'); }
 
-#cdsp-general-shell label[for="spa-cdsp-use-date"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/calendar_month.svg'); }
+#cdsp-general-shell label[for="spa-cdsp-use-date"] { --mt-icon: url('../images/material-rounded/calendar_month.svg'); }
 
-#cdsp-general-shell label[for="spa-cdsp-limit"] { --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/format_list_numbered.svg'); }
+#cdsp-general-shell label[for="spa-cdsp-limit"] { --mt-icon: url('../images/material-rounded/format_list_numbered.svg'); }
 
 #cdsp-general-shell :is([data-cdsp-module-button], .mtprev-context-nav button)::before,
 
@@ -1336,7 +1336,7 @@
 
 #cdsp-general-shell button[title="Encerrar fluxo em andamento"] {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/power_settings_new.svg');
+  --mt-icon: url('../images/material-rounded/power_settings_new.svg');
 
   height: 32px !important;
 
@@ -1344,7 +1344,7 @@
 
 #cdsp-general-shell .cdsp-general-shell__status[data-tone="ok"] {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/check_circle.svg');
+  --mt-icon: url('../images/material-rounded/check_circle.svg');
 
   color: #b3e9d9;
 
@@ -1364,7 +1364,7 @@
 
 #cdsp-general-shell #spa-cdsp-active-filters-label + div > button {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/close.svg');
+  --mt-icon: url('../images/material-rounded/close.svg');
 
   padding: 4px 6px !important;
 
@@ -1372,7 +1372,7 @@
 
 #cdsp-general-shell #spa-cdsp-active-filters-label + div > button:last-child {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/filter_alt_off.svg');
+  --mt-icon: url('../images/material-rounded/filter_alt_off.svg');
 
 }
 
@@ -1390,7 +1390,7 @@
 
 #cdsp-general-shell #spa-cdsp-panel-content > div:last-child > div:nth-child(2) .mtprev-action--amber {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/open_in_new.svg');
+  --mt-icon: url('../images/material-rounded/open_in_new.svg');
 
   background: #126fa1 !important;
 
@@ -1402,7 +1402,7 @@
 
 #cdsp-general-shell #spa-cdsp-panel-content > div:last-child > div:nth-child(2) .mtprev-action--info {
 
-  --mt-icon: url('chrome-extension://__MSG_@@extension_id__/images/material-rounded/summarize.svg');
+  --mt-icon: url('../images/material-rounded/summarize.svg');
 
   background: var(--mt-raised) !important;
 

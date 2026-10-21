@@ -115,11 +115,27 @@
 
   function clampPosition(shell, left, top) {
     const margin = 8;
-    const maxLeft = Math.max(margin, window.innerWidth - shell.offsetWidth - margin);
-    const maxTop = Math.max(margin, window.innerHeight - shell.offsetHeight - margin);
+    let offsetLeft = 0, offsetTop = 0;
+    let width = shell.offsetWidth, height = shell.offsetHeight;
+    // The collapsed menu only displays the center button. Its invisible orbit
+    // must not keep the button away from the edges of the viewport.
+    const center = shell.classList.contains("mtprev-radial-compact") &&
+      !shell.classList.contains("mtprev-radial-operational") &&
+      shell.querySelector(".mtprev-orbit__center");
+    if (center) {
+      const shellRect = shell.getBoundingClientRect();
+      const centerRect = center.getBoundingClientRect();
+      offsetLeft = centerRect.left - shellRect.left;
+      offsetTop = centerRect.top - shellRect.top;
+      width = centerRect.width;
+      height = centerRect.height;
+    }
+    const minLeft = margin - offsetLeft, minTop = margin - offsetTop;
+    const maxLeft = Math.max(minLeft, window.innerWidth - offsetLeft - width - margin);
+    const maxTop = Math.max(minTop, window.innerHeight - offsetTop - height - margin);
     return {
-      left: Math.min(Math.max(margin, left), maxLeft),
-      top: Math.min(Math.max(margin, top), maxTop)
+      left: Math.min(Math.max(minLeft, left), maxLeft),
+      top: Math.min(Math.max(minTop, top), maxTop)
     };
   }
 
@@ -765,11 +781,6 @@
       shell.style.top = position.top + "px";
     });
 
-    const lastActive = savedState.active || window.localStorage.getItem(ACTIVE_KEY);
-    if (lastActive && moduleByKey(lastActive).key === lastActive) {
-      ensureModuleLoaded(lastActive);
-    }
-
     if (window.MTPrevRadialMenu) window.MTPrevRadialMenu(shell, {
       modules: MODULES,
       load: ensureModuleLoaded,
@@ -781,6 +792,12 @@
     // Restore again with the final compact dimensions, especially near the bottom edge.
     if (window.MTPrevDrawer) window.MTPrevDrawer(shell);
     applySavedPosition(shell);
+    // Loading a module saves the shell position. Restore the collapsed button's
+    // bounds first so a reload cannot overwrite an edge position with panel bounds.
+    const lastActive = savedState.active || window.localStorage.getItem(ACTIVE_KEY);
+    if (lastActive && moduleByKey(lastActive).key === lastActive) {
+      ensureModuleLoaded(lastActive);
+    }
     installRootToolsWatcher();
   }
 

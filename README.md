@@ -1,8 +1,8 @@
 # CDSP - Extensão Geral
 
-Extensão Chrome unificada da CDSP para uso no SPA/SIGADOC.
+Extensão unificada da CDSP para uso no SPA/SIGADOC, com pacotes para Chrome e Firefox.
 
-Versão atual versionada neste repositório: **2.70** (`manifest.version = 2.0.70`).
+Versão atual versionada neste repositório: **2.71** (`manifest.version = 2.0.71`).
 
 O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
 
@@ -18,6 +18,79 @@ Este repositório contém a extensão. O aplicativo de operações tem versionam
 - `js/`, `css/`, `images/`, `data/`: código e recursos da extensão.
 - `README_CARREGAR.txt`: instruções para carregar localmente no Chrome.
 - `GUIA_DE_UPDATES.txt`: regras de manutenção para próximos updates.
+
+## Carregar no Firefox
+
+Requisitos: Firefox **128 ou superior** e Node.js **18 ou superior** para gerar o
+pacote. Na pasta do projeto, execute:
+
+```sh
+node scripts/build-firefox.js
+```
+
+1. No Firefox, abra `about:debugging#/runtime/this-firefox`.
+2. Clique em **Carregar extensão temporária…** e selecione
+   `dist/firefox/manifest.json` (não o manifesto da raiz).
+3. Autorize o acesso aos sites usados pela extensão, se solicitado, e recarregue
+   as abas do SPA/SIGADOC.
+
+Essa instalação precisa ser carregada novamente após reiniciar o Firefox.
+Depois de editar o código, gere o pacote novamente e clique em **Recarregar**
+na tela de depuração. Para instalação permanente no Firefox padrão, o pacote
+precisa passar pela assinatura da Mozilla.
+
+O gerador mantém o manifesto da raiz para Chrome e cria um manifesto Firefox
+com scripts de background ordenados e identificação estável. A leitura e a
+pesquisa de PDFs usam o mesmo PDF.js local diretamente no background do Firefox.
+O pacote contém apenas os recursos da extensão; arquivos obrigatórios ausentes
+interrompem a geração, incluindo os scripts dos painéis carregados sob demanda.
+
+O carregamento da Triagem usa as dependências presentes no repositório e só
+informa sucesso depois de confirmar a montagem do painel. Falhas aparecem no
+menu radial. As confirmações de ciência, classificação e encerramento continuam
+disponíveis com o diálogo nativo quando o adaptador opcional não está instalado.
+
+Validação automatizada:
+
+```sh
+node --test tests/*.test.cjs
+```
+
+Teste dos cliques com o Firefox instalado e Python 3:
+
+```sh
+python3 tests/firefox_menu.py
+# Para outro caminho do navegador:
+python3 tests/firefox_menu.py --firefox /caminho/para/firefox
+```
+
+Esse teste usa um perfil temporário e uma cópia do pacote autorizada a acessar
+somente a página de teste local adicional. Confere os seis submenus da Triagem,
+seus controles visíveis, a base de assessores, a restauração após recarregar e
+os erros de carregamento de scripts e ícones. Também gera o relatório de
+duplicados em uma tabela local com grupos recolhidos, carregamento atrasado e
+duas páginas, e verifica o contraste dos botões nos temas claro e escuro.
+Não executa atos nos portais reais.
+
+O relatório de duplicados expande cada grupo da página e aguarda os expedientes
+antes de comparar. Mantém os filtros e a seleção de páginas existentes; sem
+seleção, percorre todas as páginas. O painel informa o progresso, a conferência
+dos PDFs e eventuais falhas de carregamento, permitindo tentar novamente.
+
+As cores dos botões usam `css/theme.css`, compartilhado pelo menu, pelos
+relatórios e pelo SIGADOC. O tema acompanha os marcadores claro/escuro da página
+(`cdsp-spa-dark-mode`, `dark`, `data-theme` ou `data-bs-theme`) e aceita a escolha
+explícita `data-mt-theme="light|dark"` no menu. Os botões nativos do portal não
+são alterados.
+
+Também foram verificados no Firefox 157, em perfil temporário: carregamento,
+mensagens, armazenamento, alarme de acompanhamento e extração/pesquisa em PDF de
+duas páginas. Os fluxos autenticados de SPA/SIGADOC ainda precisam de conferência
+no ambiente de uso.
+
+Referências: [background no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background),
+[suporte a MAIN no Firefox 128](https://blog.mozilla.org/addons/2024/07/10/manifest-v3-updates-landed-in-firefox-128/)
+e [instalação temporária](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/).
 
 ## Versionamento
 

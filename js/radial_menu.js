@@ -163,10 +163,11 @@
       api.load(item.key);
       const started = performance.now();
       await new Promise((resolve) => setTimeout(resolve, delay()));
-      while (token === generation && !options().length && performance.now() - started < 10000) await new Promise((resolve) => setTimeout(resolve, 80));
+      const loadError = () => shell.querySelector('.cdsp-general-shell__status[data-tone="error"]')?.textContent;
+      while (token === generation && !options().length && !loadError() && performance.now() - started < 10000) await new Promise((resolve) => setTimeout(resolve, 80));
       if (token !== generation) return;
       if (!options().length) {
-        context.textContent = 'Nenhuma opção disponível neste contexto. Volte ou abra um processo no SPA.';
+        context.textContent = loadError() || 'Nenhuma opção disponível neste contexto. Volte ou abra um processo no SPA.';
         context.classList.add('is-notice');
         return;
       }
@@ -193,7 +194,7 @@
     center.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || drag) return;
       const rect = shell.getBoundingClientRect();
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height, dx: 0, dy: 0, moved: false };
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, dx: 0, dy: 0, moved: false };
       suppressClick = false; center.setPointerCapture(event.pointerId);
     });
     center.addEventListener('pointermove', (event) => {
@@ -201,8 +202,9 @@
       const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < 6) return;
       drag.moved = true;
-      drag.dx = Math.min(Math.max(8, drag.left + dx), Math.max(8, innerWidth - drag.width - 8)) - drag.left;
-      drag.dy = Math.min(Math.max(8, drag.top + dy), Math.max(8, innerHeight - drag.height - 8)) - drag.top;
+      const position = api.clamp(shell, drag.left + dx, drag.top + dy);
+      drag.dx = position.left - drag.left;
+      drag.dy = position.top - drag.top;
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (drag) shell.style.transform = `translate3d(${drag.dx}px,${drag.dy}px,0)`; });
     });
     function finish(event) {

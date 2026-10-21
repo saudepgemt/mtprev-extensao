@@ -1,6 +1,9 @@
 "use strict";
 
-importScripts("shared/mtprev_triage_rules.js");
+// Firefox loads these dependencies in order through background.scripts.
+if (typeof importScripts === "function") {
+  importScripts("shared/mtprev_triage_rules.js");
+}
 
 // Imported after initialization below so the watcher can reuse the PJe query.
 
@@ -2236,6 +2239,10 @@ async function ensureOffscreenDocument() {
 }
 
 async function extractPdfTextWithOffscreen(buffer) {
+  if (!chrome.offscreen && globalThis.MTPrevPdfReader) {
+    // PDF.js transfers its input to a worker; keep the original for other readers.
+    return globalThis.MTPrevPdfReader.extractPdfText(buffer.slice(0));
+  }
   await ensureOffscreenDocument();
 
   offscreenRequestSeq += 1;
@@ -2289,6 +2296,9 @@ function sendPdfToOffscreen(buffer, requestId) {
 }
 
 async function searchPdfWithOffscreen(buffer, query, exact) {
+  if (!chrome.offscreen && globalThis.MTPrevPdfReader) {
+    return globalThis.MTPrevPdfReader.searchPdfText(buffer.slice(0), query, exact);
+  }
   await ensureOffscreenDocument();
 
   offscreenRequestSeq += 1;
@@ -4609,8 +4619,16 @@ async function cdspOficiosExtrairProcessoEmAba(message) {
   }
 }
 
+async function cdspGeneralExecuteScript(injection) {
+  const results = await chrome.scripting.executeScript(injection);
+  // Firefox reports execution failures per frame instead of rejecting the call.
+  const failed = (results || []).find((result) => result.error);
+  if (failed) throw new Error(failed.error.message || String(failed.error));
+  return results;
+}
+
 async function cdspGeneralMainWorldResult(tabId, func, args) {
-  const results = await chrome.scripting.executeScript({
+  const results = await cdspGeneralExecuteScript({
     target: { tabId },
     world: "MAIN",
     func,
@@ -4631,7 +4649,7 @@ async function ensureSharedReportLibraries(tabId) {
 
   if (!files.length) return;
 
-  await chrome.scripting.executeScript({
+  await cdspGeneralExecuteScript({
     target: { tabId },
     files,
     world: "MAIN"
@@ -5089,11 +5107,11 @@ async function injectPanel(sender) {
 
   try {
     const alreadyLoaded = await cdspGeneralMainWorldResult(tabId, () =>
-      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED)
+      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.getElementById("spa-cdsp-panel"))
     );
     if (alreadyLoaded) return { ok: true, alreadyLoaded: true };
 
-    await chrome.scripting.executeScript({
+    await cdspGeneralExecuteScript({
       target: { tabId },
       world: "MAIN",
       func: (config) => {
@@ -5108,11 +5126,16 @@ async function injectPanel(sender) {
     });
 
     await ensureSharedReportLibraries(tabId);
-    await chrome.scripting.executeScript({
+    await cdspGeneralExecuteScript({
       target: { tabId },
-      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/spa_selectors.js", "js/shared/spa_adapter.js", "js/shared/mtprev_triage_rules.js", "js/triagem/triage_workspace.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
+
+    const ready = await cdspGeneralMainWorldResult(tabId, () =>
+      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.querySelector("#spa-cdsp-panel .mtprev-context-nav > button"))
+    );
+    if (!ready) throw new Error("O painel de Triagem nao terminou de carregar. Recarregue a aba e tente novamente.");
 
     return { ok: true };
   } catch (error) {
@@ -5446,4 +5469,6 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
-importScripts("process_watch_background.js");
+if (typeof importScripts === "function") {
+  importScripts("process_watch_background.js");
+}
