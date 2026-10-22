@@ -8103,9 +8103,9 @@
 
   function taskClosureLink() {
     const expected = normalizeText(CONFIG.encerramentoText).toLowerCase();
-    return Array.from(document.querySelectorAll("a[href*='/new_progress/']")).find((link) => {
+    return Array.from(document.querySelectorAll("a[href*='/new_progress/'], a[data-workspace-step-url*='/new_progress/']")).find((link) => {
       const text = normalizeText([link.getAttribute("data-title"), link.getAttribute("title"), link.textContent].join(" ")).toLowerCase();
-      const href = String(link.getAttribute("href") || "");
+      const href = String(link.getAttribute("href") || link.getAttribute("data-workspace-step-url") || "");
       return text.indexOf(expected) >= 0 || href.indexOf("/new_progress/" + CONFIG.encerramentoStepId) >= 0;
     }) || null;
   }
@@ -8151,7 +8151,12 @@
 
     setStatus("Abrindo sugestao de encerramento");
     log("Abrindo Sugerir encerramento de tarefa.");
-    const href = resolveUrl(link.getAttribute("href"));
+    const rawHref = String(link.getAttribute("href") || "");
+    const stepHref = String(link.getAttribute("data-workspace-step-url") || "");
+    // SPA2 sheet actions can have href="#". A navigation fallback is valid
+    // only for a real /new_progress/ URL, not for an action placeholder.
+    const destination = /\/new_progress\/\d+/.test(rawHref) ? rawHref : stepHref;
+    const href = /\/new_progress\/\d+/.test(destination) ? resolveUrl(destination) : "";
     link.click();
     setTimeout(() => {
       if (href && window.location.href !== href && window.location.pathname.indexOf("/new_progress/") < 0) {
@@ -8161,6 +8166,7 @@
     return prepared;
   }
 
+  const spa2ClosureLazyAttempts = new Set();
   async function continuePendingTriageTaskClosure() {
     const action = triageClosureAction();
     if (!action || !action.createdAt || Date.now() - action.createdAt > 5 * 60 * 1000) return;
@@ -8173,7 +8179,22 @@
       if (link) {
         await beginTriageTaskClosure(action);
       } else if (Date.now() - action.createdAt < 10000) {
+        // No SPA2 the next-step menu is lazy. Trigger it only once and then
+        // retry finding the exact closure step, never select another action.
+        const lazy = document.querySelector(
+          '.workspace-preview__next-step-button[data-url], .workspace-process-action--lazy[data-url*="next_steps"]'
+        );
+        const lazyKey = String(action.operationId || action.procedureId);
+        if (lazy && !spa2ClosureLazyAttempts.has(lazyKey)) {
+          spa2ClosureLazyAttempts.add(lazyKey);
+          try { lazy.click(); } catch (_error) { /* user can open manually */ }
+        }
         setTimeout(continuePendingTriageTaskClosure, 600);
+      } else {
+        // Never leave a shared action around for another tab to consume later.
+        clearTriageClosureAction(action.operationId);
+        setStatus('Sugestão não iniciada');
+        log('Não foi possível localizar o passo de encerramento no SPA2. Confira manualmente a aba aberta; nenhum salvamento automático foi confirmado.', 'error');
       }
       return;
     }
@@ -10854,7 +10875,16 @@
           operationId: "triage-closure-" + Date.now() + "-" + Math.random().toString(36).slice(2)
         })
       : await beginTriageTaskClosure(data);
-    if (/^\/workspace\/?$/.test(window.location.pathname)) saveTriageClosureAction(action);
+    // Workspace is the orchestrator, not the destination tab. A sessionStorage
+    // copy here remains stale even after the opened tab processes the action.
+    // Keep only one shared pending action for strictly sequential hand-off.
+    if (/^\/workspace\/?$/.test(window.location.pathname)) {
+      const alreadyPending = storageGet(TRIAGE_CLOSURE_ACTION_KEY, "");
+      if (alreadyPending) {
+        throw new Error("Ha outra sugestao de encerramento pendente. Confira a aba aberta antes de iniciar outra.");
+      }
+      storageSet(TRIAGE_CLOSURE_ACTION_KEY, JSON.stringify(action));
+    }
     if (!(await openUrlInBackground(record.pendencyUrl))) {
       clearTriageClosureAction(action.operationId);
       throw new Error("A extensao nao conseguiu abrir a pendencia em segundo plano.");
@@ -11163,6 +11193,9 @@
     subtitle.style.cssText='font-size:11px;color:#c1d0e0;margin-top:4px;';
     title.append(titleName,subtitle);header.appendChild(title);
     const openAll=button('Abrir candidatos','md-muted-btn');
+    const bulkClosure=button('Sugestões em lote (0)','md-amber');
+    bulkClosure.disabled=true;
+    bulkClosure.title='Selecione manualmente os expedientes a revisar. A fila é preparada um por vez, nunca faz gravações paralelas.';
     const refresh=button('Atualizar');
     refresh.addEventListener('click', async () => {
       refresh.disabled=true;
@@ -11172,7 +11205,7 @@
     });
     const close=button('Fechar','md-muted-btn');
     close.addEventListener('click',()=>overlay.remove());
-    header.append(openAll,refresh,close);sheet.appendChild(header);
+    header.append(openAll,bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
     const complete=coverage.reason==='complete';
@@ -11244,6 +11277,17 @@
     const resultLine=el('div','md-notice');main.appendChild(resultLine);
     const list=el('div');main.appendChild(list);
     const expandedGroups=new Set();
+    // A seleção vale pelo ID interno do expediente + ID do processo SPA, nunca
+    // pelo número CNJ; a mesma numeração pode ter várias tarefas legítimas.
+    const selectedForClosure=new Map();
+    const keyForClosure=record=>{
+      const internal=procedureIdFromUrl(record?.pendencyUrl || '');
+      return internal && String(record?.expedienteId || '').trim() ? `${internal}:${String(record.expedienteId)}` : '';
+    };
+    const syncBulkClosure=()=>{
+      bulkClosure.textContent=`Sugestões em lote (${selectedForClosure.size})`;
+      bulkClosure.disabled=!selectedForClosure.size;
+    };
     const normalized=value=>String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const render=()=>{
       list.replaceChildren();
@@ -11283,7 +11327,22 @@
         group.records.forEach((record,index)=>{
           const row=el('section','md-record');
           const rowTitle=el('div','md-record-title');
-          rowTitle.append(el('strong','',`Expediente ${index+1}`),el('span','md-notice',record.status || 'Candidato à conferência'));
+          const recordKey=keyForClosure(record);
+          const selectLabel=el('label');
+          selectLabel.style.cssText='display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:750;';
+          const selectCheck=el('input');
+          selectCheck.type='checkbox';
+          selectCheck.checked=Boolean(recordKey && selectedForClosure.has(recordKey));
+          selectCheck.disabled=!recordKey;
+          selectCheck.title=recordKey?'Selecionar expediente para a fila assistida de encerramento':'Não foi possível identificar o ID interno do expediente.';
+          selectCheck.addEventListener('change',()=>{
+            if(!recordKey)return;
+            if(selectCheck.checked)selectedForClosure.set(recordKey,{record,groupNumber:group.processNumber || '',score});
+            else selectedForClosure.delete(recordKey);
+            syncBulkClosure();
+          });
+          selectLabel.append(selectCheck,el('span','',`Expediente ${index+1}`));
+          rowTitle.append(selectLabel,el('span','md-notice',record.status || 'Candidato à conferência'));
           row.appendChild(rowTitle);
           const fields=el('div','md-fields');
           [
@@ -11369,6 +11428,76 @@
         details.appendChild(recordsWrap);list.appendChild(details);
       });
     };
+    bulkClosure.addEventListener('click',()=>{
+      const items=Array.from(selectedForClosure.values());
+      if(!items.length)return;
+      // No arbitrary record is selected by default, even at 100/100 score.
+      // The user must explicitly select which real expedientes are candidates.
+      const backdrop=el('div');
+      backdrop.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,10,19,.75);display:grid;place-items:center;padding:18px;';
+      const dialog=el('section');
+      dialog.setAttribute('role','dialog');
+      dialog.setAttribute('aria-modal','true');
+      dialog.setAttribute('aria-label','Fila assistida de sugestões de encerramento');
+      dialog.style.cssText='width:min(660px,100%);max-height:90vh;overflow:auto;background:#142536;color:#e7f0fa;border:1px solid #58728d;border-radius:12px;box-shadow:0 20px 60px #0007;padding:18px;display:grid;gap:12px;';
+      dialog.appendChild(el('strong','',`Fila assistida · ${items.length} expediente(s)`));
+      dialog.appendChild(el('p','', 'Revise os processos selecionados. Cada clique poderá preencher e SALVAR a sugestão no SPA para UM expediente, caso o formulário correto esteja disponível. A abertura da aba NÃO comprova que o andamento foi salvo: confira o resultado antes de avançar. Fechar a fila não cancela ações já iniciadas.'));
+      const listSelected=el('div');
+      listSelected.style.cssText='max-height:180px;overflow:auto;padding:8px 12px;border:1px solid #47637b;border-radius:7px;font-size:12px;line-height:1.8;';
+      items.forEach(({record,groupNumber,score},i)=>{
+        listSelected.appendChild(el('div','',`${i+1}. ${groupNumber} · ID ${record.expedienteId || 'não informado'} · ${score}/100`));
+      });
+      dialog.appendChild(listSelected);
+      const choice=createSearchableClosureChoice('Motivo da sugestão',
+        TRIAGE_CLOSURE_REASONS.map(label=>({label,value:label})), 'Duplicidade de tarefa.');
+      dialog.appendChild(choice.wrapper);
+      const observationLabel=el('label','','Observação (opcional)');
+      observationLabel.style.cssText='display:grid;gap:6px;font-size:12px;font-weight:750;';
+      const observation=el('textarea');
+      observation.rows=3;
+      observation.placeholder='Observação comum às sugestões selecionadas';
+      observation.style.cssText='padding:9px;background:#0e1b28;color:#fff;border:1px solid #577089;border-radius:6px;resize:vertical;';
+      observationLabel.appendChild(observation);dialog.appendChild(observationLabel);
+      const progress=el('div','','Nenhuma sugestão iniciada.');
+      progress.setAttribute('role','status');
+      progress.style.cssText='padding:9px;background:#20364b;border-radius:6px;font-size:12px;';
+      dialog.appendChild(progress);
+      const actions=el('div');actions.style.cssText='display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;';
+      const cancelButton=button('Encerrar revisão','md-muted-btn');
+      cancelButton.addEventListener('click',()=>backdrop.remove());
+      const nextButton=button('Confirmar e iniciar 1ª sugestão','md-amber');
+      let cursor=0,busy=false;
+      nextButton.addEventListener('click',async()=>{
+        if(busy||cursor>=items.length)return;
+        const current=items[cursor];
+        const reason=choice.value().trim();
+        if(!reason){progress.textContent='Selecione um motivo antes de continuar.';return;}
+        // The current SPA2 hand-off uses a single pending action key. Never
+        // overwrite it or send several server-side writes simultaneously.
+        if(storageGet(TRIAGE_CLOSURE_ACTION_KEY,'')){
+          progress.textContent='Há uma sugestão anterior pendente. Verifique a aba e conclua/cancele essa ação antes de continuar.';
+          return;
+        }
+        busy=true;nextButton.disabled=true;
+        progress.textContent=`Preparando ${cursor+1} de ${items.length}: expediente ${current.record.expedienteId || 'sem ID'}...`;
+        try{
+          await runDuplicateReportTaskClosure(()=>beginDuplicateReportTaskClosure(current.record,{
+            reason, observation:observation.value || ''
+          }));
+          cursor+=1;
+          progress.textContent=`${cursor} de ${items.length} envio(s) iniciado(s). Confira na aba aberta se o andamento foi efetivamente registrado antes de iniciar o próximo.`;
+          nextButton.textContent=cursor===items.length?'Fila iniciada':`Confirmar e iniciar próximo (${cursor+1}/${items.length})`;
+          nextButton.disabled=cursor===items.length;
+          if(cursor===items.length){
+            selectedForClosure.clear();syncBulkClosure();render();
+          }
+        }catch(error){
+          progress.textContent='Falha: '+(error?.message||String(error))+' · Nenhum próximo item foi iniciado.';
+        }finally{busy=false;if(cursor<items.length)nextButton.disabled=false;}
+      });
+      actions.append(cancelButton,nextButton);dialog.appendChild(actions);
+      backdrop.appendChild(dialog);document.body.appendChild(backdrop);
+    });
     search.addEventListener('input',render);threshold.addEventListener('change',render);render();
     main.appendChild(el('div','md-notice',
       'A mesma numeração pode constar de várias tarefas sem que haja duplicidade. A pontuação compara campos disponíveis, não PDFs. '+
