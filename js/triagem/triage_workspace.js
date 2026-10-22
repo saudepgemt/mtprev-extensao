@@ -22,9 +22,9 @@
     const all = document.createElement('button'); all.type = 'button'; all.textContent = 'Selecionar resultados para diagnóstico'; root.append(all);
     const list = document.createElement('div'); list.className = 'mtprev-workspace-list'; root.append(list);
     const selected = new Set(); let items = [], results = [], explicit = false;
-    let accumulated = new Map(), controller, currentRoute = location.href, disposed = false;
-    const keyOf = record => record.expedienteId && record.expedienteId !== 'Sem ID' ? `${record.processNumber || ''}|${record.expedienteId}` : record.pendencyUrl || record.rowKey || record.id;
-    function reset() { controller?.abort(); accumulated.clear(); selected.clear(); explicit = false; progress.textContent = ''; }
+    let accumulated = new Map(), controller, collection = null, currentRoute = location.href, disposed = false;
+    const keyOf = record => record.readingScope === 'workspace-list' && record.rowKey ? `workspace:${record.rowKey}` : record.expedienteId && record.expedienteId !== 'Sem ID' ? `${record.processNumber || ''}|${record.expedienteId}` : record.pendencyUrl || record.rowKey || record.id;
+    function reset() { controller?.abort(); accumulated.clear(); collection = null; selected.clear(); explicit = false; progress.textContent = ''; }
     function nativeChange(event) {
       if (event.target.closest?.('[data-mtprev-ui]')) return;
       if (event.type === 'change' || SpaAdapter.locate('triagem','pagination').nodes.some(node => node.contains(event.target))) { reset(); render(); }
@@ -33,13 +33,16 @@
     cancel.onclick = () => controller?.abort();
     load.onclick = async () => {
       if (controller) return;
-      controller = new AbortController(); accumulated.clear();
+      controller = new AbortController(); accumulated.clear(); collection = null;
       load.disabled = true; cancel.hidden = false; root.setAttribute('aria-busy','true');
       try {
         const result = await SpaAdapter.collectLazyRecords({ read: api.getRecords, signal: controller.signal,
-          onProgress: ({ count }) => { progress.textContent = `Carregando por rolagem: ${count} expediente(s) identificado(s)…`; } });
+          onProgress: ({ count, total }) => { progress.textContent = `Lendo processos: ${count}${Number.isFinite(total) ? ` de ${total}` : ''} identificado(s)…`; } });
+        collection = result;
         accumulated = new Map(result.records.map(record => [keyOf(record), record]));
-        progress.textContent = result.reason === 'complete' ? 'Lista carregada conforme o contador do SPA.' : result.reason === 'stable' ? 'Rolagem sem novos registros. Confira o total do SPA; outras páginas não foram percorridas.' : 'Leitura parcial: o carregamento parou ou atingiu o limite de tempo. Você pode tentar novamente.';
+        progress.textContent = result.reason === 'complete'
+          ? `Coleta concluída: ${result.records.length} expediente(s), conforme o contador do SPA.`
+          : `Leitura ${result.reason === 'stable' ? 'estável, mas não confirmada como completa' : 'parcial'}: ${result.records.length}${Number.isFinite(result.total) ? ` de ${result.total}` : ''} expediente(s). Confira os filtros e o total na página.`;
       } catch (error) { progress.textContent = error.name === 'AbortError' ? 'Carregamento cancelado. A lista mostra os registros atualmente montados.' : error.message; }
       finally { controller = null; load.disabled = false; cancel.hidden = true; root.setAttribute('aria-busy','false'); if (!disposed) render(); }
     };
@@ -47,15 +50,15 @@
     try { const stored = JSON.parse(localStorage.getItem('MTPREV_TRIAGE_READING_FILTERS') || '{}'); for (const key of Object.keys(controls)) controls[key].value = stored[key] || ''; } catch (_) {}
     function render() {
       if (!root.isConnected) return;
-      load.textContent = SpaAdapter.locate('workspace','list').nodes.length ? 'Carregar todos os cards da caixa' : 'Carregar expedientes por rolagem';
+      load.textContent = SpaAdapter.locate('workspace','list').nodes.length ? 'Buscar em todos os cards da caixa' : 'Carregar expedientes por rolagem';
       if (location.href !== currentRoute) { reset(); currentRoute = location.href; }
       try { items = api.getRecords(); } catch (_) { items = SpaAdapter.records(); }
       if (accumulated.size) items = [...new Map([...accumulated, ...items.map(record => [keyOf(record),record])]).values()];
       scope.textContent = items.some(record => record.readingScope === 'workspace-preview')
         ? 'Somente o expediente exibido nos detalhes foi lido. A lista da caixa e os expedientes relacionados ainda não estão mapeados; o total abaixo não representa a caixa inteira.'
-        : 'Esta seleção controla o diagnóstico dos registros carregados; as ações operacionais usam os filtros e lotes do SPA abaixo.';
+        : 'Para pesquisar também processos ainda não carregados, informe o número e pressione Enter ou clique no botão de busca completa. Esta seleção é só para diagnóstico: ações operacionais usam os filtros e lotes do SPA.';
       const filters = preferences(); results = SpaAdapter.filterRecords(items, filters).filter(record => !filters.deadline || String(record.pjeDeadline || '').toLowerCase().includes(filters.deadline.toLowerCase()));
-      count.textContent = `${results.length} de ${items.length} expediente(s) carregado(s) · ${explicit ? results.filter(record => selected.has(keyOf(record))).length : results.length} para diagnóstico. Outras páginas e linhas não montadas não foram lidas.`;
+      count.textContent = `${results.length} de ${items.length} expediente(s) em memória · ${explicit ? results.filter(record => selected.has(keyOf(record))).length : results.length} para diagnóstico. ${collection?.reason === 'complete' ? 'Coleta da lista confirmada pelo contador do SPA.' : 'Itens ainda não carregados pela página podem estar fora da pesquisa.'}`;
       chips.replaceChildren();
       for (const [key, value] of Object.entries(filters)) {
         if (!value) continue;
@@ -77,6 +80,11 @@
     function changed() { try { localStorage.setItem('MTPREV_TRIAGE_READING_FILTERS', JSON.stringify(preferences())); } catch (_) {} render(); }
     let debounce; Object.values(controls).forEach(input => input.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(changed, 150); }));
     all.onclick = () => { explicit = true; results.forEach(item => selected.add(keyOf(item))); render(); };
+    controls.query.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || !controls.query.value.trim()) return;
+      event.preventDefault();
+      if (!controller) load.click();
+    });
     let unsubscribe;
     queueMicrotask(() => {
       render(); unsubscribe = SpaAdapter.observe(() => { if (!root.isConnected) { clearTimeout(debounce); unsubscribe(); return; } render(); });

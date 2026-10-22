@@ -4,8 +4,8 @@
   const entry = (description, selectors, source = 'legacy-source') => Object.freeze({ description, selectors: Object.freeze(selectors), source, coreplan: 'requires-authenticated-evidence' });
   globalThis.MTPrevSpaSelectors = Object.freeze({
     workspace: Object.freeze({
-      list: entry('Lista principal do workspace', ['.workspace-process-list'], 'user-provided-workspace-list'),
-      cards: entry('Cards de processos carregados', ['.workspace-process-list .workspace-process-card[data-procedure-id]'], 'user-provided-workspace-list'),
+      list: entry('Lista principal do workspace', ['.workspace-process-list', 'main section div:has(> article > a)', '.workspace-process-card'], 'workspace-card-dom'),
+      cards: entry('Cards de processos carregados', ['.workspace-process-list .workspace-process-card[data-procedure-id]', '.workspace-process-list article', 'main section div > article:has(a strong[data-full-value])', '.workspace-process-card'], 'workspace-card-dom'),
       pagination: entry('Contadores do carregamento incremental', ['.workspace-infinite-scroll[data-loaded-count][data-total-count]'], 'user-provided-workspace-list'),
       more: entry('Carregar mais processos', ['.workspace-infinite-scroll__button'], 'user-provided-workspace-list'),
       preview: entry('Detalhes de um processo; não é a lista da caixa', ['.workspace-preview__document[data-procedure-id]'], 'user-provided-workspace-preview'),

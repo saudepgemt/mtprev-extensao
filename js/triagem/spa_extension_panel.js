@@ -10464,7 +10464,11 @@
       node.setAttribute('role', error ? 'alert' : 'status');
     });
     document.querySelector('.mtprev-duplicates-page')?.setAttribute('aria-busy', String(loading));
-    document.querySelectorAll('.mtprev-duplicates-page button').forEach(button => { button.disabled = loading; });
+    document.querySelectorAll('.mtprev-duplicates-page button').forEach(button => {
+      const cancel = button.classList.contains('mtprev-duplicates-cancel');
+      button.disabled = cancel ? !loading || state.stopped : loading;
+      if (cancel) { button.hidden = !loading; button.style.display = loading ? '' : 'none'; }
+    });
   }
 
   async function buildDuplicateReport(includeValidated) {
@@ -10472,27 +10476,41 @@
     let failure = '';
     try {
       setDuplicateLoading(true, 'Gerando relatório de duplicados…');
-      if (window.SpaAdapter?.locate('workspace','list').nodes.length) {
+      // A rota /workspace não usa DataTables (#procedures-box). Detectar
+      // pela rota e pelos cards reais, não por um wrapper opcional.
+      const inWorkspace = /^\/workspace\/?$/.test(window.location.pathname);
+      if (inWorkspace) {
+        if (!window.SpaAdapter?.collectWorkspaceRecords) {
+          throw new Error('Leitor do workspace não carregado. Verifique spa_adapter.js e recarregue a página.');
+        }
+        const detectedCards = window.SpaAdapter.locate('workspace', 'cards').nodes;
+        if (!detectedCards.length) {
+          throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
+        }
         const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total}) => {
           if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
           setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
         }});
         const grouped = new Map(); let skippedSes=0;
-        for(const item of collection.records) {
-          if(!item.processNumber || !item.expedienteId)continue;
-          if(isDuplicateReportSesProcessText([item.assunto,item.lastProgress,item.actionClass,...item.labels].join(' '))){skippedSes++;continue;}
-          if(isDuplicateReportExcludedLastProgress(item.lastProgress))continue;
-          const key=item.processNumber.replace(/\D/g,'');
-          if(!key)continue;
-          let group=grouped.get(key);
-          if(!group){group={key,processNumber:item.processNumber,label:item.processNumber,records:[],duplicateCount:0};grouped.set(key,group);}
-          if(group.records.some(record=>record.expedienteId===item.expedienteId))continue;
-          group.records.push(Object.assign({},item,{validated:false,distributionDate:normalizeDateOnly(item.distributionDate)}));
-          group.duplicateCount=group.records.length;
+        // No workspace, analisar todos os cards recuperados na visão filtrada.
+        // Não excluir candidatos pelo assunto/último andamento nesta comparação.
+        for (const item of collection.records) {
+          if (!item.processNumber) continue;
+          const key = item.processNumber.replace(/\D/g, '');
+          if (key.length < 12) continue;
+          let group = grouped.get(key);
+          if (!group) { group = {key, processNumber:item.processNumber, records:[], seen:new Set()}; grouped.set(key, group); }
+          // A mesma linha pode reaparecer após a virtualização. Não usar somente
+          // ID de expediente: algumas versões do workspace não o exibem no card.
+          const uniqueKey = String(item.rowKey || item.pendencyUrl || item.expedienteId || [item.processNumber,item.party,item.distributionDate].join('|'));
+          if (group.seen.has(uniqueKey)) continue;
+          group.seen.add(uniqueKey);
+          group.records.push({...item, distributionDate:normalizeDateOnly(item.distributionDate)});
         }
-        const final=finalizeDuplicateReportGroups(grouped,Boolean(includeValidated));
-        showDuplicateReport(Object.assign(final,{includeValidated:Boolean(includeValidated),generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection}));
-        setStatus(collection.reason==='complete'?'Relatorio pronto':'Relatorio parcial');
+        const groups = Array.from(grouped.values()).filter(group => group.records.length > 1);
+        showDuplicateReport({groups,scanned:grouped.size,includeValidated:Boolean(includeValidated),
+          generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection});
+        setStatus(collection.reason === 'complete' ? 'Relatório pronto' : 'Relatório parcial — revisar cobertura');
         return;
       }
       if (window.SpaAdapter?.route().kind === 'workspace' && !window.SpaAdapter.locate('triagem','list').nodes.length) {
@@ -10761,7 +10779,179 @@
     return button;
   }
 
+  // A pontuação é uma regra explicável, NÃO uma probabilidade calibrada.
+  // Comparação limitada a cards do mesmo número CNJ (relação determinística).
+  function workspaceDuplicateCanonicalParty(value) {
+    const raw = String(value || '').trim();
+    if (!raw || /(?:\.{3}|…)/.test(raw)) return ''; // nomes cortados não equivalem a nomes completos
+    return raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+      .split(/[;,|\n]+/).map(part => part.replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim())
+      .filter(Boolean).sort().join(' | ');
+  }
+  function workspaceDuplicateCanonicalDate(value) {
+    const text = String(value || '');
+    const br = text.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+    if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+    const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    return iso ? iso[0] : '';
+  }
+  function workspaceDuplicateCompare(a,b) {
+    if (!a || !b || String(a.processNumber || '').replace(/\D/g,'') !== String(b.processNumber || '').replace(/\D/g,'')) return null;
+    const pa = workspaceDuplicateCanonicalParty(a.party), pb = workspaceDuplicateCanonicalParty(b.party);
+    const da = workspaceDuplicateCanonicalDate(a.distributionDate), db = workspaceDuplicateCanonicalDate(b.distributionDate);
+    const parties = !pa || !pb ? 'ausentes' : pa === pb ? 'iguais' : 'diferentes';
+    const dates = !da || !db ? 'ausentes' : da === db ? 'iguais' : 'diferentes';
+    let score = parties === 'iguais' ? (dates === 'iguais' ? 100 : dates === 'diferentes' ? 90 : 85)
+      : parties === 'ausentes' ? (dates === 'iguais' ? 65 : 50)
+      : dates === 'iguais' ? 45 : 30;
+    return {score,parties,dates,
+      explanation: `Processo igual · Partes ${parties} · Distribuição ${dates}`};
+  }
+  function workspaceDuplicateEvidence(group) {
+    const pairs = [];
+    for (let i=0; i<group.records.length; i++) {
+      for (let j=i+1; j<group.records.length; j++) {
+        const comparison = workspaceDuplicateCompare(group.records[i],group.records[j]);
+        if (comparison) pairs.push({...comparison,first:i,second:j});
+      }
+    }
+    pairs.sort((a,b)=>b.score-a.score || a.first-b.first || a.second-b.second);
+    return {pairs,score:pairs[0]?.score || 0};
+  }
+  function showWorkspaceDuplicateReport(report) {
+    document.querySelector('#spa-cdsp-duplicate-report-overlay')?.remove();
+    const dark = isSpaCdspDarkMode();
+    const overlay = document.createElement('div');
+    overlay.id = 'spa-cdsp-duplicate-report-overlay';
+    overlay.style.cssText = `position:fixed;inset:0;z-index:1000001;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(5,14,27,.8);font-family:system-ui,Arial,sans-serif;color:${dark?'#e6edf5':'#172b41'};`;
+    const sheet = document.createElement('section');
+    sheet.className = 'mtprev-duplicate-sheet';
+    sheet.style.cssText = `width:min(1080px,100%);max-height:calc(100dvh - 36px);overflow:auto;--md-bg:${dark?'#101d2b':'#f5f8fc'};--md-card:${dark?'#192a3c':'#fff'};--md-hover:${dark?'#223c53':'#edf5ff'};--md-border:${dark?'#385269':'#dce5ef'};--md-text:${dark?'#e6edf5':'#172b41'};--md-muted:${dark?'#afc0d1':'#52677c'};background:var(--md-bg);border:1px solid var(--md-border);border-radius:16px;box-shadow:0 24px 75px rgba(0,0,0,.45);`;
+    const styles = document.createElement('style');
+    styles.textContent = `
+      #spa-cdsp-duplicate-report-overlay .md-header{position:sticky;top:0;z-index:2;background:#14395b;color:#fff;padding:17px 22px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+      #spa-cdsp-duplicate-report-overlay .md-main{padding:20px;display:grid;gap:15px}
+      #spa-cdsp-duplicate-report-overlay .md-button{border:1px solid #7296b7;background:#254d71;color:#fff;border-radius:9px;padding:9px 13px;cursor:pointer;font-weight:650}
+      #spa-cdsp-duplicate-report-overlay .md-button:hover{background:#32668f;border-color:#9fc5e5}
+      #spa-cdsp-duplicate-report-overlay .md-button:focus-visible,#spa-cdsp-duplicate-report-overlay a:focus-visible,#spa-cdsp-duplicate-report-overlay :is(input,select,summary):focus-visible{outline:3px solid #64d8e8;outline-offset:3px}
+      #spa-cdsp-duplicate-report-overlay .md-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+      #spa-cdsp-duplicate-report-overlay .md-stat,#spa-cdsp-duplicate-report-overlay .md-group{border:1px solid var(--md-border);background:var(--md-card);border-radius:12px}
+      #spa-cdsp-duplicate-report-overlay .md-stat{padding:13px}
+      #spa-cdsp-duplicate-report-overlay .md-stat small{display:block;color:var(--md-muted);font-size:12px;margin-bottom:6px}
+      #spa-cdsp-duplicate-report-overlay .md-stat strong{font-size:23px}
+      #spa-cdsp-duplicate-report-overlay .md-toolbar{display:flex;gap:10px;flex-wrap:wrap}
+      #spa-cdsp-duplicate-report-overlay .md-toolbar input{flex:1;min-width:190px}
+      #spa-cdsp-duplicate-report-overlay .md-toolbar :is(input,select){color:var(--md-text);background:var(--md-card);border:1px solid var(--md-border);padding:10px;border-radius:9px;font:inherit}
+      #spa-cdsp-duplicate-report-overlay .md-group{margin-bottom:10px;overflow:hidden}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;padding:15px;flex-wrap:wrap}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary::-webkit-details-marker{display:none}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary:hover{background:var(--md-hover)}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary::after{content:'▾';color:var(--md-muted);font-size:18px;transition:transform .15s ease}
+      #spa-cdsp-duplicate-report-overlay .md-group[open]>summary::after{transform:rotate(180deg)}
+      #spa-cdsp-duplicate-report-overlay .md-pill{font-size:12px;font-weight:750;white-space:nowrap;padding:5px 9px;border-radius:999px;border:1px solid #5f94af;background:#1d5269;color:#f5fcff}
+      #spa-cdsp-duplicate-report-overlay .md-pill.md-mid{background:#635325;border-color:#c4a65f;color:#fff7d7}
+      #spa-cdsp-duplicate-report-overlay .md-pill.md-low{background:#3c4655;border-color:#7f8c9c}
+      #spa-cdsp-duplicate-report-overlay .md-pair{padding:10px 14px;margin:0 15px 12px;border-left:3px solid #449db5;background:var(--md-hover);border-radius:6px;font-size:12px;color:var(--md-text)}
+      #spa-cdsp-duplicate-report-overlay .md-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px;padding:0 15px 16px}
+      #spa-cdsp-duplicate-report-overlay .md-record{border:1px solid var(--md-border);background:var(--md-bg);padding:13px;border-radius:9px;min-width:0}
+      #spa-cdsp-duplicate-report-overlay .md-record div{overflow-wrap:anywhere;line-height:1.4;margin:7px 0}
+      #spa-cdsp-duplicate-report-overlay .md-record small{display:block;color:var(--md-muted);margin-bottom:2px}
+      #spa-cdsp-duplicate-report-overlay .md-record a{color:${dark?'#95e5f2':'#086e8e'};font-weight:750}
+      #spa-cdsp-duplicate-report-overlay .md-notice{font-size:12px;color:var(--md-muted);line-height:1.5}
+      @media(max-width:640px){#spa-cdsp-duplicate-report-overlay .md-stats{grid-template-columns:repeat(2,minmax(0,1fr))}#spa-cdsp-duplicate-report-overlay .md-main{padding:12px}#spa-cdsp-duplicate-report-overlay .md-header{padding:13px}}
+    `;
+    sheet.appendChild(styles);
+    const el = (tag,className,text) => {
+      const node=document.createElement(tag);
+      if (className) node.className=className;
+      if (text !== undefined) node.textContent=String(text);
+      return node;
+    };
+    const header = el('header','md-header');
+    const title = el('div',''); title.style.flex='1';
+    title.appendChild(el('div','', 'Possíveis duplicatas · Workspace'));
+    title.firstChild.style.cssText='font-size:19px;font-weight:800;';
+    title.appendChild(el('div','', 'Mesmo processo · partes ativas · data de distribuição'));
+    title.lastChild.style.cssText='font-size:12px;color:#b8d3e7;margin-top:4px';
+    header.appendChild(title);
+    const refresh=el('button','md-button','↻ Atualizar'); refresh.type='button';
+    refresh.addEventListener('click',()=>{overlay.remove();buildDuplicateReport(report.includeValidated).catch(error=>log(error.message,'error'));});
+    const close=el('button','md-button','Fechar'); close.type='button';close.addEventListener('click',()=>overlay.remove());
+    header.append(refresh,close);sheet.appendChild(header);
+    const main=el('main','md-main');
+    const coverage=report.coverage || {records:[],reason:'partial'};
+    const complete=coverage.reason==='complete';
+    const coverageInfo=el('div','md-notice',
+      `${complete?'✓ Leitura completa pelo contador do SPA':'⚠ Cobertura não confirmada'} · ${coverage.records.length} card(s) coletado(s)`+
+      (coverage.total !== null && coverage.total !== undefined ? ` de ${coverage.total} informado(s)` : ' · total não informado pelo SPA')+
+      `. Escopo: visão e filtros atualmente selecionados.`);
+    coverageInfo.setAttribute('role','status');main.appendChild(coverageInfo);
+    const entries = (report.groups || []).map(group=>({...group, evidence:workspaceDuplicateEvidence(group)}))
+      .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
+    const summary=el('div','md-stats');
+    [ ['Cards analisados',coverage.records.length],['Grupos candidatos',entries.length],
+      ['Alta semelhança (85–100)',entries.filter(x=>x.evidence.score>=85).length],
+      ['Outros candidatos',entries.filter(x=>x.evidence.score<85).length]
+    ].forEach(([name,value])=>{const cell=el('div','md-stat');cell.append(el('small','',name),el('strong','',value));summary.appendChild(cell);});
+    main.appendChild(summary);
+    const toolbar=el('div','md-toolbar');
+    const search=el('input');search.type='search';search.placeholder='Buscar processo ou parte ativa';
+    search.setAttribute('aria-label','Buscar processo ou parte ativa');
+    const threshold=el('select');threshold.setAttribute('aria-label','Filtrar por semelhança');
+    [['0','Todas as suspeitas'],['85','Alta (85 a 100)'],['100','Todos os três campos iguais']]
+      .forEach(([value,label])=>{const opt=el('option','',label);opt.value=value;threshold.appendChild(opt);});
+    toolbar.append(search,threshold);main.appendChild(toolbar);
+    const resultLine=el('div','md-notice');main.appendChild(resultLine);
+    const list=el('div');main.appendChild(list);
+    // Por padrão, grupos fechados. Manter aberturas manuais ao filtrar.
+    const expandedGroups = new Set();
+    const render = () => {
+      list.replaceChildren();
+      const query=search.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+      const shown=entries.filter(group=>group.evidence.score>=Number(threshold.value) &&
+        (!query || [group.processNumber,...group.records.map(record=>record.party || '')]
+          .some(value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(query))));
+      resultLine.textContent=`${shown.length} grupo(s) exibido(s) · Clique no número do processo para ver os cards. Nota de 0–100 por critérios, não probabilidade estatística.`;
+      if(!shown.length){list.appendChild(el('div','md-notice','Nenhum grupo corresponde aos filtros. Isso não confirma ausência de duplicidade.'));return;}
+      shown.forEach(group=>{
+        const details=el('details','md-group');
+        details.open=expandedGroups.has(group.key || group.processNumber);
+        details.addEventListener('toggle', () => {
+          const id=group.key || group.processNumber;
+          if (details.open) expandedGroups.add(id);
+          else expandedGroups.delete(id);
+        });
+        const heading=el('summary');
+        const label=el('strong','',group.processNumber);label.style.cssText='font-size:16px;flex:1;min-width:160px;overflow-wrap:anywhere;';
+        const count=el('span','md-notice',`${group.records.length} cards`);
+        const score=group.evidence.score;
+        const pill=el('span','md-pill'+(score<50?' md-low':score<85?' md-mid':''),`${score}/100 · ${score>=85?'Alta':score>=50?'Revisar':'Baixa'}`);
+        heading.append(label,count,pill);details.appendChild(heading);
+        const best=group.evidence.pairs[0];
+        if(best){details.appendChild(el('div','md-pair',`Comparação mais forte — Card ${best.first+1} × Card ${best.second+1}: ${best.explanation}.`));}
+        const cards=el('div','md-cards');
+        group.records.forEach((record,i)=>{
+          const card=el('article','md-record');card.appendChild(el('strong','',`Card ${i+1}`));
+          [['Partes ativas',record.party || 'Não disponível'],['Distribuição',record.distributionDate || 'Não disponível'],
+            ['ID do expediente',record.expedienteId || 'Não disponível']].forEach(([name,value])=>{
+              const line=el('div');line.append(el('small','',name),el('span','',value));card.appendChild(line);
+            });
+          if(record.pendencyUrl){
+            const link=el('a','','Abrir processo ↗');link.href=record.pendencyUrl;
+            link.target='_blank';link.rel='noopener noreferrer';card.appendChild(link);
+          }
+          cards.appendChild(card);
+        });
+        details.appendChild(cards);list.appendChild(details);
+      });
+    };
+    search.addEventListener('input',render);threshold.addEventListener('change',render);render();
+    main.appendChild(el('div','md-notice','A mesma numeração processual pode aparecer em mais de uma tarefa sem haver duplicidade. Nomes abreviados, datas diferentes e registros ainda não carregados exigem conferência humana. Este relatório não marca nem encerra tarefas.'));
+    sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
+  }
+
   function showDuplicateReport(report) {
+    if (report.workspace) return showWorkspaceDuplicateReport(report);
     const old = document.querySelector("#spa-cdsp-duplicate-report-overlay");
     if (old) old.remove();
     const theme = reportTheme();
@@ -13271,6 +13461,14 @@
       duplicadosButtons,
       createButton("Relatorio Duplicados", () => buildDuplicateReport(false), "info")
     );
+    const cancelDuplicateCollection = createButton('Interromper leitura', () => {
+      state.stopped = true;
+      setStatus('Interrompendo leitura de duplicatas...');
+      setDuplicateLoading(true, 'Interrompendo leitura...');
+    }, 'gray');
+    cancelDuplicateCollection.classList.add('mtprev-duplicates-cancel');
+    cancelDuplicateCollection.hidden = true;
+    appendFullWidthButton(duplicadosButtons, cancelDuplicateCollection);
     duplicadosPage.appendChild(duplicadosButtons);
 
     const pecasPage = document.createElement("div");

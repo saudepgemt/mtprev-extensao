@@ -69,3 +69,11 @@ Lazy loading, rolagem virtualizada, iframes autenticados e Shadow DOM fechado **
 Ciência manual mostra cada expediente que será acionado na página/lote efetivamente alcançado. O cancelamento interrompe a sequência; o vínculo com a linha é revalidado antes da ação. Classificação/designação e sugestão de encerramento mostram a pendência e os parâmetros escolhidos. Se o contexto da extensão for invalidado, diálogos pendentes são cancelados e o adapter é liberado. Diagnóstico não chama esses executores.
 
 As rotinas programadas já existentes e previamente configuradas continuam separadas do diagnóstico; esta mudança não as converte em confirmação por expediente. Não houve execução ou validação autenticada dessas rotinas nesta sessão.
+
+### Busca da Triagem em workspace com lazy loading (ajuste local)
+
+A coleta `SpaAdapter.collectWorkspaceRecords` agora combina leitura dos cards montados com avanço gradual da área rolável ou acionamento do botão nativo `.workspace-infinite-scroll__button`, quando ele existir. Os registros são acumulados pela identidade técnica do card (`data-procedure-id`), para preservar os itens que saem do DOM em listas virtualizadas. A posição original da rolagem é restaurada ao término ou cancelamento.
+
+No painel de Triagem, informe um identificador e pressione **Enter**, ou clique em **Buscar em todos os cards da caixa**, para iniciar a coleta completa sob demanda. Digitar sem confirmar filtra apenas os registros já coletados. A progressão mostra a quantidade obtida e, quando houver, o total fornecido pelo SPA. O indicador `complete` só é emitido quando a quantidade acumulada alcança o total e o contador do SPA também indica conclusão. Caso não seja possível confirmar a cobertura, o painel indica coleta estável ou parcial; não trata a ausência de novos cards como garantia de completude.
+
+Somente leitura/diagnóstico: não aciona ciência, encerramento ou protocolo; mantém os executores operacionais atuais e seus filtros separados. Não intercepta requisições autenticadas nem tenta acessar API não mapeada. A interface real do Coreplan ainda precisa ser conferida quanto à área rolável, seletores e contadores. Fixtures locais adicionais: `tests/workspace_lazy.test.cjs`.

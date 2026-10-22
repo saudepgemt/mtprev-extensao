@@ -18,6 +18,21 @@
     center.type = 'button'; center.setAttribute('aria-label', 'Abrir ou fechar menu MTPrev; arraste para mover');
     center.setAttribute('aria-expanded', 'false');
     const logo = create('img', '', '', center); logo.src = api.url('images/logo-mtprev.png'); logo.alt = 'MTPrev'; logo.draggable = false;
+    const watchBadge = create('span', 'mtprev-watch-radial-badge', '', center); watchBadge.hidden = true; watchBadge.setAttribute('aria-hidden', 'true');
+    let watchUnread = 0;
+    function updateWatchCount(records) {
+      watchUnread = Object.values(records || {}).filter((record) => record?.unread).length;
+      watchBadge.hidden = watchUnread === 0;
+      watchBadge.textContent = watchUnread > 99 ? '99+' : String(watchUnread);
+      center.setAttribute('aria-label', `Abrir ou fechar menu MTPrev; arraste para mover${watchUnread ? `; ${watchUnread} processo(s) com alertas não lidos` : ''}`);
+      ring.querySelectorAll('.mtprev-orbit__special .mtprev-watch-option-badge').forEach((badge) => {
+        badge.hidden = watchUnread === 0; badge.textContent = watchUnread > 99 ? '99+' : String(watchUnread);
+      });
+    }
+    chrome.storage.local.get('CDSP_PROCESS_WATCH_V1').then((value) => updateWatchCount(value.CDSP_PROCESS_WATCH_V1 || {})).catch(() => {});
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.CDSP_PROCESS_WATCH_V1) updateWatchCount(changes.CDSP_PROCESS_WATCH_V1.newValue || {});
+    });
     const tools = create('div', 'mtprev-orbit__tools', '', shell);
     shell.insertBefore(tools, shell.querySelector('.cdsp-general-shell__body'));
     const back = create('button', '', 'Voltar aos módulos', tools); back.type = 'button';
@@ -134,6 +149,10 @@
         const disc = create('span', 'mtprev-orbit__disc', '', button);
         const image = create('img', '', '', disc); image.src = api.url(`images/material-rounded/${item.icon || iconFor(item.title)}.svg`); image.alt = ''; image.draggable = false;
         create('span', 'mtprev-orbit__label', item.title, button);
+        if (item.special) {
+          const badge = create('span', 'mtprev-watch-option-badge', watchUnread > 99 ? '99+' : String(watchUnread), button);
+          badge.setAttribute('aria-hidden', 'true'); badge.hidden = watchUnread === 0;
+        }
         button.addEventListener('click', item.run);
       });
       layout();

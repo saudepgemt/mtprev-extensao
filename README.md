@@ -125,3 +125,9 @@ Acompanhamento Especial no topo do menu radial, identificacao separada de destin
 Na versao 2.69, Duplicados volta a usar somente a logica antiga, com Abrir Duplicados e Relatorio Duplicados compartilhados entre Saude e MTPrev. A conferencia separada de duplicidade MTPrev foi removida.
 
 Na versao 2.70, os paineis apresentam logo MTPrev, titulo da opcao e apenas Voltar no cabecalho. O carregamento de PDFs continua vinculado aos comandos de leitura, nao a abertura do menu.
+
+## Busca no workspace com carregamento incremental (ajuste de Triagem)
+
+No workspace, o campo **Processo ou expediente** pesquisa o conteúdo já carregado. Para procurar entre todos os cards do workspace, digite um identificador e pressione **Enter** ou clique em **Buscar em todos os cards da caixa**. A extensão percorre a lista, usa **Carregar mais** quando disponível, acumula os cards lidos e mostra a cobertura. Se não houver total verificável, a leitura é informada como parcial/não confirmada. Ações operacionais continuam independentes dessa seleção de diagnóstico.
+
+Teste local: `node --test tests/workspace_lazy.test.cjs tests/lazy_records.test.cjs`. A leitura na interface autenticada ainda exige teste supervisionado.

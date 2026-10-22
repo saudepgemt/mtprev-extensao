@@ -5128,7 +5128,7 @@ async function injectPanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await cdspGeneralExecuteScript({
       target: { tabId },
-      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js", CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
 

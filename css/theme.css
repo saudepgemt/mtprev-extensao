@@ -208,3 +208,37 @@
   background: var(--mtprev-danger);
   color: var(--mtprev-on-danger);
 }
+
+
+/* Complemento da paleta escura do menu radial.
+   Este arquivo é carregado DEPOIS de radial_menu.css pelo manifest.json.
+   Manter estas regras na mesma camada evita que o hover antigo (#1769c2)
+   ou a cor especial antiga (#08758b) se sobreponham à nova paleta. */
+@layer mtprev-controls {
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__ring::before {
+    background: var(--mtprev-orbit) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item:is(:hover, :focus-visible) .mtprev-orbit__disc {
+    background: var(--mtprev-orbit-hover) !important;
+    border-color: var(--mtprev-orbit-hover-border) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item:active .mtprev-orbit__disc {
+    background: var(--mtprev-orbit-active) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__special .mtprev-orbit__disc {
+    background: var(--mtprev-orbit-special) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__special:is(:hover, :focus-visible) .mtprev-orbit__disc {
+    background: var(--mtprev-orbit-special-hover) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__special:active .mtprev-orbit__disc {
+    background: var(--mtprev-orbit-special-active) !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__center:active {
+    background: #1b3b51 !important;
+  }
+  #cdsp-general-shell.mtprev-radial-shell :is(button, input, a[role="button"]):focus-visible {
+    outline: 3px solid var(--mtprev-focus) !important;
+    outline-offset: 3px !important;
+  }
+}

@@ -10,7 +10,7 @@
     await chrome.storage.local.set({ [KEY]: records });
     const count = Object.values(records).filter((r) => r.unread).length;
     await chrome.action.setBadgeText({ text: count ? String(count) : "" });
-    await chrome.action.setBadgeBackgroundColor({ color: "#b45309" });
+    await chrome.action.setBadgeBackgroundColor({ color: "#c92e48" });
   };
   // Movement IDs may be positional in the source: use content to avoid false alerts.
   const snapshot = (result) => [
@@ -32,7 +32,7 @@
     record.latest = current.slice(0, 8).map((item) => item.text);
     if (changes.length) {
       record.unread = true;
-      record.history = [{ at: record.checkedAt, items: changes.map((item) => item.text) }, ...(record.history || [])].slice(0, 30);
+      record.history = [{ at: record.checkedAt, items: changes.map((item) => item.text), unread: true }, ...(record.history || [])].slice(0, 30);
     }
     await save(records);
     if (changes.length && chrome.notifications) {
@@ -55,7 +55,11 @@
       await save(records);
       await check(records, number);
     } else if (message.action === "remove") { delete records[number]; await save(records); }
-    else if (message.action === "read" && records[number]) { records[number].unread = false; await save(records); }
+    else if (message.action === "read" && records[number]) {
+      records[number].unread = false;
+      records[number].history = (records[number].history || []).map((entry) => ({ ...entry, unread: false }));
+      await save(records);
+    }
     else if (message.action === "check" && records[number]) await check(records, number);
     else throw new Error("Acompanhamento não encontrado.");
     return { ok: true, records };

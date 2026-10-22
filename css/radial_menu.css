@@ -304,3 +304,129 @@
     padding: 10px;
   }
 }
+
+
+/* ===========================================================================
+   MTPREV — Azul petróleo escuro (somente o menu radial e painel operacional)
+   A paleta não altera a geometria, a rolagem, o drag ou a abertura dos itens.
+   Para manter a sincronização com theme.css, as cores usam variáveis herdáveis.
+   =========================================================================== */
+#cdsp-general-shell.mtprev-radial-shell {
+  --mtprev-color-scheme: dark;
+  --mtprev-bg: #101923;
+  --mtprev-surface: #192939;
+  --mtprev-raised: #22394d;
+  --mtprev-border: #40596d;
+  --mtprev-text: #edf4fa;
+  --mtprev-muted: #bed0de;
+  --mtprev-button-bg: #20374a;
+  --mtprev-button-hover: #30546e;
+  --mtprev-primary: #326d94;
+  --mtprev-primary-hover: #4185b0;
+  --mtprev-on-primary: #ffffff;
+  --mtprev-success: #226e69;
+  --mtprev-success-hover: #308b83;
+  --mtprev-on-success: #ffffff;
+  --mtprev-warning: #82602b;
+  --mtprev-warning-hover: #9a7738;
+  --mtprev-on-warning: #ffffff;
+  --mtprev-danger: #883b4d;
+  --mtprev-danger-hover: #a34a5d;
+  --mtprev-on-danger: #ffffff;
+  --mtprev-purple: #5c487d;
+  --mtprev-purple-hover: #766099;
+  --mtprev-on-purple: #ffffff;
+  --mtprev-disabled-bg: #1c2a36;
+  --mtprev-disabled-text: #a9bbcb;
+  --mtprev-orbit: #14293d;
+  --mtprev-orbit-hover: #285d83;
+  --mtprev-orbit-active: #1d4564;
+  --mtprev-orbit-hover-border: #5fb6d1;
+  --mtprev-orbit-special: #195760;
+  --mtprev-orbit-special-hover: #247c81;
+  --mtprev-orbit-special-active: #20565d;
+  --mtprev-focus: #75d9e3;
+
+  /* Tokens legados usados pelos cartões, campos e relatórios embutidos. */
+  --mt-bg: var(--mtprev-bg);
+  --mt-surface: var(--mtprev-surface);
+  --mt-raised: var(--mtprev-raised);
+  --mt-text: var(--mtprev-text);
+  --mt-muted: var(--mtprev-muted);
+  --mt-border: var(--mtprev-border);
+  --mt-blue: #8bc6ed;
+  --mt-blue-hover: #b2ddf5;
+  --mt-green: #65cfc0;
+  --mt-accent: #65cfc0;
+  --mt-header: #122d42;
+  --mt-shadow: 0 18px 48px rgba(0, 0, 0, .42);
+  color-scheme: dark;
+}
+
+#cdsp-general-shell.mtprev-radial-operational {
+  background: var(--mtprev-bg) !important;
+  border-color: var(--mtprev-border) !important;
+  color: var(--mtprev-text);
+  box-shadow: var(--mt-shadow);
+}
+#cdsp-general-shell.mtprev-radial-operational .cdsp-general-shell__body {
+  background: var(--mtprev-bg) !important;
+  color: var(--mtprev-text);
+  scrollbar-color: #4d677b transparent;
+}
+#cdsp-general-shell.mtprev-radial-operational .cdsp-general-shell__header {
+  background: var(--mt-header) !important;
+  border-bottom-color: #2b4c64;
+}
+#cdsp-general-shell.mtprev-radial-shell .cdsp-general-shell__header > .mtprev-orbit__back {
+  --mt-control-bg: #1b4056;
+  --mt-control-hover: #30617c;
+  --mt-control-text: #f0f8fc;
+  --mt-control-border: #497590;
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__center {
+  --mt-control-bg: #1c3447;
+  --mt-control-hover: #2b536c;
+  --mt-control-border: #4a9db2;
+  border-color: #4a9db2;
+  background: #1c3447;
+  box-shadow: 0 9px 26px rgba(0, 0, 0, .36);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__ring::before {
+  background: var(--mtprev-orbit);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__disc {
+  background: #203a50;
+  border-color: #49677e;
+  box-shadow: 0 4px 11px rgba(0, 0, 0, .26);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item:hover .mtprev-orbit__disc,
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item:focus-visible .mtprev-orbit__disc {
+  transform: scale(1.07);
+  border-color: var(--mtprev-orbit-hover-border);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .39);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item:active .mtprev-orbit__disc {
+  transform: scale(.95);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__tools {
+  background: #182b3c;
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__tools button {
+  --mt-control-bg: #203b52;
+  --mt-control-hover: #305a77;
+  --mt-control-text: #f0f6fb;
+  --mt-control-border: #496d86;
+  background: #203b52;
+  border-color: #496d86;
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__label,
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__context {
+  color: var(--mtprev-text);
+  background: var(--mtprev-surface);
+  border-color: var(--mtprev-border);
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__special .mtprev-orbit__label {
+  background: #173b48;
+  border-color: #3d7783;
+}

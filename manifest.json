@@ -1,4 +1,3 @@
-
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
@@ -40,6 +39,8 @@
         "https://pge.mt.spa.coreplan.com.br/*"
       ],
       "js": [
+        "js/shared/spa_selectors.js",
+        "js/shared/spa_adapter.js",
         "js/radial_menu.js",
         "js/content_bridge.js",
         "js/process_watch_panel.js",
@@ -92,4 +93,3 @@
     }
   }
 }
-  
