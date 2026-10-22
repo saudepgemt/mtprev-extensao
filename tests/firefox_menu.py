@@ -1,9 +1,11 @@
 """Exercise the real Firefox extension against an isolated local SPA fixture."""
-import argparse, http.server, json, shutil, socket, subprocess, tempfile, threading, time
+import argparse, base64, http.server, json, mimetypes, shutil, socket, subprocess, tempfile, threading, time
 from pathlib import Path
+from urllib.parse import urlsplit
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--firefox', default='/usr/lib64/firefox/firefox' if Path('/usr/lib64/firefox/firefox').exists() else shutil.which('firefox'))
+parser.add_argument('--store-assets', action='store_true', help='Captura a interface real com dados fictícios para a ficha da loja')
 args = parser.parse_args()
 if not args.firefox:
     parser.error('Informe o executavel do Firefox com --firefox')
@@ -16,10 +18,24 @@ extension = profile / 'extension'
 shutil.copytree(root / 'dist/firefox', extension)
 class Fixture(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        asset = (root / urlsplit(self.path).path.lstrip('/')).resolve()
+        if args.store_assets and asset.is_file() and any(folder in asset.parents for folder in [root / 'store', root / 'images']):
+            self.send_response(200)
+            self.send_header('Content-Type', mimetypes.guess_type(str(asset))[0] or 'application/octet-stream')
+            self.end_headers()
+            self.wfile.write(asset.read_bytes())
+            return
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write((root / 'tests/fixtures/spa.html').read_bytes())
+        content = (root / 'tests/fixtures/spa.html').read_text()
+        if args.store_assets:
+            content = content.replace('<h1>Caixa SPA de teste</h1>', '''<link rel="stylesheet" href="/store/demo.css">
+              <header id="demo-header"><strong>Ambiente de demonstração</strong><span>MTPrev · Extensão Geral</span></header>
+              <section id="demo-intro"><small>Exemplo de caixa processual</small><h1>Expedientes e processos</h1><p>A interface MTPrev reúne as ferramentas ao lado da sua caixa de trabalho.</p></section>
+              <div id="demo-tabs"><strong>Expedientes</strong><span>Processos da caixa</span></div>''')
+            content = content.replace('</table>', '</table><div id="demo-note">Dados fictícios usados exclusivamente para demonstrar a extensão.</div><footer id="demo-footer">MTPrev — apoio à triagem, aos relatórios e aos documentos processuais.</footer>')
+        self.wfile.write(content.encode())
     def log_message(self, *args): pass
 server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Fixture)
 threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -61,6 +77,35 @@ def execute(script, async_=False):
 def inspect():
     return execute("""return {shell: !!document.getElementById('cdsp-general-shell'), panel: !!document.getElementById('spa-cdsp-panel'), status: document.querySelector('.cdsp-general-shell__status')?.textContent, caption: document.querySelector('.mtprev-orbit__context')?.textContent, options: [...document.querySelectorAll('.mtprev-context-nav > button')].map(b=>b.textContent), ring: [...document.querySelectorAll('.mtprev-orbit__item')].map(b=>b.textContent)};""")
 
+def store_assets():
+    output = root / 'store/assets'
+    output.mkdir(parents=True, exist_ok=True)
+    command('WebDriver:SetWindowRect', {'width':1280,'height':920})
+    dimensions = execute('return {x:outerWidth-innerWidth,y:outerHeight-innerHeight};')
+    command('WebDriver:SetWindowRect', {'width':1280+dimensions['x'],'height':800+dimensions['y']})
+    assert execute('return [innerWidth,innerHeight];') == [1280,800]
+    execute("document.querySelector('.mtprev-orbit__center').click();")
+    time.sleep(1.5)
+    execute("const s=document.getElementById('cdsp-general-shell');s.style.left='842px';s.style.top='146px';s.style.right='auto';s.style.bottom='auto';")
+    time.sleep(.5)
+    screenshot = command('WebDriver:TakeScreenshot', {'full':False,'scroll':False})['value']
+    (output / '01-menu-1280x800.png').write_bytes(base64.b64decode(screenshot))
+    execute("[...document.querySelectorAll('.mtprev-orbit__item')].find(b=>b.textContent==='Triagem e Protocolo').click();")
+    time.sleep(.8)
+    execute("[...document.querySelectorAll('.mtprev-orbit__item')].find(b=>b.textContent==='Triagem').click();")
+    time.sleep(.5)
+    execute("const s=document.getElementById('cdsp-general-shell');s.style.left='842px';s.style.top='110px';")
+    screenshot = command('WebDriver:TakeScreenshot', {'full':False,'scroll':False})['value']
+    (output / '02-triagem-1280x800.png').write_bytes(base64.b64decode(screenshot))
+    command('WebDriver:Navigate', {'url':'http://127.0.0.1:%d/store/promo.html' % server.server_port})
+    time.sleep(.4)
+    element = command('WebDriver:FindElement', {'using':'css selector','value':'#promo'})['value']
+    screenshot = command('WebDriver:TakeScreenshot', {'id':next(iter(element.values())),'scroll':False})['value']
+    (output / 'promocional-440x280.png').write_bytes(base64.b64decode(screenshot))
+    for file in output.glob('*.png'):
+        data = file.read_bytes()
+        print('IMAGEM', file.name, int.from_bytes(data[16:20],'big'), int.from_bytes(data[20:24],'big'))
+
 try:
     for i in range(80):
         if proc.poll() is not None: raise RuntimeError((profile / 'firefox.log').read_text()[-2000:])
@@ -77,6 +122,9 @@ try:
     command('WebDriver:Navigate', {'url': url})
     time.sleep(.5)
     print('INITIAL', inspect())
+    if args.store_assets:
+        store_assets()
+        raise SystemExit(0)
     viewport = execute("return {width:innerWidth,height:innerHeight};")
     for corner, x, y in [('superior esquerdo',0,0),('superior direito',viewport['width']-1,0),('inferior esquerdo',0,viewport['height']-1),('inferior direito',viewport['width']-1,viewport['height']-1)]:
         before = execute("const r=document.querySelector('.mtprev-orbit__center').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};")
@@ -188,6 +236,24 @@ try:
     errors = execute("return Services.console.getMessageArray().filter(m => /moz-extension:|chrome-extension:|Unable to load script/.test(m.message) && /Error|Exception|Unable to load script/i.test(m.message)).map(m => m.message);")
     assert not errors, errors
     print('PASS sem erros de carregamento dos scripts ou icones')
+    options_url = execute("return WebExtensionPolicy.getByID('mtprev-extensao@mtprev.local').getURL('options.html');")
+    command('Marionette:SetContext', {'value': 'content'})
+    command('WebDriver:Navigate', {'url':options_url})
+    time.sleep(.3)
+    assert execute("return document.getElementById('status').textContent;") == 'Serviço de andamentos desativado.'
+    execute("document.getElementById('endpoint').value='https://example.org/';document.getElementById('consent').checked=true;document.getElementById('service-form').requestSubmit();")
+    assert execute("return document.getElementById('status').dataset.error;") == 'true'
+    execute("document.getElementById('endpoint').value='https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/demo-only';document.getElementById('service-form').requestSubmit();")
+    time.sleep(.2)
+    command('WebDriver:Refresh')
+    time.sleep(.3)
+    assert execute("return document.getElementById('consent').checked;")
+    execute("document.getElementById('disable-service').click();")
+    time.sleep(.2)
+    command('WebDriver:Refresh')
+    time.sleep(.3)
+    assert execute("return [document.getElementById('endpoint').value,document.getElementById('consent').checked];") == ['',False]
+    print('PASS opções: serviço desativado por padrão, domínio validado, consentimento salvo e configuração apagada')
 finally:
     if client: client.close()
     proc.terminate()

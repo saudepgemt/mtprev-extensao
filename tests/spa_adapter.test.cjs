@@ -54,7 +54,7 @@ test('manual science uses the legacy executor only after confirmation', async ()
       activateScience:()=>{writes++;return true},sleep:async()=>{},waitProcessingDone:async()=>{},retryPendingScienceRecords:async()=>{},CONFIG:{delayScienceMs:0},
       window:{SpaAdapter:{actions:{confirm:async(operation,targets,validate)=>{confirmations++;if(accepted==='stale')currentId='remounted-expediente';return Boolean(accepted)&&validate()}}}},
     });
-    vm.runInContext(fn,context);
+    vm.runInContext(source.match(/^  async function confirmTriageAction\(.*?^  }/ms)[0]+'\n'+fn,context);
     await context.takeScienceCurrentPage(0);
     assert.equal(confirmations,1);assert.equal(writes,accepted===true?1:0);assert.equal(context.state.stopped,accepted!==true);
   }

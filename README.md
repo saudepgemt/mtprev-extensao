@@ -2,7 +2,45 @@
 
 Extensão unificada da CDSP para uso no SPA/SIGADOC, com pacotes para Chrome e Firefox.
 
-Versão atual versionada neste repositório: **2.71** (`manifest.version = 2.0.71`).
+Versão atual: **2.72** (`manifest.version = 2.0.72`).
+
+## Chrome Web Store
+
+Execute `node scripts/build-chrome-store.js` para gerar
+`dist/mtprev-2.0.72-chrome-web-store.zip`, com Manifest V3 na raiz e somente os
+arquivos de execução. Requer Node.js e o comando `zip`.
+O [guia de publicação](store/LEIA-ME.md) reúne os textos da ficha pública,
+justificativas de permissões, imagens e instruções para hospedar a política de
+privacidade. Desenvolvedor: Arthur Costa Dias — arthurcostadias1@gmail.com.
+
+A versão de publicação remove as credenciais fixas do código. A consulta de
+andamentos exige configurar e autorizar o serviço externo nas opções da extensão.
+As senhas de assinatura são fornecidas pelo usuário; a senha de protocolo dura
+somente a sessão do navegador e precisa ser informada novamente após reiniciar.
+Chrome mínimo: 116. Teste a pasta `dist/chrome-store` no Chrome com uma conta
+autorizada antes de enviar o ZIP à loja.
+
+## Teste local com as credenciais anteriores
+
+Execute `node scripts/build-local-test.js --firefox` para gerar cópias locais com
+as credenciais de teste de `.local/test-credentials.json`. Esse arquivo é privado,
+ignorado pelo Git e não entra no pacote da loja. O comando usa o código atual dos
+painéis, portanto execute-o novamente depois de editar a extensão.
+
+- Chrome: em `chrome://extensions`, use **Carregar sem compactação** e selecione
+  `dist/local-test`.
+- Firefox: em `about:debugging#/runtime/this-firefox`, use **Carregar extensão
+  temporária** e selecione `dist/firefox-local-test/manifest.json`.
+
+Desative a outra instalação da MTPrev durante o teste para evitar duas extensões
+atuando na mesma página. A cópia aparece como **MTPrev - Extensão Geral (teste
+local)**. O serviço de andamentos é configurado na primeira inicialização; as
+credenciais anteriores do SIGADOC são usadas quando a identidade correspondente
+é reconhecida na página. Uma senha digitada no menu tem preferência. A opção de
+desativar o serviço continua funcionando e não é revertida ao reiniciar.
+
+Essas pastas contêm credenciais e servem somente para testes locais. Para publicar,
+continue usando `scripts/build-chrome-store.js` e o ZIP específico da loja.
 
 O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
 

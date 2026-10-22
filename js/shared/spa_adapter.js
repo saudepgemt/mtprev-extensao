@@ -82,10 +82,17 @@
         [processNumber,get('ID do expediente'),get('Parte(s) ativa(s)'),get('Data da distribuição')].join('|');
       const expedienteUrls = [...new Set(Array.from(node.querySelectorAll('[data-workspace-document-url]')).map(link => safeUrl(link.getAttribute('data-workspace-document-url'))).filter(Boolean))];
       const labels = Array.from(node.querySelectorAll('[data-workspace-card-markers] [data-original-title],[data-workspace-card-markers] [title]')).map(label => label.getAttribute('data-original-title') || label.getAttribute('title')).filter(Boolean);
+      const procedureId = pendencyUrl.match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1] || '';
+      const deadlineNodes = Array.from(node.querySelectorAll('.workspace-deadline__item'));
+      const deadlineDetails = deadlineNodes.map(item => [item.textContent, ...Array.from(item.querySelectorAll('[title],[data-content],[data-original-title]')).map(el => el.getAttribute('title') || el.getAttribute('data-content') || el.getAttribute('data-original-title'))].filter(Boolean).join(' ')).join(' ');
       return {id:`workspace-card-${rowKey}`,rowKey,processNumber,expedienteId:get('ID do expediente'),
+        procedureId,
         assunto:get('Assunto Principal','Assunto(s) do Tribunal'),actionClass:get('Classe'),origin:get('Origem do expediente'),
         manifestationSuggested:get('Manifestação sugerida'),distributionDate:get('Data da distribuição'),
         jurisdiction:get('Jurisdição'),assessor:get('Assessor(a)'),party:get('Parte(s) ativa(s)','Partes ativas','Parte ativa'),
+        judgingBody:get('Órgão julgador','Julgador'), tribunal:get('Tribunal'),
+        receivedText:get('Recebido','Tempo na caixa'), knowledgeDateText:get('Data da ciência'), deadlineDetails,
+        observation:get('Observação'),
         lastProgress:node.querySelector('.workspace-process-card__last-progress strong')?.textContent.trim() || get('Último andamento'),
         status:node.querySelector('.workspace-process-card__status')?.textContent.trim() || '',
         pjeDeadline:Array.from(node.querySelectorAll('.workspace-deadline__item strong')).map(item=>item.textContent.trim()).join(' / '),
@@ -95,6 +102,35 @@
   }
   function workspaceRecords(root = document) {
     return locate('workspace','cards',root).nodes.filter(visible).map(workspaceRecordFromNode);
+  }
+  function isWorkspace() {
+    return /^\/workspace\/?$/.test(new URL(location.href).pathname);
+  }
+  async function collectWorkspaceReport({ onProgress = () => {}, isStopped = () => false } = {}) {
+    const href = location.href;
+    const check = () => {
+      if (isStopped()) throw new DOMException('Carregamento interrompido', 'AbortError');
+      if (location.href !== href) throw new Error('A página mudou durante a leitura. Tente novamente.');
+    };
+    check();
+    const collection = await collectWorkspaceRecords({ onProgress: progress => { check(); onProgress(progress); } });
+    check();
+    return collection;
+  }
+  function collectionSummary(collection) {
+    return `${collection.reason === 'complete' ? 'Leitura completa' : 'Leitura parcial'} do SPA2: ${collection.records.length}` +
+      (Number.isFinite(collection.total) ? ` de ${collection.total}` : '') +
+      ' expediente(s), na visão e nos filtros selecionados no SPA.';
+  }
+  function showCollectionSummary(container, collection) {
+    if (!container || !collection) return;
+    container.querySelector('.mtprev-workspace-coverage')?.remove();
+    const notice = document.createElement('p');
+    notice.className = 'mtprev-workspace-coverage';
+    notice.setAttribute('role', 'status');
+    notice.textContent = collectionSummary(collection);
+    notice.style.cssText = 'padding:10px;margin:10px;background:var(--mtprev-surface,#fff);color:var(--mtprev-text,#24384b);border:1px solid var(--mtprev-border,#b5c5d5);border-radius:8px;';
+    container.prepend(notice);
   }
   function workspaceCounts() {
     const node = locate('workspace', 'pagination').nodes[0];
@@ -547,7 +583,7 @@
       document.body.append(dialog); dialog.showModal(); dialog.querySelector('button').focus();
     });
   }
-  globalThis.SpaAdapter = Object.freeze({ route, locate, readRows, field, records, workspacePreviewRecords, workspaceRecords, workspaceCounts, collectWorkspaceRecords, inspect, observe, waitFor, dispose, filterRecords, collectLazyRecords,
+  globalThis.SpaAdapter = Object.freeze({ route, locate, readRows, field, records, isWorkspace, workspaceRecordFromNode, workspacePreviewRecords, workspaceRecords, workspaceCounts, collectWorkspaceRecords, collectWorkspaceReport, collectionSummary, showCollectionSummary, inspect, observe, waitFor, dispose, filterRecords, collectLazyRecords,
     actions: Object.freeze({ confirm: confirmAction }), registry });
   if (typeof window !== 'undefined') window.addEventListener('mtprev-extension-context-invalidated', () => {
     invalidated = true;

@@ -1649,28 +1649,29 @@
   }
 
   function buildRecord(row, columns, reportDate) {
-    const procedureId = rowProcedureId(row);
-    const rawType = cellText(row, columns.manifestationIndex) || "Sem manifestacao sugerida";
-    const processNumber = cellText(row, columns.processIndex) || extractProcessNumber(rowSearchText(row));
-    const rawReceivedText = cellText(row, columns.receivedIndex) || fallbackReceivedText(row) || "0 dia(s)";
-    const rawDeadlineText = cellText(row, columns.deadlineIndex);
+    const workspace = row.readingScope === "workspace-list";
+    const procedureId = workspace ? row.procedureId : rowProcedureId(row);
+    const rawType = (workspace ? row.manifestationSuggested : cellText(row, columns.manifestationIndex)) || "Sem manifestacao sugerida";
+    const processNumber = workspace ? row.processNumber : cellText(row, columns.processIndex) || extractProcessNumber(rowSearchText(row));
+    const rawReceivedText = workspace ? row.receivedText || "" : cellText(row, columns.receivedIndex) || fallbackReceivedText(row) || "0 dia(s)";
+    const rawDeadlineText = workspace ? row.pjeDeadline : cellText(row, columns.deadlineIndex);
     const pjeDeadlineDate = parseDeadlineDate(rawDeadlineText);
-    const pjeDeadlineStyle = deadlineStyle(row, columns.deadlineIndex);
-    const deadlineDetails = deadlineDetailText(row, columns.deadlineIndex);
-    const knowledgeDate = parseKnowledgeDate(deadlineDetails);
-    const receivedText = formatReceivedText(rawReceivedText);
-    const receivedDays = parseReceivedDays(rawReceivedText);
+    const pjeDeadlineStyle = workspace ? DEADLINE_STYLE_PRESETS.default : deadlineStyle(row, columns.deadlineIndex);
+    const deadlineDetails = workspace ? row.deadlineDetails : deadlineDetailText(row, columns.deadlineIndex);
+    const knowledgeDate = (workspace && parseDeadlineDate(row.knowledgeDateText)) || parseKnowledgeDate(deadlineDetails);
+    const receivedText = rawReceivedText ? formatReceivedText(rawReceivedText) : "Não informado";
+    const receivedDays = workspace && !/(?:dia|hora|minuto|segundo|semana|mes|ano|hoje)/i.test(normalizeKey(rawReceivedText)) ? NaN : parseReceivedDays(rawReceivedText);
     const classification = classifyManifestation(rawType);
     const internalDeadline = internalDeadlineForType(rawType);
-    const calculationBaseDate = knowledgeDate || receivedBaseDate(reportDate, receivedDays);
-    const internalDueDate = addBusinessDays(calculationBaseDate, internalDeadline.days);
-    const internalDaysRemaining = daysBetweenDates(reportDate, internalDueDate);
+    const calculationBaseDate = knowledgeDate || (Number.isFinite(receivedDays) ? receivedBaseDate(reportDate, receivedDays) : null);
+    const internalDueDate = calculationBaseDate ? addBusinessDays(calculationBaseDate, internalDeadline.days) : null;
+    const internalDaysRemaining = internalDueDate ? daysBetweenDates(reportDate, internalDueDate) : NaN;
 
     return {
       procedureId,
-      procedureUrl: procedurePageUrl(procedureId),
-      externalDocumentsUrl: rowExternalDocumentsUrl(row),
-      expedienteUrl: rowExpedienteUrl(row),
+      procedureUrl: workspace ? row.pendencyUrl : procedurePageUrl(procedureId),
+      externalDocumentsUrl: workspace ? row.pendencyUrl : rowExternalDocumentsUrl(row),
+      expedienteUrl: workspace ? row.expedienteUrls?.[0] || "" : rowExpedienteUrl(row),
       type: rawType,
       processNumber: processNumber || "Processo nao identificado",
       knowledgeDate,
@@ -1684,9 +1685,9 @@
       internalDeadlineText:
         internalDeadline.days + " " + (internalDeadline.days === 1 ? "dia \u00fatil" : "dias \u00fateis"),
       calculationBaseDate,
-      calculationBaseSource: knowledgeDate ? "ci\u00eancia" : "recebido",
+      calculationBaseSource: !calculationBaseDate ? "não informada" : knowledgeDate ? "ci\u00eancia" : "recebido",
       internalDueDate,
-      internalDueDateText: formatDate(internalDueDate),
+      internalDueDateText: internalDueDate ? formatDate(internalDueDate) : "Não informado",
       internalDaysRemaining,
       group: classification.group,
       baseDays: classification.baseDays,
@@ -1755,6 +1756,17 @@
   }
 
   async function collectAllRecords() {
+    state.workspaceCoverage = null;
+    if (window.SpaAdapter?.isWorkspace()) {
+      const reportDate = startOfToday();
+      const coverage = await window.SpaAdapter.collectWorkspaceReport({
+        isStopped: () => state.stopped,
+        onProgress: ({count,total}) => setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`)
+      });
+      state.workspaceCoverage = coverage;
+      log(window.SpaAdapter.collectionSummary(coverage));
+      return { records: coverage.records.map(item => buildRecord(item, {}, reportDate)), reportDate, coverage };
+    }
     const dt = getDataTable();
     const columns = columnsForReport();
     const reportDate = startOfToday();
@@ -6343,6 +6355,7 @@
 
       setStatus("Exibindo relatorio...");
       renderScreenReport(result.records, result.reportDate);
+      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal > div"), result.coverage);
       setStatus("Relatorio exibido");
       log("Relatorio exibido na tela.", "ok");
     } catch (error) {
@@ -6389,6 +6402,7 @@
 
       setStatus("Exibindo relatório...");
       renderScreenReport(result.records, result.reportDate);
+      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal > div"), result.coverage);
       setStatus("Relatório exibido");
       log("Relatório exibido. Use Imprimir / salvar PDF se precisar do arquivo.", "ok");
     } catch (error) {

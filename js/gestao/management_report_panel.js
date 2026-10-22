@@ -1779,23 +1779,24 @@
   }
 
   function buildRecord(row, columns, reportDate) {
-    const rawAssessor = cellText(row, columns.assessorIndex) || "Sem assessor(a)";
-    const rawType = cellText(row, columns.manifestationIndex) || "Sem manifestacao sugerida";
-    const processNumber = cellText(row, columns.processIndex) || extractProcessNumber(rowSearchText(row));
-    const procedureId = rowProcedureId(row);
-    const rawReceivedText = cellText(row, columns.receivedIndex) || fallbackReceivedText(row) || "0 dia(s)";
-    const rawDeadlineText = cellText(row, columns.deadlineIndex);
-    const rawLastMovement = cellText(row, columns.lastMovementIndex);
+    const workspace = row.readingScope === "workspace-list";
+    const rawAssessor = (workspace ? row.assessor : cellText(row, columns.assessorIndex)) || "Sem assessor(a)";
+    const rawType = (workspace ? row.manifestationSuggested : cellText(row, columns.manifestationIndex)) || "Sem manifestacao sugerida";
+    const processNumber = workspace ? row.processNumber : cellText(row, columns.processIndex) || extractProcessNumber(rowSearchText(row));
+    const procedureId = workspace ? row.procedureId : rowProcedureId(row);
+    const rawReceivedText = workspace ? row.receivedText || "" : cellText(row, columns.receivedIndex) || fallbackReceivedText(row) || "0 dia(s)";
+    const rawDeadlineText = workspace ? row.pjeDeadline : cellText(row, columns.deadlineIndex);
+    const rawLastMovement = workspace ? row.lastProgress : cellText(row, columns.lastMovementIndex);
     const pjeDeadlineDate = parseDeadlineDate(rawDeadlineText);
-    const pjeDeadlineStyle = deadlineStyle(row, columns.deadlineIndex);
-    const knowledgeDate = parseKnowledgeDate(deadlineDetailText(row, columns.deadlineIndex));
-    const receivedDays = parseReceivedDays(rawReceivedText);
+    const pjeDeadlineStyle = workspace ? DEADLINE_STYLE_PRESETS.default : deadlineStyle(row, columns.deadlineIndex);
+    const knowledgeDate = workspace ? parseDeadlineDate(row.knowledgeDateText) || parseKnowledgeDate(row.deadlineDetails) : parseKnowledgeDate(deadlineDetailText(row, columns.deadlineIndex));
+    const receivedDays = workspace && !/(?:dia|hora|minuto|segundo|semana|mes|ano|hoje)/i.test(normalizeKey(rawReceivedText)) ? NaN : parseReceivedDays(rawReceivedText);
     const classification = classifyManifestation(rawType);
     const inboxClassification = classifyInboxType(rawLastMovement);
     const internalDeadline = internalDeadlineForType(rawType);
-    const calculationBaseDate = knowledgeDate || receivedBaseDate(reportDate, receivedDays);
-    const internalDueDate = addBusinessDays(calculationBaseDate, internalDeadline.days);
-    const internalDaysRemaining = daysBetweenDates(reportDate, internalDueDate);
+    const calculationBaseDate = knowledgeDate || (Number.isFinite(receivedDays) ? receivedBaseDate(reportDate, receivedDays) : null);
+    const internalDueDate = calculationBaseDate ? addBusinessDays(calculationBaseDate, internalDeadline.days) : null;
+    const internalDaysRemaining = internalDueDate ? daysBetweenDates(reportDate, internalDueDate) : NaN;
     const pjeDaysRemaining = pjeDeadlineDate ? daysBetweenDates(reportDate, pjeDeadlineDate) : null;
 
     const record = {
@@ -1803,22 +1804,22 @@
       type: rawType,
       processNumber: processNumber || "Processo nao identificado",
       procedureId,
-      procedureUrl: procedurePageUrl(procedureId),
+      procedureUrl: workspace ? row.pendencyUrl : procedurePageUrl(procedureId),
       knowledgeDate,
       knowledgeDateText: knowledgeDate ? formatDateTime(knowledgeDate) : "Nao localizada",
       pjeDeadlineDate,
       pjeDeadlineText: pjeDeadlineDate ? formatDateTime(pjeDeadlineDate) : "-",
       pjeDeadlineStyle,
       pjeDaysRemaining,
-      receivedText: formatReceivedText(rawReceivedText),
+      receivedText: rawReceivedText ? formatReceivedText(rawReceivedText) : "Não informado",
       receivedDays,
       internalDeadline,
       internalDeadlineText:
         internalDeadline.days + " " + (internalDeadline.days === 1 ? "dia util" : "dias uteis"),
       calculationBaseDate,
-      calculationBaseSource: knowledgeDate ? "ciencia" : "recebido",
+      calculationBaseSource: !calculationBaseDate ? "não informada" : knowledgeDate ? "ciencia" : "recebido",
       internalDueDate,
-      internalDueDateText: formatDate(internalDueDate),
+      internalDueDateText: internalDueDate ? formatDate(internalDueDate) : "Não informado",
       internalDaysRemaining,
       group: classification.group,
       categoryLabel: REPORT_TYPES[classification.group].label,
@@ -1852,6 +1853,17 @@
   }
 
   async function collectAllRecords() {
+    state.workspaceCoverage = null;
+    if (window.SpaAdapter?.isWorkspace()) {
+      const reportDate = startOfToday();
+      const coverage = await window.SpaAdapter.collectWorkspaceReport({
+        isStopped: () => state.stopped,
+        onProgress: ({count,total}) => setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`)
+      });
+      state.workspaceCoverage = coverage;
+      log(window.SpaAdapter.collectionSummary(coverage));
+      return { records: coverage.records.map(item => buildRecord(item, {}, reportDate)), reportDate, coverage };
+    }
     const dt = getDataTable();
     const columns = columnsForManagement();
     const reportDate = startOfToday();
@@ -3980,6 +3992,7 @@
       }
       setStatus("Gerando painel...");
       openManagementReport(records, result.reportDate);
+      window.SpaAdapter?.showCollectionSummary(document.querySelector("#" + CONFIG.modalId + " > div"), result.coverage);
       setStatus("Painel gerado");
       log("Painel gerencial gerado com " + records.length + " processo(s).", "ok");
     } catch (error) {

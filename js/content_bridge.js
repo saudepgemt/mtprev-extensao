@@ -25,6 +25,8 @@
   ];
 
   const TRIAGEM_ALLOWED_TYPES = [
+    "SPA_CDSP_DUP_CACHE_GET",
+    "SPA_CDSP_DUP_CACHE_SAVE",
     "SPA_CDSP_OPEN_BACKGROUND_TABS",
     "SPA_CDSP_OPEN_FILTERED_EXPEDIENTE_TABS",
     "SPA_CDSP_CLASSIFY_PIECE_RECORDS",
@@ -405,6 +407,8 @@
   }
 
   function isProcedureRoute() {
+    const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+    if (/^\d+$/.test(previewId)) return true;
     const path = window.location.pathname;
     return (
       /^\/procedures\/\d+\/?$/.test(path) ||
@@ -469,7 +473,8 @@
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
       if (extensionContextInvalidated) return;
-      const route = window.location.pathname + window.location.search + window.location.hash;
+      const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+      const route = window.location.pathname + window.location.search + window.location.hash + '|' + previewId;
       if (route === rootToolsLastRoute) return;
       rootToolsLastRoute = route;
       window.dispatchEvent(new Event('mtprev-spa-routechange'));
@@ -851,7 +856,8 @@
         query: data.query || "",
         exact: data.exact === true,
         delayMs: data.delayMs,
-        payload: data.payload || null
+        payload: data.payload || null,
+        scope: typeof data.scope === 'string' ? data.scope : ''
       },
       (response) => {
         const lastError = safeLastError();

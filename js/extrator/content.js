@@ -102,19 +102,6 @@
     },
   ]);
 
-  const CREDENCIAIS_ASSINATURA_SIGADOC = Object.freeze([
-    {
-      matricula: 'PGE309619',
-      senha: 'Marcela2026*',
-      nomes: ['FRANSQUISLAINE DE JESUS ANICEZIO'],
-    },
-    {
-      matricula: 'PGE346756',
-      senha: '@Igor30',
-      nomes: ['IGOR DIEGO BRAGA RODRIGUES DE CAMPOS'],
-    },
-  ]);
-
   const DESTINATARIO_PADRAO_SIGADOC = Object.freeze({
     sigla: 'SES-UNIJUR',
     descricao: 'UNIDADE JURIDICA',
@@ -3455,11 +3442,9 @@
     const matricula = await aguardarElemento('#nomeUsuarioSubscritor', 5000);
     const senha = await aguardarElemento('#senhaUsuarioSubscritor', 5000);
     const ok = await aguardarElemento('#senhaOk', 5000);
-    if (!credencial || !matricula || !senha || !ok) throw new Error('A senha do documento capturado não pôde ser preenchida.');
+    if (!credencial || !credencial.senha || !matricula || !senha || !ok) throw new Error('Informe sua senha no menu do SIGADOC e confira a matrícula exibida na página.');
 
     const alternativas = [{ senha: credencial.senha }];
-    const senhaSessao = obterSenhaDaSessaoSigadoc();
-    if (senhaSessao && senhaSessao !== credencial.senha) alternativas.push({ senha: senhaSessao });
 
     for (const tentativa of alternativas) {
       setValorCampo(matricula, credencial.matricula);
@@ -3916,19 +3901,8 @@
 
   function detectarCredencialAssinaturaSigadoc() {
     const fontes = obterFontesUsuarioAssinaturaSigadoc();
-    const matriculas = fontes.matriculas.map((valor) => normalizarTexto(valor).toUpperCase());
-    const nomes = fontes.nomes.map(normalizarTexto);
-
-    return CREDENCIAIS_ASSINATURA_SIGADOC.find((credencial) => {
-      const matricula = normalizarTexto(credencial.matricula).toUpperCase();
-      const porMatricula = matriculas.includes(matricula);
-      const porNome = credencial.nomes.some((nome) => {
-        const esperado = normalizarTexto(nome);
-        return nomes.some((atual) => atual.includes(esperado) || esperado.includes(atual));
-      });
-
-      return porMatricula || porNome;
-    }) || null;
+    const matricula = fontes.matriculas.find(valor => /^[A-Z]{2,8}\d{3,}$/i.test(valor.trim()));
+    return matricula ? { matricula: matricula.trim(), senha: obterSenhaDaSessaoSigadoc() } : null;
   }
 
   function obterSenhaDaSessaoSigadoc() {
@@ -4032,8 +4006,8 @@
 
   async function preencherModalSenhaAssinaturaSigadoc() {
     const credencial = detectarCredencialAssinaturaSigadoc();
-    if (!credencial) {
-      throw new Error('Usuário logado no SIGADOC não reconhecido para assinatura por senha.');
+    if (!credencial || !credencial.senha) {
+      throw new Error('Informe sua senha no menu do SIGADOC e confira a matrícula exibida na página.');
     }
 
     const matricula = await aguardarElemento('#nomeUsuarioSubscritor', 7000);
@@ -4057,10 +4031,7 @@
     await limparFluxoAssinaturaSigadoc();
 
     const senhaDaSessao = obterSenhaDaSessaoSigadoc();
-    const tentativas = [{ origem: 'credencial interna', senha: credencial.senha }];
-    if (senhaDaSessao && senhaDaSessao !== credencial.senha) {
-      tentativas.push({ origem: 'Senha do SIGADOC', senha: senhaDaSessao });
-    }
+    const tentativas = [{ origem: 'Senha do SIGADOC', senha: senhaDaSessao }];
 
     for (let indice = 0; indice < tentativas.length; indice += 1) {
       const tentativa = tentativas[indice];
@@ -4088,8 +4059,8 @@
 
     throw new Error(
       senhaDaSessao
-        ? 'O SIGADOC não aceitou a credencial interna nem a Senha do SIGADOC informada nesta sessão.'
-        : 'O SIGADOC não aceitou a credencial interna. Informe opcionalmente a Senha do SIGADOC e tente novamente.'
+        ? 'O SIGADOC não aceitou a senha informada nesta sessão.'
+        : 'Informe sua senha no menu do SIGADOC e tente novamente.'
     );
   }
 
@@ -4645,9 +4616,9 @@
     senhaInput.id = 'cdsp-sigadoc-session-password';
     senhaInput.type = 'password';
     senhaInput.autocomplete = 'current-password';
-    senhaInput.placeholder = 'Opcional';
+    senhaInput.placeholder = 'Necessária para assinar';
     senhaInput.value = obterSenhaDaSessaoSigadoc();
-    senhaInput.title = 'Usada somente como segunda tentativa de assinatura nesta sessão do SIGADOC.';
+    senhaInput.title = 'Usada para assinar somente nesta sessão da aba do SIGADOC. Apague o campo para removê-la.';
     senhaInput.addEventListener('input', () => salvarSenhaDaSessaoSigadoc(senhaInput.value));
     senhaWrapper.appendChild(senhaInput);
     acoes.appendChild(senhaWrapper);
@@ -5061,13 +5032,6 @@
   // versão 2.02. O Capturado só ocupa o intervalo entre a assinatura e o
   // retorno ao Ofício; depois disso não há estados intermediários, validações
   // extras de responsável ou tentativas alternativas de envio.
-  function executarNoContextoDaPagina(codigo) {
-    const script = document.createElement('script');
-    script.textContent = codigo;
-    (document.documentElement || document.head || document.body).appendChild(script);
-    script.remove();
-  }
-
   async function verificarFluxoPosAssinaturaSigadocPendente() {
     if (fluxoPosAssinaturaEmAndamento) return;
 

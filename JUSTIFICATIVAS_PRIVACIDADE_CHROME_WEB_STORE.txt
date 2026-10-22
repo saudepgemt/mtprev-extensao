@@ -1,4 +1,34 @@
-clipboardWrite: copia textos e dados extraidos pelo usuario.
-downloads: exporta PDFs, Excel e documentos gerados pelo usuario.
-unlimitedStorage: guarda arquivos temporarios e cache local das rotinas.
-https://docs.google.com/*: usado exclusivamente no fluxo Simples Encerramento para inserir, na minuta criada pelo usuario no SPA, o texto que a propria extensao acabou de gerar. Nao coleta, transmite ou usa dados de documentos fora dessa substituicao solicitada pelo usuario.
+MTPrev - Extensão Geral — versão 2.0.72
+Desenvolvedor: Arthur Costa Dias | arthurcostadias1@gmail.com
+
+PROPÓSITO ÚNICO
+Auxiliar usuários autorizados na organização e tramitação de processos no SPA e na elaboração dos documentos correspondentes no SIGADOC, reunindo triagem, prazos, relatórios e consulta de andamentos em um painel de trabalho.
+
+PERMISSÕES
+scripting: carrega os módulos locais sob demanda e interage com campos, tabelas, editores e ações do SPA/SIGADOC. No Google Docs, insere o texto gerado apenas na minuta do fluxo de Simples Encerramento solicitado pelo usuário.
+offscreen: cria um documento local para processar PDFs com a biblioteca PDF.js e seu worker empacotados. Permite extrair e pesquisar texto para classificação, pesquisa e comparação de duplicados.
+alarms: executa as rotinas programadas pelo usuário e verifica os processos que ele adicionou ao acompanhamento. Não realiza consultas de andamentos externos antes de configuração e consentimento.
+storage: mantém configurações, filtros, histórico de rotinas, cache de relatórios, processos acompanhados, endereço autorizado do serviço de andamentos e dados necessários à continuidade dos fluxos. A senha de protocolo usa storage.session; não é persistida em storage.local.
+clipboardWrite: copia textos, tabelas e dados gerados quando o usuário aciona um comando de cópia. Não solicita clipboardRead nem faz monitoramento da área de transferência.
+downloads: salva documentos e PDFs gerados ou selecionados pelo usuário nas rotinas de ofícios e exportação.
+unlimitedStorage: permite armazenar PDFs de trabalho no IndexedDB local da extensão e dados/cache de relatórios que podem exceder a cota normal, necessários às rotinas de ofícios, anexos e duplicados.
+notifications: informa alterações encontradas nos processos que o usuário escolheu acompanhar. Os avisos podem exibir o número do processo.
+
+ACESSO A SITES
+https://spa.pge.mt.gov.br/* e https://pge.mt.spa.coreplan.com.br/*: versões do SPA nas quais o painel atua. Leitura da caixa e de documentos, relatórios e execução de ações de trabalho solicitadas pelo usuário, com o acesso que ele já possui no sistema.
+https://www.sigadoc.mt.gov.br/* e https://sigadoc.mt.gov.br/*: preenchimento e processamento dos documentos e ofícios relacionados ao trabalho no SPA, incluindo assinatura/tramitação acionadas pelo usuário.
+https://pje.tjmt.jus.br/* e https://pje2.tjmt.jus.br/*: acesso a páginas e documentos do PJe/TJMT usados nas consultas e pesquisas processuais, respeitando a sessão do usuário.
+https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/*: serviço externo para consultar andamentos e expedientes do PJe/TJMT por número do processo e instância. O usuário precisa configurar o endereço fornecido pelo administrador e consentir nas opções. O acompanhamento usa esse mesmo serviço. O pacote não contém credencial desse serviço.
+https://docs.google.com/*: usado no fluxo Simples Encerramento para inserir, na minuta criada pelo usuário, o texto gerado pela extensão. Não há leitura geral dos documentos da conta.
+
+CÓDIGO REMOTO
+Não. Scripts, bibliotecas PDF.js, pdf-lib, ExcelJS e ícones são empacotados localmente. As respostas HTTP são tratadas como dados. A extensão não usa scripts de CDN nem executa o JavaScript retornado pela chamada de etiquetas do SPA.
+
+DECLARAÇÃO DE DADOS
+Não declarar que a extensão não trata dados. Ela lê conteúdo processual e documentos, pode lidar com nomes e identificadores de pessoas, utiliza senhas fornecidas pelo usuário para assinatura e pode lidar com dados financeiros ou de saúde presentes nos documentos.
+Para os campos do painel, considerar: informações de identificação pessoal, informações de autenticação e conteúdo de sites; também informações de saúde, informações financeiras/pagamento e comunicações pessoais quando presentes nos documentos abrangidos pelos fluxos. A política descreve esse tratamento. Não utiliza histórico geral de navegação, publicidade ou telemetria de uso.
+O serviço externo recebe números de processos e instância somente após consentimento; as conexões também expõem dados técnicos, como IP, ao servidor. O Google Docs recebe o texto que o usuário decide inserir. Não há venda de dados, uso para publicidade ou crédito. As respostas no painel devem ser consistentes com privacy.html e com a configuração efetivamente distribuída.
+
+POLÍTICA DE PRIVACIDADE
+Hospedar o arquivo privacy.html em uma URL HTTPS pública e informar essa URL no painel. Caminhos locais e chrome-extension:// não substituem uma URL pública.
+Contato: Arthur Costa Dias — arthurcostadias1@gmail.com.

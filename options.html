@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configurações — MTPrev</title>
+  <link rel="icon" href="images/icon-mtprev48.png">
+  <link rel="stylesheet" href="css/options.css">
+  <script src="js/options.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><img src="images/logo-mtprev.png" alt="MTPrev" width="142"><div><p class="eyebrow">EXTENSÃO GERAL</p><h1>Configurações</h1></div></header>
+    <section aria-labelledby="service-title">
+      <h2 id="service-title">Consulta de andamentos do PJe</h2>
+      <p>Este recurso é opcional e fica desativado até você configurá-lo. As consultas enviam o <strong>número do processo e a instância</strong> ao serviço externo abaixo para obter andamentos do TJMT. O acompanhamento de processos também usa esse serviço quando ativado.</p>
+      <p class="host">pje-mcp-worker-tjmt.joaooliveira.workers.dev</p>
+      <p>Use o endereço fornecido pelo administrador desse serviço. A extensão não fornece uma credencial de acesso. Nenhuma senha de assinatura do SPA ou SIGADOC é enviada a ele.</p>
+      <form id="service-form">
+        <label for="endpoint">Endereço completo do serviço (HTTPS)</label>
+        <input id="endpoint" name="endpoint" type="password" autocomplete="off" spellcheck="false" required aria-describedby="endpoint-help">
+        <p id="endpoint-help" class="help">O endereço pode conter uma chave de acesso. Ele fica salvo apenas nas configurações locais da extensão.</p>
+        <label class="check"><input id="consent" type="checkbox" required><span>Autorizo o envio dos números dos processos consultados e da instância a esse serviço para obter andamentos, inclusive nas verificações de acompanhamento que eu ativar.</span></label>
+        <div class="actions"><button type="submit">Salvar e autorizar</button><button id="test-service" type="button" class="secondary">Testar conexão salva</button><button id="disable-service" type="button" class="secondary">Desativar e apagar endereço</button></div>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+    </section>
+    <section><h2>Senhas de assinatura</h2><p>Informe sua senha no painel da rotina correspondente. A senha de protocolo fica na sessão do navegador; após reiniciá-lo, informe-a novamente antes de uma rotina programada. No SIGADOC, a senha fica na sessão da aba e pode ser apagada limpando o campo no menu.</p></section>
+    <footer><a href="privacy.html" target="_blank" rel="noopener">Política de privacidade</a><span>Arthur Costa Dias · <a href="mailto:arthurcostadias1@gmail.com">Suporte</a></span></footer>
+  </main>
+</body>
+</html>

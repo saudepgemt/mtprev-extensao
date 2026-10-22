@@ -33,7 +33,9 @@ const PDF_SCAN_TIMEOUT_MS = 45000;
 const PDF_RENDER_TEXT_TIMEOUT_MS = 9000;
 const PDF_RENDER_TEXT_POLL_MS = 600;
 const MNI_MOVEMENTS_TIMEOUT_MS = 60000;
-const MNI_MCP_ENDPOINT_URL = "https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/mcp/dfa12739f3154104961d99e9a8758710de6d78f2934240e1998bd6d590707f5c";
+const MNI_SERVICE_SETTINGS_KEY = "MTPREV_SERVICE_SETTINGS";
+// Recurso privado disponível somente no checkout local. O build da loja desativa este caminho.
+const LOCAL_MNI_SETTINGS_PATH = ".local/test-credentials.json";
 const MNI_MCP_CONSULT_PROCESS_TOOL = "tjmt_mni_consultar_processo";
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const AUTOS_SEARCH_CACHE_MAX = 250;
@@ -297,42 +299,91 @@ async function storeRoutineConfig(config) {
 async function setProtocolPassword(password) {
   const value = String(password || "");
   fallbackProtocolPassword = value;
-
-  if (chrome.storage && chrome.storage.local) {
-    if (value) {
-      await chrome.storage.local.set({ [SCHEDULE_PROTOCOL_PASSWORD_KEY]: value });
-    } else {
-      await chrome.storage.local.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY);
-    }
+  await chrome.storage.local.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY);
+  if (chrome.storage.session) {
+    if (value) await chrome.storage.session.set({ [SCHEDULE_PROTOCOL_PASSWORD_KEY]: value });
+    else await chrome.storage.session.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY);
   }
-
-  if (chrome.storage && chrome.storage.session && !value) {
-    await chrome.storage.session.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY);
-  }
-
   return { ok: true, hasPassword: Boolean(value) };
 }
 
 async function getProtocolPassword() {
-  if (chrome.storage && chrome.storage.local) {
-    const data = await chrome.storage.local.get(SCHEDULE_PROTOCOL_PASSWORD_KEY);
-    const localValue = String(data[SCHEDULE_PROTOCOL_PASSWORD_KEY] || "");
-    if (localValue) return localValue;
-  }
-
-  if (chrome.storage && chrome.storage.session) {
+  // Remover a cópia persistente das versões anteriores; não a reutilizar.
+  await chrome.storage.local.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY);
+  if (chrome.storage.session) {
     const data = await chrome.storage.session.get(SCHEDULE_PROTOCOL_PASSWORD_KEY);
-    const sessionValue = String(data[SCHEDULE_PROTOCOL_PASSWORD_KEY] || "");
-    if (sessionValue) {
-      fallbackProtocolPassword = sessionValue;
-      if (chrome.storage && chrome.storage.local) {
-        await chrome.storage.local.set({ [SCHEDULE_PROTOCOL_PASSWORD_KEY]: sessionValue });
-      }
-      return sessionValue;
-    }
+    return String(data[SCHEDULE_PROTOCOL_PASSWORD_KEY] || "");
   }
-
   return fallbackProtocolPassword;
+}
+
+async function getMniServiceEndpoint() {
+  const data = await chrome.storage.local.get(MNI_SERVICE_SETTINGS_KEY);
+  let settings = data[MNI_SERVICE_SETTINGS_KEY];
+  let restoredLocally = false;
+  if (!settings && typeof LOCAL_MNI_SETTINGS_PATH !== "undefined" && LOCAL_MNI_SETTINGS_PATH && chrome.runtime?.getURL) {
+    try {
+      const response = await fetch(chrome.runtime.getURL(LOCAL_MNI_SETTINGS_PATH), { cache: "no-store" });
+      if (response.ok) {
+        const local = await response.json();
+        if (typeof local.mniEndpoint === "string" && local.mniEndpoint) {
+          settings = { endpoint: local.mniEndpoint, consent: true, consentVersion: 1, source: "local-test", authorizedAt: new Date().toISOString() };
+          restoredLocally = true;
+        }
+      }
+    } catch (_) { /* O arquivo privado não existe nas instalações públicas. */ }
+  }
+  if (settings?.consent !== true || !settings.endpoint) {
+    throw new Error('Configure e autorize o serviço de andamentos nas opções da extensão antes de consultar o PJe.');
+  }
+  const url = new URL(settings.endpoint);
+  if (url.protocol !== 'https:' || url.hostname !== 'pje-mcp-worker-tjmt.joaooliveira.workers.dev' || url.port || url.username || url.password) {
+    throw new Error('Endereço do serviço de andamentos não autorizado. Confira as opções da extensão.');
+  }
+  if (restoredLocally) await chrome.storage.local.set({ [MNI_SERVICE_SETTINGS_KEY]: settings });
+  return url.href;
+}
+
+function parseMcpResponse(text, requestId) {
+  try { return JSON.parse(text); } catch (_) { /* Alguns serviços MCP respondem por SSE. */ }
+  const messages = String(text).replace(/\r\n/g, "\n").split(/\n\n+/);
+  for (const event of messages) {
+    const data = event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+    if (!data) continue;
+    try {
+      const message = JSON.parse(data);
+      if (message.id === requestId && (message.result || message.error)) return message;
+    } catch (_) { /* Ignorar keep-alive e eventos incompletos. */ }
+  }
+  throw new Error("O serviço de consulta não retornou uma resposta MCP válida.");
+}
+
+function mniHttpError(status) {
+  if (status === 401 || status === 403) return "O serviço PJe recusou o acesso (HTTP " + status + "). Confira a credencial nas opções da extensão e a liberação com o administrador do serviço.";
+  if (status === 404) return "Endereço do serviço PJe não encontrado (HTTP 404). Confira o endereço completo nas opções da extensão.";
+  if (status === 429) return "Limite de consultas do serviço PJe atingido. Aguarde antes de tentar novamente.";
+  return "Serviço PJe indisponível (HTTP " + status + "). Tente novamente mais tarde.";
+}
+
+async function testMniServiceConnection() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const endpoint = await getMniServiceEndpoint();
+    const id = "mtprev-connection-test";
+    const response = await fetch(endpoint, {
+      method: "POST", signal: controller.signal,
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/list", params: {} })
+    });
+    if (!response.ok) return { ok: false, error: mniHttpError(response.status) };
+    const message = parseMcpResponse(await response.text(), id);
+    if (message.error) return { ok: false, error: "O serviço respondeu, mas não foi possível confirmar a ferramenta de consulta. Confira a configuração com o administrador." };
+    if (!message.result?.tools?.some(tool => tool.name === MNI_MCP_CONSULT_PROCESS_TOOL)) return { ok: false, error: "O serviço respondeu, mas não disponibilizou a ferramenta de consulta ao TJMT." };
+    return { ok: true, message: "Conexão confirmada. A ferramenta de consulta ao TJMT está disponível." };
+  } catch (error) {
+    return { ok: false, error: error.name === "AbortError" ? "O serviço não respondeu ao teste em 20 segundos." : error instanceof TypeError ? "Não foi possível conectar ao serviço PJe. Confira a conexão e tente novamente." : error.message };
+  } finally { clearTimeout(timer); }
 }
 
 function isProtocolScheduleStep(step) {
@@ -683,12 +734,13 @@ async function fetchMniProcedureMovements(message) {
 
   try {
     const requestId = "cdsp-mni-" + Date.now();
-    const response = await fetch(MNI_MCP_ENDPOINT_URL, {
+    const endpoint = await getMniServiceEndpoint();
+    const response = await fetch(endpoint, {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json"
+        Accept: "application/json, text/event-stream"
       },
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -711,24 +763,19 @@ async function fetchMniProcedureMovements(message) {
     const bodyText = await response.text();
     let rpcPayload = null;
 
-    try {
-      rpcPayload = bodyText ? JSON.parse(bodyText) : null;
-    } catch (_error) {
-      rpcPayload = { error: { message: bodyText.slice(0, 500) || "Resposta MCP nao era JSON." } };
-    }
-
     if (!response.ok) {
       return {
         ok: false,
         status: response.status,
-        error: "Worker MCP retornou HTTP " + response.status + ".",
-        details: bodyText.slice(0, 300),
+        error: mniHttpError(response.status),
         movements: [],
         expedientes: [],
         processNumber,
         sourceLabel: instance.label + " via MCP"
       };
     }
+
+    rpcPayload = parseMcpResponse(bodyText, requestId);
 
     const toolPayload = parseMcpToolPayload(rpcPayload);
     const processResult = firstMcpProcessResult(toolPayload);
@@ -1936,6 +1983,9 @@ if (chrome.runtime && chrome.runtime.onStartup) {
 
 if (chrome.runtime && chrome.runtime.onInstalled) {
   chrome.runtime.onInstalled.addListener(restoreRoutineAlarm);
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.storage.local.remove(SCHEDULE_PROTOCOL_PASSWORD_KEY).catch(() => {});
+  });
 }
 
 restoreRoutineAlarm();
@@ -4182,7 +4232,10 @@ function applyConferidoMarkerScript(markerText) {
       try {
         window.jQuery.ajax({
           type: "POST",
-          dataType: "script",
+          // Tratar como texto: a extensão não executa código devolvido pelo servidor.
+          dataType: "text",
+          // Manter a negociação de formato do endpoint Rails sem o conversor script do jQuery.
+          headers: { Accept: "text/javascript, application/javascript, */*; q=0.01" },
           url: url,
           data: {
             marker_procedures: {
@@ -5146,8 +5199,76 @@ async function injectPanel(sender) {
   }
 }
 
+// Relatórios de duplicados: somente o resumo e os expedientes candidatos.
+// Armazenamento privado da extensão, separado do localStorage do SPA.
+function duplicateCacheStorageKey(scope) {
+  let hash = 2166136261;
+  for (let i=0; i<scope.length; i++) {
+    hash ^= scope.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return 'MTPREV_DUPLICATES_CACHE_V1_' + hash.toString(16).padStart(8, '0');
+}
+
+async function handleDuplicateCacheMessage(message, sender) {
+  const scope = message.scope;
+  if (typeof scope !== 'string' || scope.length > 12000 || scope.length < 20) {
+    return {ok:false,error:'Escopo inválido.'};
+  }
+  let details;
+  let senderUrl;
+  try {
+    details = JSON.parse(scope);
+    senderUrl = new URL(sender.tab?.url || sender.url || '');
+  } catch (_error) { return {ok:false,error:'Escopo ou origem inválidos.'}; }
+  if (!['pge.mt.spa.coreplan.com.br','spa.pge.mt.gov.br'].includes(senderUrl.hostname) ||
+      senderUrl.protocol !== 'https:' || details?.version !== 1 ||
+      details.origin !== senderUrl.origin || details.path !== '/workspace' ||
+      details.userId !== (senderUrl.searchParams.get('user_id') || '')) {
+    return {ok:false,error:'Origem ou usuário não correspondem à mesa atual.'};
+  }
+  const key = duplicateCacheStorageKey(scope);
+  if (message.type === 'SPA_CDSP_DUP_CACHE_GET') {
+    const data = (await chrome.storage.local.get(key))[key];
+    return {ok:true,report:data?.scope === scope ? data.report : null};
+  }
+  if (message.type === 'SPA_CDSP_DUP_CACHE_SAVE') {
+    const report = message.payload;
+    if (!report || report.version !== 1 || report.coverage?.reason !== 'complete' ||
+        !Array.isArray(report.groups) || !Number.isFinite(report.coverage?.count)) {
+      return {ok:false,error:'Relatório incompleto ou inválido.'};
+    }
+    const size = JSON.stringify(report).length;
+    if (size > 2500000) return {ok:false,error:'Relatório excede o limite de armazenamento (2,5 MB).'};
+    await chrome.storage.local.set({[key]:{scope,report}});
+    return {ok:true,saved:true};
+  }
+  return {ok:false,error:'Operação não permitida.'};
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
+
+  if (["MTPREV_SERVICE_STATUS", "MTPREV_SERVICE_TEST", "MTPREV_OPEN_OPTIONS"].includes(message.type)) {
+    const ownOptions = _sender.url === chrome.runtime.getURL("options.html");
+    if (!ownOptions && !(message.type === "MTPREV_OPEN_OPTIONS" && normalizeAllowedUrl(_sender.tab?.url))) {
+      sendResponse({ ok: false, error: "Origem não permitida." });
+      return false;
+    }
+    const action = message.type === "MTPREV_OPEN_OPTIONS"
+      ? chrome.runtime.openOptionsPage().then(() => ({ ok: true }))
+      : message.type === "MTPREV_SERVICE_TEST" ? testMniServiceConnection()
+      : getMniServiceEndpoint().then(() => ({ ok: true }));
+    action.then(sendResponse, error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === 'SPA_CDSP_DUP_CACHE_GET' || message.type === 'SPA_CDSP_DUP_CACHE_SAVE') {
+    handleDuplicateCacheMessage(message, _sender).then(sendResponse).catch(error => {
+      sendResponse({ok:false,error:error?.message || String(error)});
+    });
+    return true;
+  }
 
   if (message.type === "SPA_CDSP_SIMPLE_CLOSURE_INSERT_DOCUMENT") {
     insertSimpleClosureIntoCurrentDocument(_sender, message.payload)

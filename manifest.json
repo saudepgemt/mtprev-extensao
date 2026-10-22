@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.71",
-  "version_name": "2.71",
+  "version": "2.0.72",
+  "version_name": "2.72",
+  "minimum_chrome_version": "116",
+  "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
   "permissions": [
     "scripting",
@@ -27,8 +29,15 @@
   "background": {
     "service_worker": "js/background.js"
   },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "icons": {
-    "16": "images/icon-mtprev48.png",
+    "16": "images/icon-mtprev16.png",
     "48": "images/icon-mtprev48.png",
     "128": "images/icon-mtprev128.png"
   },
@@ -87,7 +96,7 @@
   "action": {
     "default_title": "MTPrev - Extensão Geral",
     "default_icon": {
-      "16": "images/icon-mtprev48.png",
+      "16": "images/icon-mtprev16.png",
       "48": "images/icon-mtprev48.png",
       "128": "images/icon-mtprev128.png"
     }

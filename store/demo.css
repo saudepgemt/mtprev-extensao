@@ -1,0 +1,12 @@
+/* Página fictícia para capturas. Não é distribuída na extensão. */
+body{margin:0;background:#f1f5fa;color:#263e56;font:15px/1.5 system-ui,sans-serif}
+#demo-header{height:76px;padding:0 36px;display:flex;align-items:center;justify-content:space-between;background:#163b60;color:#fff}
+#demo-header strong{font-size:20px;letter-spacing:.02em}#demo-header span{font-size:13px;color:#d8e7f6}
+#demo-intro{margin:40px 36px 26px;width:730px}#demo-intro small{text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:#58768f}#demo-intro h1{font-size:30px;letter-spacing:-.03em;margin:8px 0}#demo-intro p{color:#506b83;margin:8px 0}
+#demo-tabs{display:flex;gap:24px;margin:30px 36px 20px;color:#48647e}#demo-tabs strong{color:#164478;border-bottom:3px solid #198da1;padding-bottom:9px}
+#native-button{display:none}#procedures-box{margin:0 36px;border:1px solid #c9d6e4;border-radius:12px;overflow:hidden;width:750px;border-spacing:0;background:white;font-size:13px;box-shadow:0 7px 24px #173c6010}
+#procedures-box th{padding:16px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;background:#e7eef6;color:#4e657c}
+#procedures-box td{padding:19px 12px;border-top:1px solid #dce5ef}.group-row{font-weight:600}.group-row .badge{float:right;color:#315976;border:1px solid #c7d9e6;border-radius:20px;padding:0 9px;background:#edf4fa}
+.toggle-icon{width:28px;height:28px;border-radius:7px;border:1px solid #c4d3e4;color:#164478;background:#f1f6fb;margin-right:10px;font-size:18px}
+#demo-note{margin:26px 36px;width:750px;padding:16px 20px;border-left:3px solid #239aa6;background:#e6f1f5;color:#345a70;font-size:13px;box-sizing:border-box}
+#demo-footer{position:fixed;bottom:20px;left:36px;font-size:12px;color:#5e768c}

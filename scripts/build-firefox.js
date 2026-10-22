@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { RUNTIME_FILES } = require("./runtime-files.js");
 
 function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = path.join(sourceRoot, "dist", "firefox")) {
   const manifest = JSON.parse(fs.readFileSync(path.join(sourceRoot, "manifest.json"), "utf8"));
@@ -24,6 +25,7 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
   };
   // Firefox does not support Chrome's version_name field.
   delete manifest.version_name;
+  delete manifest.minimum_chrome_version;
 
   const requiredFiles = new Set([
     ...manifest.background.scripts,
@@ -50,8 +52,9 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
   // Package only runtime assets; never copy workspace settings or local credentials.
   fs.rmSync(outputRoot, { recursive: true, force: true });
   fs.mkdirSync(outputRoot, { recursive: true });
-  for (const entry of ["js", "css", "images", "data", "offscreen.html", "THIRD_PARTY_NOTICES.txt"]) {
-    fs.cpSync(path.join(sourceRoot, entry), path.join(outputRoot, entry), { recursive: true });
+  for (const entry of RUNTIME_FILES) {
+    fs.mkdirSync(path.dirname(path.join(outputRoot, entry)), { recursive: true });
+    fs.copyFileSync(path.join(sourceRoot, entry), path.join(outputRoot, entry));
   }
   fs.writeFileSync(path.join(outputRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return outputRoot;
