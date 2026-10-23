@@ -1,0 +1,113 @@
+{
+  "manifest_version": 3,
+  "name": "MTPrev - Extensão Geral (teste local)",
+  "version": "2.0.72",
+  "author": "Arthur Costa Dias",
+  "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
+  "permissions": [
+    "scripting",
+    "alarms",
+    "storage",
+    "clipboardWrite",
+    "downloads",
+    "unlimitedStorage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://spa.pge.mt.gov.br/*",
+    "https://pge.mt.spa.coreplan.com.br/*",
+    "https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/*",
+    "https://pje.tjmt.jus.br/*",
+    "https://pje2.tjmt.jus.br/*",
+    "https://www.sigadoc.mt.gov.br/*",
+    "https://sigadoc.mt.gov.br/*",
+    "https://docs.google.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "js/shared/mtprev_triage_rules.js",
+      "js/vendor/pdf.min.js",
+      "js/triagem/offscreen_pdf_reader.js",
+      "js/background.js",
+      "js/process_watch_background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "icons": {
+    "16": "images/icon-mtprev16.png",
+    "48": "images/icon-mtprev48.png",
+    "128": "images/icon-mtprev128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ],
+      "js": [
+        "js/shared/spa_selectors.js",
+        "js/shared/spa_adapter.js",
+        "js/radial_menu.js",
+        "js/content_bridge.js",
+        "js/process_watch_panel.js",
+        "js/extrator/content.js"
+      ],
+      "css": [
+        "css/extrator.css",
+        "css/menu.css",
+        "css/radial_menu.css",
+        "css/process_watch.css",
+        "css/theme.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.sigadoc.mt.gov.br/*",
+        "https://sigadoc.mt.gov.br/*"
+      ],
+      "js": [
+        "js/extrator/content.js"
+      ],
+      "css": [
+        "css/extrator.css",
+        "css/theme.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "images/logo-mtprev.png",
+        "images/icon-mtprev128.png",
+        "images/material-rounded/*.svg",
+        "data/equipe.xlsx"
+      ],
+      "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "MTPrev - Extensão Geral (teste local)",
+    "default_icon": {
+      "16": "images/icon-mtprev16.png",
+      "48": "images/icon-mtprev48.png",
+      "128": "images/icon-mtprev128.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mtprev-extensao@mtprev.local",
+      "strict_min_version": "128.0"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+This extension bundles third-party libraries inherited from the consolidated modules:
+
+- ExcelJS, MIT License
+- PDF.js, Apache License 2.0
+- pdf-lib, MIT License
+  License: js/libs/pdf-lib.LICENSE.md
+- Google Material Symbols Rounded, Apache License 2.0
+  Source: https://github.com/google/material-design-icons
+  Local SVGs and license: images/material-rounded/
+
+Also consolidates original CDSP scripts for Triagem, Prazos, Gestao and Extrator SPA/SIGADOC.

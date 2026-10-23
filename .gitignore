@@ -1,6 +1,5 @@
 *.zip
 outputs/
-dist/
 *.crx
 *.pem
 .DS_Store
