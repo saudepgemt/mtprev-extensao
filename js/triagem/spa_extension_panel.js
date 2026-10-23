@@ -725,14 +725,9 @@
   }
 
   function findExternalDocumentsHost() {
-    // SPA2: acompanhar a coluna dos dados, independentemente da altura da esquerda.
-    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview .workspace-preview__overview-grid');
-    if (overview) {
-      const columns = Array.from(overview.children).filter((node) => node.id !== 'spa-cdsp-external-docs-panel');
-      const dataColumn = columns.find((column) => Array.from(column.querySelectorAll('h2, h3, h4, h5, h6, .card-title'))
-        .some((title) => normalizeProcedureLabel(title.textContent) === 'dados do processo'));
-      return dataColumn || columns[columns.length - 1] || overview;
-    }
+    // SPA2: colocar o painel antes das duas colunas da visão geral, sem espremer os autos.
+    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
+    if (overview && overview.querySelector('.workspace-preview__overview-grid')) return overview;
     const header =
       document.querySelector(".procedure-header .card-body") ||
       document.querySelector(".procedure-header") ||
@@ -750,16 +745,51 @@
     return columns[1] || header;
   }
 
+  function placeExternalDocumentsPanel(panel, host) {
+    if (!panel || !host) return;
+    const grid = host.matches && host.matches('#workspace-preview-overview')
+      ? host.querySelector(':scope > .workspace-preview__overview-grid')
+      : null;
+    if (grid) {
+      // Também reposiciona painéis criados em versões anteriores da extensão.
+      if (panel.parentElement !== host || panel.nextElementSibling !== grid) {
+        host.insertBefore(panel, grid);
+      }
+      return;
+    }
+    if (panel.parentElement !== host) host.appendChild(panel);
+  }
+
   function injectExternalDocumentsStyles() {
     if (document.querySelector("#spa-cdsp-external-docs-style")) return;
 
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
-      .workspace-preview__overview-grid #spa-cdsp-external-docs-panel {
+      /* SPA2: painel de autos em toda a largura, antes de Situação atual e Dados. */
+      .workspace-preview__document #workspace-preview-overview > #spa-cdsp-external-docs-panel {
         min-width: 0;
+        max-width: 100%;
         width: 100%;
+        margin: 0 0 18px;
         box-sizing: border-box;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(610px, 100%);
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      }
+      @media (max-width: 760px) {
+        .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
       #spa-cdsp-external-docs-panel {
         margin: 14px 0 0 0;
@@ -4552,13 +4582,14 @@
   }
 
   function createExternalDocumentsPanel(sources, processNumber) {
+    // No SPA2, a aba inicial é o andamento do MNI/PJe quando o CNJ é válido.
+    // Se não houver numeração consultável, use a linha do tempo interna do SPA2.
+    const isSpa2Process = Boolean(document.querySelector('.workspace-preview__document #workspace-preview-overview'));
     const defaultSourceKey =
-      sources && sources.spaTimeline && sources.spaTimeline.url ? 'spaTimeline' :
-      sources && sources.autos && sources.autos.url
-        ? "autos"
-        : sources && sources.folder && sources.folder.url
-        ? "folder"
-        : "movements";
+      isSpa2Process && sources?.movements?.url ? "movements" :
+      sources?.spaTimeline?.url ? "spaTimeline" :
+      sources?.autos?.url ? "autos" :
+      sources?.folder?.url ? "folder" : "movements";
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
@@ -6024,10 +6055,11 @@
     });
 
     resetExternalDocumentSourceView();
-    // Na abertura, carregar a linha do tempo do SPA2; PDFs continuam sob demanda.
+    // SPA2: abrir expandido com os andamentos PJe da numeração atual.
+    // Não buscar PDFs nem as outras fontes automaticamente; permanecem sob demanda.
     setTimeout(() => {
       if (!panel.isConnected) return;
-      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: false });
+      if (isSpa2Process) loadActiveExternalSource({ force: false });
       else loadAllExternalSources({ force: false });
     }, 0);
 
@@ -6078,7 +6110,7 @@
     });
 
     loadButton.addEventListener("click", () => {
-      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: true });
+      if (isSpa2Process) loadActiveExternalSource({ force: true });
       else loadAllExternalSources({ force: true });
     });
 
@@ -6430,7 +6462,9 @@
       toggleButton.textContent = collapsed ? "Expandir" : "Recolher";
     }
 
-    setExternalDocumentsCollapsed(storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    // No SPA2 o painel inicia aberto; o usuário pode recolher manualmente.
+    setExternalDocumentsCollapsed(isSpa2Process ? false : storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    if (isSpa2Process) minimizedMemory.style.display = "none";
 
     minimizedMemoryInput.addEventListener("change", () => {
       storageSetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, minimizedMemoryInput.checked);
@@ -6471,13 +6505,13 @@
     }
 
     if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) {
-      if (existingPanel.parentElement !== host) host.appendChild(existingPanel);
+      placeExternalDocumentsPanel(existingPanel, host);
       return;
     }
     if (existingPanel) existingPanel.remove();
 
     injectExternalDocumentsStyles();
-    host.appendChild(createExternalDocumentsPanel(sources, processNumber));
+    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources, processNumber), host);
   }
 
   function setupExternalDocumentsPanel() {
