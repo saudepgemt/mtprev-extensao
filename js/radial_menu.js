@@ -68,10 +68,11 @@
       const nodes = [...ring.children];
       const width = stage.clientWidth;
       const size = Math.min(66, Math.max(48, width * .17));
-      const radius = Math.max(60, Math.min(120, width / 2 - size / 2 - 32));
+      const radius = Math.max(68, Math.min(82, width / 2 - size / 2 - 48));
       stage.style.setProperty('--orbit-radius', radius + 'px');
       shell.style.setProperty('--orbit-radius', radius + 'px');
-      const height = Math.max(88, 2 * (radius + size / 2 + 52)) + 'px';
+      // Espaço apenas para os círculos: a legenda não ocupa mais uma faixa fixa.
+      const height = Math.max(88, 2 * (radius + size / 2 + 24)) + 'px';
       stage.style.height = height;
       stage.style.setProperty('--orbit-height', height);
       nodes.forEach((node, i) => {
@@ -80,6 +81,11 @@
         node.style.setProperty('--orbit-y', `${Math.sin(angle) * radius}px`);
         node.style.setProperty('--orbit-size', `${size}px`);
         node.style.setProperty('--orbit-delay', `${i * 20}ms`);
+        // Posiciona o rótulo temporário sem encobrir o ícone vizinho.
+        node.dataset.labelDefault = Math.sin(angle) < -0.55 ? 'above'
+          : Math.sin(angle) > 0.45 ? 'below'
+          : Math.cos(angle) > 0 ? 'right' : 'left';
+        node.dataset.labelPosition = node.dataset.labelDefault;
       });
       clamp();
     }
@@ -125,15 +131,34 @@
     }
     function paint(items) {
       const capacity = Math.min(6, Math.max(3, Math.floor((stage.clientWidth - 24) / 80) * 2));
-      page = Math.min(page, Math.max(0, Math.ceil(items.length / capacity) - 1));
-      previous.hidden = page === 0; next.hidden = (page + 1) * capacity >= items.length;
-      items = items.slice(page * capacity, (page + 1) * capacity);
+      // Nos submenus, a seta é um botão orbital fixo. Não ocupa uma página de
+      // opções nem desaparece quando o usuário avança para a página seguinte.
+      const isSubmenu = Boolean(module);
+      const optionCapacity = Math.max(1, capacity - (isSubmenu ? 1 : 0));
+      page = Math.min(page, Math.max(0, Math.ceil(items.length / optionCapacity) - 1));
+      previous.hidden = page === 0; next.hidden = (page + 1) * optionCapacity >= items.length;
+      const visibleItems = items.slice(page * optionCapacity, (page + 1) * optionCapacity);
+      items = isSubmenu
+        ? [{ title: 'Voltar aos módulos', isBack: true, run: () => back.click() }, ...visibleItems]
+        : visibleItems;
       ring.replaceChildren();
       items.forEach((item) => {
         const button = create('button', 'mtprev-orbit__item', '', ring); button.type = 'button';
         button.setAttribute('aria-label', item.title);
         const describe = () => {
           if (!expanded || context.classList.contains('is-notice')) return;
+          // Tooltip acompanha o ícone, mas inverte o lado ao chegar perto
+          // das bordas da tela (o radial pode ser arrastado livremente).
+          const label = button.querySelector('.mtprev-orbit__label');
+          const box = button.getBoundingClientRect();
+          const w = label?.offsetWidth || 165, h = label?.offsetHeight || 40;
+          const margin = 8, gap = 8;
+          let side = button.dataset.labelDefault || 'below';
+          if (side === 'left' && box.left - w - gap < margin) side = 'right';
+          else if (side === 'right' && box.right + w + gap > innerWidth - margin) side = 'left';
+          else if (side === 'above' && box.top - h - gap < margin) side = 'below';
+          else if (side === 'below' && box.bottom + h + gap > innerHeight - margin) side = 'above';
+          button.dataset.labelPosition = side;
           context.textContent = item.title;
         };
         const restoreDescription = () => {
@@ -146,8 +171,14 @@
         button.addEventListener('pointerleave', restoreDescription);
         button.addEventListener('blur', restoreDescription);
         if (item.special) button.classList.add('mtprev-orbit__special');
+        if (item.isBack) button.classList.add('mtprev-orbit__item--back');
         const disc = create('span', 'mtprev-orbit__disc', '', button);
-        const image = create('img', '', '', disc); image.src = api.url(`images/material-rounded/${item.icon || iconFor(item.title)}.svg`); image.alt = ''; image.draggable = false;
+        if (item.isBack) {
+          const arrow = create('span', 'mtprev-orbit__return-icon', '←', disc);
+          arrow.setAttribute('aria-hidden', 'true');
+        } else {
+          const image = create('img', '', '', disc); image.src = api.url(`images/material-rounded/${item.icon || iconFor(item.title)}.svg`); image.alt = ''; image.draggable = false;
+        }
         create('span', 'mtprev-orbit__label', item.title, button);
         if (item.special) {
           const badge = create('span', 'mtprev-watch-option-badge', watchUnread > 99 ? '99+' : String(watchUnread), button);
@@ -165,7 +196,9 @@
       center.setAttribute('aria-expanded', 'true');
       shell.classList.remove('mtprev-radial-operational', 'mtprev-radial-compact'); api.expand();
       context.textContent = module?.title || 'Módulos MTPrev';
-      back.hidden = !module; back.textContent = 'Voltar';
+      // O retorno dos submenus já está na órbita; o botão auxiliar fica
+      // reservado ao carregamento/erro e ao cabeçalho de painéis operacionais.
+      back.hidden = true; back.textContent = 'Voltar';
       tools.prepend(back);
       paint(entries());
       center.focus({ preventScroll: true });
@@ -260,4 +293,272 @@
     ring.inert = true; back.hidden = true;
     shell.classList.add('mtprev-radial-compact'); layout(); clamp();
   };
+})();
+
+/* MTPrev — visualização opcional, não destrutiva, dos cards da mesa SPA2.
+   Os campos originais permanecem no DOM para leitura e operações do SPA. */
+(() => {
+  'use strict';
+  if (!/^\/workspace\/?$/.test(location.pathname) || window.__mtprevWorkspaceReadable) return;
+  window.__mtprevWorkspaceReadable = true;
+
+  const KEY = 'mtprev.workspace.view.v1';
+  const norm = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const visibleFields = new Map([
+    ['numero do processo', 1],
+    ['parte s ativa s', 2],
+    ['assunto principal', 3],
+    ['id do expediente', 4],
+    ['tipo de expediente', 5],
+    ['data da distribuicao', 6]
+  ]);
+  const style = document.createElement('style');
+  style.id = 'mtprev-workspace-readable-css';
+  style.textContent = `
+    /* Leve tom grafite-azulado apenas na mesa de trabalho do SPA2. */
+    body.mtprev-workspace-readable {
+      background:#dce5ef !important;
+    }
+    body.mtprev-workspace-readable .workspace-inbox,
+    body.mtprev-workspace-readable .workspace-layout,
+    body.mtprev-workspace-readable .workspace-main {
+      background-color:#e1e9f2 !important;
+    }
+    body.mtprev-workspace-readable .workspace-panel.workspace-processes {
+      background:#e5edf5 !important;
+      border-color:#c4d3e1 !important;
+    }
+    /* A barra principal fica claramente separada da lista, sem mudar o topo institucional. */
+    body.mtprev-workspace-readable .workspace-processes__toolbar {
+      background:#23485d !important;
+      border-color:#1d485d !important;
+      border-bottom:3px solid #1a7893 !important;
+    }
+    body.mtprev-workspace-readable .workspace-processes__heading .workspace-eyebrow {
+      color:#aee3ec !important;
+      font-weight:750;
+    }
+    body.mtprev-workspace-readable .workspace-processes__heading h2 {
+      color:#ffffff !important;
+    }
+    body.mtprev-workspace-readable .workspace-processes__heading p,
+    body.mtprev-workspace-readable .workspace-processes__heading #workspace-results-count {
+      color:#d5e7f1 !important;
+    }
+    body.mtprev-workspace-readable .workspace-navigation .workspace-panel {
+      background:#e6edf5 !important;
+      border-color:#c4d3e1 !important;
+    }
+    body.mtprev-workspace-readable .workspace-navigation .workspace-panel__heading {
+      color:#2b4158;
+    }
+    /* Somente os cards de /workspace; não interfere no preview do SPA. */
+    /* O fundo alterna entre branco puro e azul perceptivelmente mais fechado.
+       A barra espessa separa processos sem depender só da percepção de cor. */
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card {
+      background:#ffffff !important;
+      border-left:4px solid #849fb7 !important;
+      border-bottom:4px solid #7695ad !important;
+      box-shadow:none;
+      transition:background-color 160ms ease,border-color 160ms ease,box-shadow 160ms ease;
+    }
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:nth-of-type(even) {
+      background:#d9e6f3 !important;
+      border-left-color:#486f90 !important;
+    }
+    /* Cor do hover preservada; contorno e relevo tornam o foco inconfundível.
+       Também funciona no foco por teclado (focus-within). */
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:is(:hover,:focus-within) {
+      background:#c4d8eb !important;
+      border-left-color:#0f5f87 !important;
+      box-shadow:inset 0 0 0 3px #1c6287,0 4px 14px rgba(18,52,75,.16) !important;
+      position:relative;
+      z-index:1;
+    }
+    /* Contraste dos rótulos sem recolorir os avisos críticos de prazo. */
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__field > small {
+      color:#526b83 !important;
+    }
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__field-value strong {
+      color:#263c54;
+    }
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__summary {
+      border-top-color:#b3c6d8 !important;
+    }
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__footer {
+      border-top-color:#afc3d4 !important;
+    }
+    /* Seleção e hover têm linguagem visual diferente: seleção usa traço pontilhado. */
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:has(.workspace-process-card__checkbox:checked) {
+      outline:3px dashed #164e6f !important;
+      outline-offset:-3px;
+    }
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card > :is(.workspace-process-card__main,.workspace-process-card__footer) {
+      background:transparent !important;
+    }
+    body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__field:not(.mtprev-workspace-primary) {
+      display:none !important;
+    }
+    body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__fields {
+      display:grid !important;
+      grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+      gap:12px 20px !important;
+    }
+    body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__field.mtprev-workspace-primary {
+      display:block !important;
+      order:var(--mtprev-workspace-field-order,0);
+      min-width:0;
+    }
+    body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__summary {
+      --workspace-summary-columns:repeat(2,minmax(0,1fr));
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__received {
+      display:none !important;
+    }
+    body.mtprev-workspace-readable .workspace-process-list article.workspace-process-card .workspace-process-card__field .workspace-process-card__field-value {
+      min-width:0;
+    }
+    body.mtprev-workspace-readable .workspace-process-list article.workspace-process-card .mtprev-workspace-primary:is([data-mtprev-field='1']) strong {
+      color:#184b77;
+      font-weight:750;
+    }
+    body.mtprev-workspace-readable .mtprev-workspace-details-toggle,
+    body.mtprev-workspace-readable .mtprev-workspace-mode-toggle {
+      appearance:none;
+      border:1px solid #aac2d9;
+      background:#f3f8fd;
+      color:#204763;
+      border-radius:8px;
+      padding:7px 10px;
+      font:600 12px/1.25 'Segoe UI',Arial,sans-serif;
+      cursor:pointer;
+      white-space:nowrap;
+      transition:background-color 160ms,border-color 160ms;
+    }
+    body.mtprev-workspace-readable .mtprev-workspace-details-toggle:hover,
+    body.mtprev-workspace-readable .mtprev-workspace-mode-toggle:hover {
+      background:#dbeaf8;
+      border-color:#397c9c;
+    }
+    body.mtprev-workspace-readable :is(.mtprev-workspace-details-toggle,.mtprev-workspace-mode-toggle):focus-visible {
+      outline:3px solid #287caa !important;
+      outline-offset:2px;
+    }
+    body.mtprev-workspace-readable:not(.mtprev-workspace-compact) .mtprev-workspace-details-toggle {
+      display:none !important;
+    }
+    body.mtprev-workspace-readable .mtprev-workspace-mode-toggle {
+      margin:8px 0 0;
+      align-self:flex-start;
+    }
+    @media (max-width:1050px) {
+      body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__fields {
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+      }
+    }
+    @media (max-width:650px) {
+      body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__fields,
+      body.mtprev-workspace-readable.mtprev-workspace-compact .workspace-process-list article.workspace-process-card:not(.mtprev-workspace-expanded) .workspace-process-card__summary {
+        grid-template-columns:minmax(0,1fr) !important;
+      }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card,
+      body.mtprev-workspace-readable :is(.mtprev-workspace-details-toggle,.mtprev-workspace-mode-toggle) {transition:none !important;}
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+
+  let compact = true;
+  try { compact = localStorage.getItem(KEY) !== 'detailed'; } catch (_) {}
+  const applyMode = () => {
+    document.body.classList.add('mtprev-workspace-readable');
+    document.body.classList.toggle('mtprev-workspace-compact', compact);
+    const mode = document.querySelector('.mtprev-workspace-mode-toggle');
+    if (mode) {
+      mode.textContent = compact ? 'Visão detalhada' : 'Visão compacta';
+      mode.setAttribute('aria-pressed', String(compact));
+      mode.title = compact ? 'Mostrar todos os campos dos processos' : 'Mostrar apenas os dados principais';
+    }
+  };
+  const updateCardLabel = card => {
+    const button = card.querySelector('.mtprev-workspace-details-toggle');
+    if (!button) return;
+    const opened = card.classList.contains('mtprev-workspace-expanded');
+    button.textContent = opened ? 'Menos dados' : 'Mais dados';
+    button.setAttribute('aria-expanded', String(opened));
+  };
+  const enhanceCard = card => {
+    if (!(card instanceof HTMLElement) || card.dataset.mtprevWorkspaceReady) return;
+    const fields = card.querySelectorAll('.workspace-process-card__field');
+    const footerActions = card.querySelector('.workspace-process-card__actions');
+    if (!fields.length || !footerActions) return;
+    card.dataset.mtprevWorkspaceReady = '1';
+    fields.forEach(field => {
+      const label = norm(field.querySelector('small[data-full-label],small')?.getAttribute('data-full-label') || field.querySelector('small')?.textContent);
+      const priority = visibleFields.get(label);
+      if (!priority) return;
+      field.classList.add('mtprev-workspace-primary');
+      field.dataset.mtprevField = String(priority);
+      field.style.setProperty('--mtprev-workspace-field-order',String(priority));
+    });
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'mtprev-workspace-details-toggle';
+    toggle.setAttribute('aria-label', 'Alternar os campos adicionais deste processo');
+    footerActions.prepend(toggle);
+    updateCardLabel(card);
+  };
+  let scheduled = false;
+  const scanCards = () => {
+    scheduled = false;
+    document.querySelectorAll('#workspace-process-results article.workspace-process-card:not([data-mtprev-workspace-ready])').forEach(enhanceCard);
+  };
+  const queueScan = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(scanCards);
+  };
+  const init = () => {
+    const results = document.getElementById('workspace-process-results');
+    if (!results || !document.body) return false;
+    applyMode();
+    const heading = document.querySelector('.workspace-processes__heading');
+    if (heading && !heading.querySelector('.mtprev-workspace-mode-toggle')) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mtprev-workspace-mode-toggle';
+      heading.appendChild(button);
+      applyMode();
+    }
+    scanCards();
+    new MutationObserver(records => {
+      if (records.some(record => Array.from(record.addedNodes).some(node =>
+        node.nodeType === 1 && (node.matches?.('article.workspace-process-card') || node.querySelector?.('article.workspace-process-card'))))) {
+        queueScan();
+      }
+    }).observe(results,{childList:true,subtree:true});
+    document.addEventListener('click', event => {
+      const mode = event.target.closest('.mtprev-workspace-mode-toggle');
+      if (mode) {
+        compact = !compact;
+        try { localStorage.setItem(KEY,compact ? 'compact':'detailed'); } catch (_) {}
+        applyMode();
+        return;
+      }
+      const button = event.target.closest('.mtprev-workspace-details-toggle');
+      if (!button) return;
+      const card = button.closest('article.workspace-process-card');
+      if (!card) return;
+      card.classList.toggle('mtprev-workspace-expanded');
+      updateCardLabel(card);
+    });
+    return true;
+  };
+  if (!init()) {
+    const pending = new MutationObserver(() => { if (init()) pending.disconnect(); });
+    pending.observe(document.documentElement,{childList:true,subtree:true});
+  }
 })();

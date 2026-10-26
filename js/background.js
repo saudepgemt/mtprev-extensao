@@ -5199,6 +5199,55 @@ async function injectPanel(sender) {
   }
 }
 
+// Painel de Autos em iframes do SPA: injeta somente na subjanela solicitante.
+// Não injeta menu radial, não usa todos os frames e não executa tarefas de triagem.
+async function injectAutosIframe(sender) {
+  const tabId = sender?.tab?.id;
+  const frameId = sender?.frameId;
+  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId <= 0) {
+    return { ok: false, error: 'Frame de processo nao identificado.' };
+  }
+  const source = sender.origin || sender.url || '';
+  let origin;
+  try { origin = new URL(source).origin; } catch (_) { return { ok: false, error: 'Origem do iframe indisponivel.' }; }
+  if (!['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br'].includes(origin)) {
+    return { ok: false, error: 'Iframe fora do SPA permitido.' };
+  }
+  const target = { tabId, frameIds: [frameId] };
+  try {
+    const check = await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: () => Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel)
+    });
+    if (check[0]?.result) {
+      await cdspGeneralExecuteScript({
+        target, world: 'MAIN',
+        func: () => window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel()
+      });
+      return { ok: true, alreadyLoaded: true };
+    }
+    await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: (config) => { window.SPA_CDSP_TRIAGEM_CONFIG = config; },
+      args: [{ autosOnly: true, version: chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version,
+        headerImageUrl: chrome.runtime.getURL('images/logo-mtprev.png') }]
+    });
+    await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      files: ['js/shared/spa_selectors.js', 'js/shared/spa_adapter.js',
+        CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, 'js/shared/mtprev_triage_rules.js',
+        'js/triagem/mtprev_pop_panel.js', CDSP_GENERAL_TRIAGEM_PANEL_FILE]
+    });
+    const ready = await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: () => Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel)
+    });
+    return ready[0]?.result ? { ok: true } : { ok: false, error: 'Leitor de autos nao iniciou no iframe.' };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
 // Relatórios de duplicados: somente o resumo e os expedientes candidatos.
 // Armazenamento privado da extensão, separado do localStorage do SPA.
 function duplicateCacheStorageKey(scope) {
@@ -5434,6 +5483,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
       });
 
+    return true;
+  }
+
+  if (message.type === 'MTPREV_INJECT_AUTOS_IFRAME') {
+    injectAutosIframe(_sender).then(sendResponse).catch(error =>
+      sendResponse({ ok: false, error: error?.message || String(error) })
+    );
     return true;
   }
 

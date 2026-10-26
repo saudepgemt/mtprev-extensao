@@ -147,10 +147,10 @@
     }
     return document.scrollingElement || document.documentElement;
   }
-  // Coleta baseada no total da mesa/filtros atuais. Uma única tentativa de
-  // lote grande (até 1000) é feita primeiro; servidores que limitam per_page
-  // recebem novas consultas com lotes menores, sem rolar a página.
-  // Apenas GET no endpoint parcial do próprio SPA; não altera processos.
+  // Coleta de leitura: ate 100 processos por pagina (limite medido no SPA2).
+  // O numero de paginas usa Math.ceil(total/100), sem perder a pagina final.
+  // Ate oito GETs simultaneos, validando cobertura antes de entregar ao relatorio.
+  // O cache de duplicatas e mantido pela triagem SOMENTE apos cobertura completa.
   async function collectWorkspaceViaApi({signal, onProgress, timeout}) {
     const form = document.querySelector('form.workspace-search[data-partial-url]');
     const original = workspaceCounts();
@@ -158,40 +158,62 @@
         typeof fetch !== 'function' || typeof DOMParser !== 'function') return null;
     const endpoint = new URL(form.getAttribute('data-partial-url'), location.href);
     if (endpoint.protocol !== 'https:' || endpoint.origin !== location.origin) return null;
+
+    const PAGE_SIZE = 100;
+    const MAX_CONCURRENT = 8; // Testado com oito paginas e 742 processos; nao abrir concorrencia ilimitada.
+    const REQUEST_TIMEOUT_MS = 45000;
+    const totalPages = Math.ceil(original.total / PAGE_SIZE);
+    if (totalPages < 1 || totalPages > 2000) return null;
+    const concurrency = Math.min(MAX_CONCURRENT, totalPages);
     const startHref = location.href;
     const params = new URLSearchParams(new FormData(form));
     const initialParams = params.toString();
-    // Mesmo contexto da busca selecionada no workspace.
+    // Preservar os filtros e a visao selecionada no SPA2.
     const view = form.querySelector('input[name="view"]')?.value;
     const flowId = form.querySelector('input[name="flow_id"]')?.value;
     if (params.get('flow_id')) params.delete('view');
     else if (!params.has('view') && view) params.set('view', view);
     if (params.get('view') !== 'all' && !params.has('flow_id') && flowId) params.set('flow_id', flowId);
     params.set('overview', 'false');
+    params.set('per_page', String(PAGE_SIZE));
     for (const name of [...params.keys()]) {
       if (/^(?:authenticity_token|csrf_token|_csrf|password|session)$/i.test(name)) params.delete(name);
     }
+
     const started = Date.now();
+    const controller = new AbortController();
+    const timeoutLimit = Math.max(1000, Number(timeout) || 360000);
+    const globalTimer = setTimeout(() => controller.abort(), timeoutLimit);
+    const forwardAbort = () => controller.abort();
+    if (signal?.aborted) forwardAbort();
+    else signal?.addEventListener('abort', forwardAbort, {once:true});
     const key = record => record.rowKey || record.id;
+    const rendered = locate('workspace', 'cards').nodes.slice(0, 10)
+      .map(workspaceRecordFromNode).map(key).filter(Boolean);
+    const results = new Array(totalPages);
+    const ids = new Set();
+    let nextPage = 1, completed = 0, failure = null;
+
     const check = () => {
       if (signal?.aborted) throw new DOMException('Coleta cancelada', 'AbortError');
+      if (controller.signal.aborted) throw new DOMException('Coleta interrompida', 'AbortError');
       if (location.href !== startHref || !form.isConnected ||
           new URLSearchParams(new FormData(form)).toString() !== initialParams ||
           workspaceCounts().total !== original.total)
         throw new Error('Os filtros da mesa mudaram durante a leitura.');
-      if (Date.now() - started > timeout) throw new Error('Tempo limite da coleta por API.');
+      if (Date.now() - started > timeoutLimit) throw new Error('Tempo limite da coleta por API.');
     };
-    const request = async (page, perPage) => {
+
+    const request = async page => {
       check();
       const url = new URL(endpoint.href);
       for (const name of new Set(params.keys())) {
         url.searchParams.delete(name);
         for (const value of params.getAll(name)) url.searchParams.append(name, value);
       }
-      url.searchParams.set('per_page', String(perPage));
       url.searchParams.set('page', String(page));
       const response = await fetch(url.href, {
-        method:'GET', credentials:'same-origin', signal,
+        method:'GET', credentials:'same-origin', signal:controller.signal,
         headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -203,70 +225,76 @@
       const responseTotal = Number(pager?.getAttribute('data-total-count'));
       if (Number.isFinite(responseTotal) && responseTotal > 0 && responseTotal !== original.total)
         throw new Error('O total da resposta difere da mesa atual.');
-      check();
-      return {page, records:cards.map(workspaceRecordFromNode)};
-    };
-    const rendered = locate('workspace','cards').nodes.slice(0, 10)
-      .map(workspaceRecordFromNode).map(key).filter(Boolean);
-    // Limite preventivo evita um HTML excessivo em mesas muito grandes.
-    const requested = Math.min(original.total, 1000);
-    const choices = [...new Set([requested, Math.min(original.total, 100)])];
-    const tried = new Set();
-    for (let attempt = 0; choices.length && attempt < 4; attempt++) {
-      const perPage = choices.shift();
-      if (!perPage || tried.has(perPage)) continue;
-      tried.add(perPage);
-      const collected = new Map();
-      let rounds = 0;
-      try {
-        const first = await request(1, perPage);
-        if (!first.records.length) continue;
-        const ids = new Set(first.records.map(key));
-        if (rendered.length && rendered.filter(id => ids.has(id)).length < Math.ceil(rendered.length / 2))
-          throw new Error('A resposta não corresponde à visão da mesa.');
-        const actual = first.records.length;
-        // Se um lote grande foi limitado pelo servidor, repetir usando a
-        // quantidade realmente suportada. Evita pular páginas quando o
-        // servidor calcula offset com base no tamanho solicitado.
-        if (actual < perPage && perPage > 100) {
-          if (actual >= 100 && !tried.has(actual) && !choices.includes(actual)) choices.unshift(actual);
-          continue;
-        }
-        const batch = actual < perPage ? actual : perPage;
-        const pages = Math.ceil(original.total / batch);
-        if (pages < 1 || pages > 2000) continue;
-        const absorb = result => {
-          if (!result.records.length) throw new Error('Página vazia antes do total.');
-          for (const record of result.records) {
-            const id = key(record);
-            if (id) collected.set(id, record);
-          }
-          rounds++;
-          onProgress({count:collected.size, loaded:collected.size, total:original.total,
-            rounds, stage:'api'});
-        };
-        absorb(first);
-        // Limitar a concorrência: lotes grandes (mais de 100) em até 2 GETs;
-        // para lotes menores, manter os 3 GETs da versão já testada.
-        const concurrency = perPage > 100 ? 2 : 3;
-        for (let page = 2; page <= pages; page += concurrency) {
-          check();
-          const indices = Array.from({length:Math.min(concurrency, pages-page+1)}, (_,i)=>page+i);
-          const responses = await Promise.all(indices.map(index=>request(index,perPage)));
-          responses.forEach(absorb);
-        }
-        check();
-        if (collected.size === original.total) {
-          return {records:[...collected.values()], reason:'complete', rounds,
-            endJumps:0, loaded:collected.size, total:original.total, source:'workspace-api'};
-        }
-      } catch (error) {
-        if (signal?.aborted || error?.name === 'AbortError' || /filtros da mesa mudaram/i.test(error?.message || '')) throw error;
-        // Uma tentativa maior pode ser recusada. Tentar o lote menor.
+      const expected = Math.min(PAGE_SIZE, original.total - (page - 1) * PAGE_SIZE);
+      if (cards.length !== expected)
+        throw new Error(`Pagina ${page}: recebidos ${cards.length} de ${expected} processos.`);
+      const records = cards.map(workspaceRecordFromNode);
+      const pageKeys = records.map(key);
+      if (pageKeys.some(id => !id) || new Set(pageKeys).size !== expected)
+        throw new Error(`Pagina ${page}: registros sem ID ou repetidos.`);
+      if (page === 1 && rendered.length) {
+        const firstIds = new Set(pageKeys);
+        if (rendered.filter(id => firstIds.has(id)).length < Math.ceil(rendered.length / 2))
+          throw new Error('A resposta nao corresponde a visao da mesa.');
       }
+      check();
+      return {page, records, pageKeys};
+    };
+
+    const worker = async () => {
+      while (!failure && nextPage <= totalPages) {
+        const page = nextPage++;
+        let requestTimer;
+        try {
+          check();
+          const result = await Promise.race([
+            request(page),
+            new Promise((_, reject) => {
+              requestTimer = setTimeout(() => reject(new Error('Tempo excedido na pagina ' + page)), REQUEST_TIMEOUT_MS);
+            })
+          ]);
+          check();
+          for (const id of result.pageKeys) {
+            if (ids.has(id)) throw new Error('ID repetido em paginas diferentes.');
+            ids.add(id);
+          }
+          results[page - 1] = result.records;
+          completed++;
+          onProgress({count:ids.size,loaded:ids.size,total:original.total,
+            rounds:completed,pages:totalPages,concurrency,stage:'api-parallel'});
+        } catch (error) {
+          if (!failure) failure = error;
+          controller.abort();
+          return;
+        } finally {
+          clearTimeout(requestTimer);
+        }
+      }
+    };
+
+    try {
+      await Promise.all(Array.from({length:concurrency}, () => worker()));
+      if (failure) throw failure;
+      check();
+      if (completed !== totalPages || ids.size !== original.total || results.filter(Boolean).length !== totalPages)
+        throw new Error('Cobertura incompleta: nenhum relatorio deve ser salvo.');
+      return {
+        records:results.flat(), reason:'complete', rounds:completed,
+        endJumps:0, loaded:ids.size, total:original.total,
+        source:'workspace-api-parallel',concurrency
+      };
+    } catch (error) {
+      if (signal?.aborted || error?.name === 'AbortError' ||
+          /filtros da mesa mudaram/i.test(error?.message || '')) throw error;
+      // Erros de limite/sobrecarga: nao iniciar outra coleta via scroll imediatamente.
+      if (/^HTTP (?:429|502|503|504)\b/.test(error?.message || '')) throw error;
+      // API incompatível ou resposta incompleta: o leitor nativo continua sendo o fallback.
+      return null;
+    } finally {
+      controller.abort();
+      clearTimeout(globalTimer);
+      signal?.removeEventListener('abort', forwardAbort);
     }
-    // Caso a API falhe em todos os tamanhos, preservar o fallback nativo.
-    return null;
   }
 
   async function collectWorkspaceRecords({
