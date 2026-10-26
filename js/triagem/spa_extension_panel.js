@@ -727,9 +727,9 @@
   }
 
   function findExternalDocumentsHost() {
-    // SPA2: o painel deve ficar acima das duas colunas, nunca dentro da direita.
+    // SPA2: colocar o painel antes das duas colunas da visão geral, sem espremer os autos.
     const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
-    if (overview?.querySelector('.workspace-preview__overview-grid')) return overview;
+    if (overview && overview.querySelector('.workspace-preview__overview-grid')) return overview;
     const header =
       document.querySelector('.procedure-header .card-body') ||
       document.querySelector('.procedure-header') ||
@@ -746,13 +746,17 @@
 
   function placeExternalDocumentsPanel(panel, host) {
     if (!panel || !host) return;
-    const grid = host.matches?.('#workspace-preview-overview')
-      ? host.querySelector(':scope > .workspace-preview__overview-grid') : null;
+    const grid = host.matches && host.matches('#workspace-preview-overview')
+      ? host.querySelector(':scope > .workspace-preview__overview-grid')
+      : null;
     if (grid) {
-      if (panel.parentElement !== host || panel.nextElementSibling !== grid) host.insertBefore(panel, grid);
-    } else if (panel.parentElement !== host) {
-      host.appendChild(panel);
+      // Também reposiciona painéis criados em versões anteriores da extensão.
+      if (panel.parentElement !== host || panel.nextElementSibling !== grid) {
+        host.insertBefore(panel, grid);
+      }
+      return;
     }
+    if (panel.parentElement !== host) host.appendChild(panel);
   }
 
   function injectExternalDocumentsStyles() {
@@ -761,12 +765,30 @@
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
+      /* SPA2: painel de autos em toda a largura, antes de Situação atual e Dados. */
       .workspace-preview__document #workspace-preview-overview > #spa-cdsp-external-docs-panel {
-        width: 100%;
         min-width: 0;
         max-width: 100%;
-        box-sizing: border-box;
+        width: 100%;
         margin: 0 0 18px;
+        box-sizing: border-box;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(610px, 100%);
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      }
+      @media (max-width: 760px) {
+        .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
       #spa-cdsp-external-docs-panel {
         margin: 14px 0 0 0;
@@ -4559,12 +4581,14 @@
   }
 
   function createExternalDocumentsPanel(sources, processNumber) {
+    // No SPA2, a aba inicial é o andamento do MNI/PJe quando o CNJ é válido.
+    // Se não houver numeração consultável, use a linha do tempo interna do SPA2.
     const isSpa2Process = Boolean(document.querySelector('.workspace-preview__document #workspace-preview-overview'));
     const defaultSourceKey =
-      isSpa2Process && sources?.movements?.url ? 'movements' :
-      sources?.spaTimeline?.url ? 'spaTimeline' :
-      sources?.autos?.url ? 'autos' :
-      sources?.folder?.url ? 'folder' : 'movements';
+      isSpa2Process && sources?.movements?.url ? "movements" :
+      sources?.spaTimeline?.url ? "spaTimeline" :
+      sources?.autos?.url ? "autos" :
+      sources?.folder?.url ? "folder" : "movements";
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
@@ -6030,12 +6054,11 @@
     });
 
     resetExternalDocumentSourceView();
-    // SPA2: consultar somente a fonte inicial (PJe, quando disponível).
-    // Não varrer automaticamente todos os PDFs / documentos.
+    // SPA2: abrir expandido com os andamentos PJe da numeração atual.
+    // Não buscar PDFs nem as outras fontes automaticamente; permanecem sob demanda.
     setTimeout(() => {
-      if (!panel.isConnected || panel.classList.contains('spa-cdsp-external-docs-collapsed')) return;
+      if (!panel.isConnected) return;
       if (isSpa2Process) loadActiveExternalSource({ force: false });
-      else if (sources.spaTimeline?.url) loadActiveExternalSource({ force: false });
       else loadAllExternalSources({ force: false });
     }, 0);
 
@@ -6086,7 +6109,7 @@
     });
 
     loadButton.addEventListener("click", () => {
-      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: true });
+      if (isSpa2Process) loadActiveExternalSource({ force: true });
       else loadAllExternalSources({ force: true });
     });
 
@@ -6438,7 +6461,9 @@
       toggleButton.textContent = collapsed ? "Expandir" : "Recolher";
     }
 
-    setExternalDocumentsCollapsed(storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    // No SPA2 o painel inicia aberto; o usuário pode recolher manualmente.
+    setExternalDocumentsCollapsed(isSpa2Process ? false : storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    if (isSpa2Process) minimizedMemory.style.display = "none";
 
     minimizedMemoryInput.addEventListener("change", () => {
       storageSetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, minimizedMemoryInput.checked);

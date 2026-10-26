@@ -1,171 +1,174 @@
-# CDSP - Extensão Geral
+<p align="center">
+  <img src="images/logo-mtprev.png" alt="Logo MTPrev" width="245" />
+</p>
 
-Extensão unificada da CDSP para uso no SPA/SIGADOC, com pacotes para Chrome e Firefox.
+<h1 align="center">MTPrev — Extensão Geral</h1>
 
-Versão atual: **2.72** (`manifest.version = 2.0.72`).
+<p align="center">
+  Ferramentas para organizar a rotina com processos, expedientes e documentos no SPA e no SIGADOC.
+</p>
 
-## Chrome Web Store
+<p align="center">
+  <strong>Chrome · Firefox · SPA clássico · Workspace Coreplan · SIGADOC</strong>
+</p>
 
-Execute `node scripts/build-chrome-store.js` para gerar
-`dist/mtprev-2.0.72-chrome-web-store.zip`, com Manifest V3 na raiz e somente os
-arquivos de execução. Requer Node.js e o comando `zip`.
-O [guia de publicação](store/LEIA-ME.md) reúne os textos da ficha pública,
-justificativas de permissões, imagens e instruções para hospedar a política de
-privacidade. Desenvolvedor: Arthur Costa Dias — arthurcostadias1@gmail.com.
+---
 
-A versão de publicação remove as credenciais fixas do código. A consulta de
-andamentos exige configurar e autorizar o serviço externo nas opções da extensão.
-As senhas de assinatura são fornecidas pelo usuário; a senha de protocolo dura
-somente a sessão do navegador e precisa ser informada novamente após reiniciar.
-Chrome mínimo: 116. Teste a pasta `dist/chrome-store` no Chrome com uma conta
-autorizada antes de enviar o ZIP à loja.
+## Sobre o projeto
 
-## Teste local com as credenciais anteriores
+O **MTPrev — Extensão Geral** nasceu para reunir, em um só lugar, tarefas que fazem parte do dia a dia de quem trabalha com processos administrativos e judiciais. Em vez de alternar entre várias telas, conferir documentos um por um e repetir os mesmos procedimentos, a extensão acrescenta ferramentas de consulta, triagem e organização aos sistemas já utilizados pela equipe.
 
-Execute `node scripts/build-local-test.js --firefox` para gerar cópias locais com
-as credenciais de teste de `.local/test-credentials.json`. Esse arquivo é privado,
-ignorado pelo Git e não entra no pacote da loja. O comando usa o código atual dos
-painéis, portanto execute-o novamente depois de editar a extensão.
+Ela funciona como uma **camada de apoio** sobre o SPA da PGE/MT, incluindo o workspace da Coreplan, e sobre o SIGADOC. A extensão não substitui esses sistemas nem altera as permissões de acesso de quem a utiliza.
 
-- Chrome: em `chrome://extensions`, use **Carregar sem compactação** e selecione
-  `dist/local-test`.
-- Firefox: em `about:debugging#/runtime/this-firefox`, use **Carregar extensão
-  temporária** e selecione `dist/firefox-local-test/manifest.json`.
+Seu princípio é simples: **automatizar o trabalho repetitivo e deixar as decisões processuais sob responsabilidade de quem analisa o caso**.
 
-Desative a outra instalação da MTPrev durante o teste para evitar duas extensões
-atuando na mesma página. A cópia aparece como **MTPrev - Extensão Geral (teste
-local)**. O serviço de andamentos é configurado na primeira inicialização; as
-credenciais anteriores do SIGADOC são usadas quando a identidade correspondente
-é reconhecida na página. Uma senha digitada no menu tem preferência. A opção de
-desativar o serviço continua funcionando e não é revertida ao reiniciar.
+> **Versão indicada no manifesto do projeto:** 2.72 (`2.0.72`). Algumas funcionalidades podem variar conforme a versão dos arquivos instalada e a interface disponibilizada pelo SPA.
 
-Essas pastas contêm credenciais e servem somente para testes locais. Para publicar,
-continue usando `scripts/build-chrome-store.js` e o ZIP específico da loja.
+## O que você encontra no MTPrev
 
-O fluxo de Ofícios/SIGADOC confirma classificação e destinatário antes de preencher descrição, assunto, tabela e fechamento. O conteúdo do editor e o campo usado na gravação são conferidos antes de iniciar a assinatura, com recuperação automática quando o SIGADOC recarrega o formulário.
+### Menu radial
 
-Após a assinatura, a extensão inclui o PDF do expediente como Capturado quando ele estiver disponível. Uma falha nessa inclusão é registrada e o fluxo segue sem o anexo, mantendo a tramitação obrigatória. A seleção do modelo Capturado usa um único clique nativo; a extensão acompanha a gravação, a autenticação, a Juntada e o retorno ao ofício pai. A continuação depende do comando inicial em `Preencher + Assinar`, e os estados são salvos antes das transições entre páginas.
+O ponto de partida é o menu com a identidade visual do MTPrev. Ele pode ser arrastado pela tela, recolhido quando não está sendo usado e expandido para mostrar os módulos disponíveis. Ao selecionar uma ferramenta, o menu dá lugar ao painel de trabalho correspondente, sem precisar sair da página.
 
-Desde a versão 2.63, `Cadastrar Agravo` seleciona exatamente o assunto **Urgência**. A versão 2.64 também inclui **Avaliação Psicopedagógica**, **Med Escolar**, **Setasc Idoso**, **Infor SEDUC** e **Alta Home Care** no ciclo completo de assinatura, Capturado quando houver expediente, tramitação e encerramento no SPA. Orçamento permanece fora desse ciclo.
+A interface utiliza painéis em tons escuros, botões com destaque ao passar o mouse e navegação organizada para ocupar menos espaço durante a análise dos processos.
 
-Este repositório contém a extensão. O aplicativo de operações tem versionamento separado; sua versão 0.3.11 utiliza a extensão 2.64.
+### Triagem de processos e expedientes
 
-## Estrutura
+A **Triagem** reúne comandos de apoio à leitura e ao tratamento dos expedientes da mesa de trabalho. Entre eles estão a abertura de processos em abas, a atualização da lista, a preparação de classificações e as rotinas de ciência, sempre de acordo com a tela e as permissões disponíveis.
 
-- `manifest.json`: manifesto MV3 da extensão.
-- `js/`, `css/`, `images/`, `data/`: código e recursos da extensão.
-- `README_CARREGAR.txt`: instruções para carregar localmente no Chrome.
-- `GUIA_DE_UPDATES.txt`: regras de manutenção para próximos updates.
+No **workspace do SPA2**, a busca pode percorrer os processos carregados em lotes, mantendo os filtros da mesa. O painel informa o andamento da leitura e sinaliza quando não consegue confirmar a cobertura completa.
 
-## Carregar no Firefox
+Há também recursos de diagnóstico para ajudar na identificação do tipo de demanda e das providências que merecem conferência. Esses apontamentos são **orientações de apoio**, não conclusões automáticas sobre o processo.
 
-Requisitos: Firefox **128 ou superior** e Node.js **18 ou superior** para gerar o
-pacote. Na pasta do projeto, execute:
+### Relatório de possíveis duplicatas
 
-```sh
+O relatório de **Duplicados** foi pensado para uma situação comum: encontrar mais de uma tarefa ou expediente relacionado ao mesmo processo e decidir o que realmente precisa ser conferido.
+
+No SPA clássico, a análise aproveita os registros e os documentos disponibilizados pela interface. No workspace da Coreplan, a comparação considera principalmente:
+
+- **Número do processo (CNJ)**, usado para reunir candidatos;
+- **Partes ativas**, com normalização dos nomes quando possível;
+- **Data de distribuição**, que pode coincidir ou apresentar divergências.
+
+Os resultados aparecem em **grupos recolhidos**, com os expedientes lado a lado, suas informações principais e links para conferência. A pontuação de semelhança é uma **regra de triagem de 0 a 100**, e não uma probabilidade estatística de duplicidade.
+
+No workspace, o relatório pode consultar as páginas em lotes, respeitando a mesa e os filtros selecionados. Quando a leitura termina, é possível abrir os candidatos em abas separadas. A versão com armazenamento local também permite **reabrir o último relatório completo sem repetir a coleta**; o botão **Atualizar** faz uma nova análise quando necessário.
+
+A ferramenta também oferece ações de conferência e **sugestão de encerramento** onde a versão do SPA e o expediente permitem. Uma sugestão não equivale a um encerramento concluído: antes de qualquer gravação é necessário conferir o expediente, selecionar o motivo e confirmar a ação. Rotinas de lote no SPA2 devem ser tratadas como **assistidas e sujeitas a validação**, não como encerramentos automáticos garantidos.
+
+### Relatório de peças
+
+O módulo **Peças** ajuda a examinar expedientes e documentos PDF para identificar o tipo de manifestação a que se referem. Quando encontra informações suficientes, apresenta uma classificação sugerida e facilita o preenchimento dos campos correspondentes.
+
+O relatório também organiza grupos prioritários para revisão, inclusive demandas relacionadas a contestação, agravo, pauta de julgamento e outras categorias previstas nas regras de trabalho. A leitura do documento oferece elementos para conferência; **não substitui a análise de seu conteúdo nem salva automaticamente uma classificação apenas por sugeri-la**.
+
+### Prazos e gestão
+
+O MTPrev reúne relatórios de **Prazos** e **Gestão** para consultar a situação da mesa, visualizar pendências e acompanhar informações úteis à organização do trabalho. Conforme a página e os dados disponíveis, é possível aplicar filtros, examinar os resultados e exportar relatórios.
+
+Essas informações refletem as fontes consultadas. Um prazo que não apareceu no relatório não deve ser presumido inexistente sem conferência no sistema de origem.
+
+### Autos, andamentos e PDFs
+
+Nas páginas de processo, o painel **Autos do processo** facilita o acesso aos documentos associados ao expediente. Ele reúne fontes como autos, pasta do processo e, quando configurado, andamentos do PJe/TJMT.
+
+Entre os recursos estão a organização de documentos por data, a abertura de PDFs, os filtros de leitura e a **pesquisa por palavras ou expressões dentro dos PDFs** já acessíveis à ferramenta. Dependendo da origem, o painel também oferece recursos para reunir ou consultar documentos do processo.
+
+No SPA2, a integração utiliza as informações e as rotas fornecidas pela própria página, incluindo a aba de andamentos. A leitura de documentos é feita **sob demanda**, quando o usuário solicita uma fonte ou uma atualização; abrir o menu não significa baixar automaticamente todos os PDFs.
+
+### Acompanhamento Especial de Processos
+
+O **Acompanhamento Especial** permite informar um número CNJ e acompanhar alterações identificadas nas consultas ao PJe/TJMT.
+
+A primeira consulta cria uma referência. As seguintes comparam as informações recebidas com a última situação conhecida. Enquanto o Chrome estiver aberto e o serviço estiver devidamente configurado, a verificação é programada para ocorrer **a cada 30 minutos**.
+
+Os processos acompanhados aparecem em cards que podem ser expandidos para ver o histórico. Quando há novidades, a extensão destaca os registros não lidos, pode exibir uma notificação do navegador e mostra um **contador no menu radial**. O aviso permanece até ser marcado como lido, sem apagar o histórico.
+
+O acompanhamento consulta movimentações e expedientes disponibilizados pelo serviço do PJe; **não verifica encerramentos internos do SPA**. Erros de consulta são apresentados separadamente, sem apagar a referência anterior.
+
+### Ofícios e integração com o SIGADOC
+
+O módulo de **Ofícios** auxilia o preenchimento e a tramitação de documentos no SIGADOC, integrando etapas que antes exigiam diversas intervenções manuais.
+
+As rotinas incluem a escolha do tipo de documento, a conferência de classificação e destinatário, o preenchimento de campos, a preparação da assinatura e, nos fluxos compatíveis, a continuidade da juntada e da tramitação. Quando disponível, o PDF do expediente pode ser incluído como documento capturado.
+
+Há modelos e rotinas para diferentes situações de trabalho, como solicitações de informações, cumprimento de decisões e outras demandas previstas no projeto. **Assinatura, protocolo e tramitação dependem de autorização, das credenciais necessárias e da conferência do usuário.**
+
+## Como instalar
+
+### Google Chrome ou Chromium
+
+1. Baixe ou extraia a pasta do projeto.
+2. Abra `chrome://extensions` e ative o **Modo do desenvolvedor**.
+3. Clique em **Carregar sem compactação**.
+4. Selecione a pasta que contém o arquivo `manifest.json`.
+5. Recarregue as abas do SPA e do SIGADOC que já estiverem abertas.
+
+O manifesto atual requer **Chrome 116 ou superior**. Ao atualizar uma instalação local, substitua os arquivos necessários **dentro da pasta existente**; não substitua a pasta inteira por engano. Após a atualização, clique em **Atualizar** na página de extensões.
+
+### Firefox
+
+Para gerar a versão de desenvolvimento para Firefox, é necessário **Firefox 128 ou superior** e **Node.js 18 ou superior**:
+
+```bash
 node scripts/build-firefox.js
 ```
 
-1. No Firefox, abra `about:debugging#/runtime/this-firefox`.
-2. Clique em **Carregar extensão temporária…** e selecione
-   `dist/firefox/manifest.json` (não o manifesto da raiz).
-3. Autorize o acesso aos sites usados pela extensão, se solicitado, e recarregue
-   as abas do SPA/SIGADOC.
+Abra `about:debugging#/runtime/this-firefox`, escolha **Carregar extensão temporária** e selecione `dist/firefox/manifest.json`.
 
-Essa instalação precisa ser carregada novamente após reiniciar o Firefox.
-Depois de editar o código, gere o pacote novamente e clique em **Recarregar**
-na tela de depuração. Para instalação permanente no Firefox padrão, o pacote
-precisa passar pela assinatura da Mozilla.
+A instalação temporária precisa ser refeita após reiniciar o Firefox. A distribuição permanente exige um pacote assinado pela Mozilla.
 
-O gerador mantém o manifesto da raiz para Chrome e cria um manifesto Firefox
-com scripts de background ordenados e identificação estável. A leitura e a
-pesquisa de PDFs usam o mesmo PDF.js local diretamente no background do Firefox.
-O pacote contém apenas os recursos da extensão; arquivos obrigatórios ausentes
-interrompem a geração, incluindo os scripts dos painéis carregados sob demanda.
+### Configurações adicionais
 
-O carregamento da Triagem usa as dependências presentes no repositório e só
-informa sucesso depois de confirmar a montagem do painel. Falhas aparecem no
-menu radial. As confirmações de ciência, classificação e encerramento continuam
-disponíveis com o diálogo nativo quando o adaptador opcional não está instalado.
+Alguns recursos, especialmente a consulta de andamentos do PJe/TJMT, dependem da configuração e autorização de um serviço externo nas **opções da extensão**. Os demais recursos continuam sujeitos às permissões da conta utilizada no SPA ou SIGADOC.
 
-Validação automatizada:
+## Cuidados importantes
 
-```sh
+O MTPrev foi criado para **ajudar a conferir e organizar**, não para tomar decisões processuais de forma autônoma. Antes de marcar uma tarefa como conferida, sugerir encerramento, assinar um documento ou iniciar qualquer tramitação, confira as informações no sistema oficial.
+
+- **Duplicidade sugerida não é duplicidade confirmada.** Números iguais podem corresponder a tarefas distintas de um mesmo processo.
+- **Cobertura incompleta exige cautela.** Se a consulta não alcançou toda a mesa ou algum documento falhou, o relatório deve ser entendido como parcial.
+- **Evite sobrecarregar o SPA.** Prefira consultas moderadas e use a versão salva dos relatórios quando não houver necessidade de atualização. Interrompa novas coletas durante instabilidades.
+- **Proteja as credenciais e os dados processuais.** Não compartilhe cookies de sessão, tokens, senhas, PDFs restritos ou relatórios com pessoas não autorizadas.
+- **Dados locais pertencem ao perfil do navegador.** A lista de acompanhamentos e os relatórios armazenados podem desaparecer ao limpar os dados ou remover a extensão.
+
+A extensão é uma ferramenta complementar e **não representa uma funcionalidade oficial dos sistemas SPA, PJe ou SIGADOC**.
+
+## Para quem desenvolve ou mantém o projeto
+
+O repositório está organizado desta forma:
+
+| Caminho | Conteúdo |
+| --- | --- |
+| `manifest.json` | Configuração da extensão e permissões. |
+| `js/` | Painéis, automações, integrações e rotinas em segundo plano. |
+| `css/` | Aparência do menu radial, painéis e temas. |
+| `images/` | Logo, ícones e recursos visuais. |
+| `data/` | Arquivos auxiliares utilizados por determinados relatórios. |
+| `docs/` | Documentação técnica e notas sobre a adaptação ao SPA. |
+| `tests/` | Testes automatizados e páginas locais de validação. |
+| `scripts/` | Geração de pacotes para navegadores e publicação. |
+
+Para executar a suíte automatizada:
+
+```bash
 node --test tests/*.test.cjs
 ```
 
-Teste dos cliques com o Firefox instalado e Python 3:
+Para gerar o pacote de publicação do Chrome:
 
-```sh
-python3 tests/firefox_menu.py
-# Para outro caminho do navegador:
-python3 tests/firefox_menu.py --firefox /caminho/para/firefox
+```bash
+node scripts/build-chrome-store.js
 ```
 
-Esse teste usa um perfil temporário e uma cópia do pacote autorizada a acessar
-somente a página de teste local adicional. Confere os seis submenus da Triagem,
-seus controles visíveis, a base de assessores, a restauração após recarregar e
-os erros de carregamento de scripts e ícones. Também gera o relatório de
-duplicados em uma tabela local com grupos recolhidos, carregamento atrasado e
-duas páginas, e verifica o contraste dos botões nos temas claro e escuro.
-Não executa atos nos portais reais.
+Os testes locais não substituem a validação supervisionada em ambiente autenticado, especialmente nas operações que **gravam informações, assinam documentos ou movimentam processos**.
 
-O relatório de duplicados expande cada grupo da página e aguarda os expedientes
-antes de comparar. Mantém os filtros e a seleção de páginas existentes; sem
-seleção, percorre todas as páginas. O painel informa o progresso, a conferência
-dos PDFs e eventuais falhas de carregamento, permitindo tentar novamente.
+Outras referências do repositório: [instruções de carregamento](README_CARREGAR.txt), [guia de atualizações](GUIA_DE_UPDATES.txt), [menu radial](docs/menu-radial.md), [adequação ao POP MTPrev](docs/adequacao-pop-mtprev.md) e [publicação na Chrome Web Store](store/LEIA-ME.md).
 
-As cores dos botões usam `css/theme.css`, compartilhado pelo menu, pelos
-relatórios e pelo SIGADOC. O tema acompanha os marcadores claro/escuro da página
-(`cdsp-spa-dark-mode`, `dark`, `data-theme` ou `data-bs-theme`) e aceita a escolha
-explícita `data-mt-theme="light|dark"` no menu. Os botões nativos do portal não
-são alterados.
+---
 
-Também foram verificados no Firefox 157, em perfil temporário: carregamento,
-mensagens, armazenamento, alarme de acompanhamento e extração/pesquisa em PDF de
-duas páginas. Os fluxos autenticados de SPA/SIGADOC ainda precisam de conferência
-no ambiente de uso.
-
-Referências: [background no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background),
-[suporte a MAIN no Firefox 128](https://blog.mozilla.org/addons/2024/07/10/manifest-v3-updates-landed-in-firefox-128/)
-e [instalação temporária](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/).
-
-## Versionamento
-
-Cada release deve ser registrada com commit e tag:
-
-```powershell
-git add .
-git commit -m "Versão x.xx"
-git tag vx.xx
-git push
-git push origin vx.xx
-```
-
-Os arquivos `.zip` gerados para publicação não ficam no Git por padrão.
-
-## Acompanhamento de processos (2.65)
-
-No menu do SPA, use **Acompanhar processos**, informe o CNJ e a instancia e clique em **Acompanhar este processo**. A consulta PJe/TJMT roda a cada 30 minutos com o Chrome aberto, com verificacao manual, historico local, indicador de novas alteracoes e notificacoes. A primeira consulta cria a referencia. Falhas preservam os dados anteriores e aparecem no painel. A lista pertence ao perfil do Chrome. Encerramentos internos do SPA nao sao consultados. Recarregue a extensao e as abas do SPA apos atualizar.
-
-Teste automatizado: node --test tests/process_watch.test.cjs
-
-## Menu radial MTPrev (2.66)
-
-Navegacao pelos quatro modulos existentes com logo central, submenus radiais, SVGs locais, arraste por Pointer Events e preservacao dos paineis operacionais. Detalhes e limites dos testes em [docs/menu-radial.md](docs/menu-radial.md).
-
-Na versao 2.67, a navegacao radial fica visualmente solta, sem card. O painel operacional aparece somente apos selecionar uma opcao final; Voltar ao menu restaura o submenu.
-
-## Apoio ao POP MTPrev (2.68)
-
-Acompanhamento Especial no topo do menu radial, identificacao separada de destinatarios Estado/MTPrev no Andamento PJe e novas secoes de diagnostico, duplicidade e grupos prioritarios para revisao humana. Somente fluxos SPA do manual fornecido. Detalhes, fontes e limites: [adequacao-pop-mtprev.md](docs/adequacao-pop-mtprev.md).
-
-Na versao 2.69, Duplicados volta a usar somente a logica antiga, com Abrir Duplicados e Relatorio Duplicados compartilhados entre Saude e MTPrev. A conferencia separada de duplicidade MTPrev foi removida.
-
-Na versao 2.70, os paineis apresentam logo MTPrev, titulo da opcao e apenas Voltar no cabecalho. O carregamento de PDFs continua vinculado aos comandos de leitura, nao a abertura do menu.
-
-## Busca no workspace com carregamento incremental (ajuste de Triagem)
-
-No workspace, o campo **Processo ou expediente** pesquisa o conteúdo já carregado. Para procurar entre todos os cards do workspace, digite um identificador e pressione **Enter** ou clique em **Buscar em todos os cards da caixa**. A extensão percorre a lista, usa **Carregar mais** quando disponível, acumula os cards lidos e mostra a cobertura. Se não houver total verificável, a leitura é informada como parcial/não confirmada. Ações operacionais continuam independentes dessa seleção de diagnóstico.
-
-Teste local: `node --test tests/workspace_lazy.test.cjs tests/lazy_records.test.cjs`. A leitura na interface autenticada ainda exige teste supervisionado.
+<p align="center">
+  <strong>MTPrev — Extensão Geral</strong><br>
+  Desenvolvido por Arthur Costa Dias.<br>
+  Mais agilidade nas tarefas repetitivas. Mais tempo para a análise que realmente importa.
+</p>
