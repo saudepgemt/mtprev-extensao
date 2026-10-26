@@ -1,7 +1,9 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.getElementById("spa-cdsp-panel")) return;
+
+  const AUTOS_ONLY_IFRAME = window !== window.top && window.SPA_CDSP_TRIAGEM_CONFIG?.autosOnly === true;
 
   const CONFIG = {
     pageLength: 100,
@@ -725,29 +727,32 @@
   }
 
   function findExternalDocumentsHost() {
-    // SPA2: acompanhar a coluna dos dados, independentemente da altura da esquerda.
-    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview .workspace-preview__overview-grid');
-    if (overview) {
-      const columns = Array.from(overview.children).filter((node) => node.id !== 'spa-cdsp-external-docs-panel');
-      const dataColumn = columns.find((column) => Array.from(column.querySelectorAll('h2, h3, h4, h5, h6, .card-title'))
-        .some((title) => normalizeProcedureLabel(title.textContent) === 'dados do processo'));
-      return dataColumn || columns[columns.length - 1] || overview;
-    }
+    // SPA2: o painel deve ficar acima das duas colunas, nunca dentro da direita.
+    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
+    if (overview?.querySelector('.workspace-preview__overview-grid')) return overview;
     const header =
-      document.querySelector(".procedure-header .card-body") ||
-      document.querySelector(".procedure-header") ||
-      (findExternalDocumentsLink() && findExternalDocumentsLink().closest(".card-body, .card, .content__inner")) ||
-      document.querySelector(".content__inner, main, .container-fluid, .container");
+      document.querySelector('.procedure-header .card-body') ||
+      document.querySelector('.procedure-header') ||
+      (findExternalDocumentsLink() && findExternalDocumentsLink().closest('.card-body, .card, .content__inner')) ||
+      document.querySelector('.content__inner, main, .container-fluid, .container');
     if (!header) return null;
-
-    const row = header.querySelector(".row");
+    const row = header.querySelector('.row');
     if (!row) return header;
-
-    const columns = Array.from(row.children).filter((child) =>
-      /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(child.className || "")
+    const columns = Array.from(row.children).filter(child =>
+      /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(child.className || '')
     );
-
     return columns[1] || header;
+  }
+
+  function placeExternalDocumentsPanel(panel, host) {
+    if (!panel || !host) return;
+    const grid = host.matches?.('#workspace-preview-overview')
+      ? host.querySelector(':scope > .workspace-preview__overview-grid') : null;
+    if (grid) {
+      if (panel.parentElement !== host || panel.nextElementSibling !== grid) host.insertBefore(panel, grid);
+    } else if (panel.parentElement !== host) {
+      host.appendChild(panel);
+    }
   }
 
   function injectExternalDocumentsStyles() {
@@ -756,10 +761,12 @@
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
-      .workspace-preview__overview-grid #spa-cdsp-external-docs-panel {
-        min-width: 0;
+      .workspace-preview__document #workspace-preview-overview > #spa-cdsp-external-docs-panel {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
         box-sizing: border-box;
+        margin: 0 0 18px;
       }
       #spa-cdsp-external-docs-panel {
         margin: 14px 0 0 0;
@@ -4552,13 +4559,12 @@
   }
 
   function createExternalDocumentsPanel(sources, processNumber) {
+    const isSpa2Process = Boolean(document.querySelector('.workspace-preview__document #workspace-preview-overview'));
     const defaultSourceKey =
-      sources && sources.spaTimeline && sources.spaTimeline.url ? 'spaTimeline' :
-      sources && sources.autos && sources.autos.url
-        ? "autos"
-        : sources && sources.folder && sources.folder.url
-        ? "folder"
-        : "movements";
+      isSpa2Process && sources?.movements?.url ? 'movements' :
+      sources?.spaTimeline?.url ? 'spaTimeline' :
+      sources?.autos?.url ? 'autos' :
+      sources?.folder?.url ? 'folder' : 'movements';
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
@@ -6024,10 +6030,12 @@
     });
 
     resetExternalDocumentSourceView();
-    // Na abertura, carregar a linha do tempo do SPA2; PDFs continuam sob demanda.
+    // SPA2: consultar somente a fonte inicial (PJe, quando disponível).
+    // Não varrer automaticamente todos os PDFs / documentos.
     setTimeout(() => {
-      if (!panel.isConnected) return;
-      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: false });
+      if (!panel.isConnected || panel.classList.contains('spa-cdsp-external-docs-collapsed')) return;
+      if (isSpa2Process) loadActiveExternalSource({ force: false });
+      else if (sources.spaTimeline?.url) loadActiveExternalSource({ force: false });
       else loadAllExternalSources({ force: false });
     }, 0);
 
@@ -6471,13 +6479,13 @@
     }
 
     if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) {
-      if (existingPanel.parentElement !== host) host.appendChild(existingPanel);
+      placeExternalDocumentsPanel(existingPanel, host);
       return;
     }
     if (existingPanel) existingPanel.remove();
 
     injectExternalDocumentsStyles();
-    host.appendChild(createExternalDocumentsPanel(sources, processNumber));
+    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources, processNumber), host);
   }
 
   function setupExternalDocumentsPanel() {
@@ -10641,7 +10649,13 @@
     const response = await requestExtensionMessage('SPA_CDSP_DUP_CACHE_GET', { scope }, 6500);
     const cached = response?.ok && response.report;
     if (!cached || cached.version !== 1 || !Array.isArray(cached.groups) ||
-        cached.coverage?.reason !== 'complete' || !Number.isFinite(cached.coverage?.count)) return null;
+        cached.coverage?.reason !== 'complete' || !Number.isSafeInteger(cached.coverage?.count) ||
+        !Number.isSafeInteger(cached.coverage?.total) ||
+        cached.coverage.count !== cached.coverage.total) return null;
+    // Preserva o cache antigo quando a mesa nao mudou, mas nunca reutiliza
+    // um relatorio de outra quantidade de processos.
+    const currentTotal = window.SpaAdapter?.workspaceCounts?.().total;
+    if (Number.isSafeInteger(currentTotal) && currentTotal !== cached.coverage.total) return null;
     return {
       workspace: true,
       fromCache: true,
@@ -10689,7 +10703,8 @@
       const scope = workspaceDuplicateCacheScope();
       if (scope && !options.forceRefresh) {
         const cached = await readWorkspaceDuplicateCache(scope);
-        if (cached && workspaceDuplicateCacheScope() === scope) {
+        if (cached && cached.includeValidated === Boolean(includeValidated) &&
+            workspaceDuplicateCacheScope() === scope) {
           showDuplicateReport(cached);
           setStatus('Relatório salvo carregado');
           return;
@@ -10707,9 +10722,11 @@
         if (!detectedCards.length) {
           throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
         }
-        const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total}) => {
+        const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total,rounds,pages,concurrency}) => {
           if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
-          setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
+          const batch = Number.isInteger(pages) ? ` · lotes ${rounds}/${pages}` : '';
+          const parallel = Number.isInteger(concurrency) ? ` · ${concurrency} em paralelo` : '';
+          setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos${batch}${parallel}…`);
         }});
         const grouped = new Map(); let skippedSes=0;
         // No workspace, analisar todos os cards recuperados na visão filtrada.
@@ -14156,12 +14173,14 @@
       return;
     }
 
-    createPanel();
+    if (!AUTOS_ONLY_IFRAME) createPanel();
     setupExternalDocumentsPanel();
     window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
-    setTimeout(continuePendingTriageClassification, 450);
-    setTimeout(continuePendingTriageTaskClosure, 650);
-    log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
+    if (!AUTOS_ONLY_IFRAME) {
+      setTimeout(continuePendingTriageClassification, 450);
+      setTimeout(continuePendingTriageTaskClosure, 650);
+      log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
+    }
   }
 
   startPanelWhenReady();

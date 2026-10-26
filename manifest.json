@@ -66,6 +66,18 @@
     },
     {
       "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ],
+      "js": [
+        "js/iframe_autos_bridge.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://www.sigadoc.mt.gov.br/*",
         "https://sigadoc.mt.gov.br/*"
       ],

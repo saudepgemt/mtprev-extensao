@@ -430,3 +430,178 @@
   background: #173b48;
   border-color: #3d7783;
 }
+
+
+/* ===========================================================================
+   MTPrev radial — navegação menos intrusiva
+   A tela operacional conserva a largura e as regras originais.
+   =========================================================================== */
+
+/* O menu flutuante ocupa menos espaço; a área invisível não recebe cliques. */
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational) {
+  width: 300px;
+  max-width: calc(100vw - 16px);
+}
+
+/* Mantém somente os botões orbitais, sem o anel opaco sobre o SPA. */
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__ring::before {
+  display: none !important;
+}
+
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__center {
+  width: 70px;
+  height: 70px;
+}
+
+/* A legenda inferior continua no DOM para mensagens acessíveis,
+   mas deixa de cobrir o número ou os campos dos processos. */
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__context:not(.is-notice) {
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Em caso de erro, a mensagem contextual ainda aparece.
+   A etiqueta permanente "Módulos MTPrev" não aparece. */
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__context.is-notice {
+  z-index: 8;
+}
+
+/* Rótulos aparecem apenas ao passar o mouse ou focar pelo teclado.
+   Posicionamento para FORA da órbita, evitando tapar os outros botões. */
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__item .mtprev-orbit__label {
+  position: absolute;
+  left: 50%;
+  right: auto;
+  top: calc(100% + 8px);
+  bottom: auto;
+  width: max-content;
+  max-width: 165px;
+  height: auto;
+  min-height: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--mtprev-border, #40596d);
+  border-radius: 8px;
+  background: var(--mtprev-surface, #192939);
+  color: var(--mtprev-text, #edf4fa);
+  font: 600 12px/1.3 'Segoe UI', sans-serif;
+  text-align: center;
+  overflow: visible;
+  overflow-wrap: break-word;
+  white-space: normal;
+  clip-path: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,.28);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -4px);
+  transition: opacity 130ms ease, transform 130ms ease, visibility 130ms;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__item[data-label-position="above"] .mtprev-orbit__label {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 4px);
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__item[data-label-position="left"] .mtprev-orbit__label {
+  left: auto;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translate(-4px, -50%);
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__item[data-label-position="right"] .mtprev-orbit__label {
+  left: calc(100% + 8px);
+  right: auto;
+  top: 50%;
+  transform: translate(4px, -50%);
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible) {
+  z-index: 5;
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible) .mtprev-orbit__label {
+  opacity: 1;
+  visibility: visible;
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible)[data-label-position="below"] .mtprev-orbit__label,
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible)[data-label-position="above"] .mtprev-orbit__label {
+  transform: translate(-50%, 0);
+}
+
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible)[data-label-position="left"] .mtprev-orbit__label,
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__ring.is-open .mtprev-orbit__item:is(:hover, :focus-visible)[data-label-position="right"] .mtprev-orbit__label {
+  transform: translate(0, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__label {
+    transition: none !important;
+  }
+}
+
+
+/* MTPrev — órbita compacta, com retorno fora da área dos ícones.
+   Somente a navegação flutuante é alterada; os painéis operacionais
+   mantêm suas dimensões e os estados de hover/foco originais. */
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__tools > .mtprev-orbit__back:not([hidden]) {
+  left: 8px;
+  top: 8px;
+  transform: none;
+  z-index: 6;
+  border-color: #46647b;
+  background: #1f3c51;
+}
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__tools > .mtprev-orbit__back:hover:not(:disabled) {
+  background: #2d5d79;
+  border-color: #6aadc6;
+}
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational)
+  .mtprev-orbit__previous {
+  left: 76px;
+}
+
+
+/* Retorno padrão dos submenus: faz parte da órbita, não é uma faixa extra. */
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item--back .mtprev-orbit__disc {
+  background: #285368;
+  border-color: #69b4c8;
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__item--back:is(:hover, :focus-visible) .mtprev-orbit__disc {
+  background: #327389;
+  border-color: #92d5e4;
+}
+#cdsp-general-shell.mtprev-radial-shell .mtprev-orbit__return-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #f1fcff;
+  font: 500 34px/1 Arial, sans-serif;
+  user-select: none;
+  pointer-events: none;
+}
