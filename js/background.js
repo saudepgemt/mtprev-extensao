@@ -50,7 +50,6 @@ const CDSP_GENERAL_SHARED_REPORT_LIB_FILES = [
   "js/libs/exceljs.min.js"
 ];
 const CDSP_GENERAL_PDF_LIB_FILE = "js/libs/pdf-lib.min.js";
-const CDSP_GENERAL_PDF_COVER_FILE = "js/shared/pdf_cover.js";
 const CDSP_GENERAL_MANAGEMENT_PANEL_FILE = "js/gestao/management_report_panel.js";
 const CDSP_GENERAL_DEADLINE_PANEL_FILE = "js/prazos/deadline_report_panel.js";
 const CDSP_GENERAL_TRIAGEM_PANEL_FILE = "js/triagem/spa_extension_panel.js";
@@ -2815,20 +2814,16 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
       result.diagnostics.offscreenLength = offscreen && offscreen.textLength ? offscreen.textLength : 0;
       result.diagnostics.offscreenPagesRead = offscreen && offscreen.pagesRead ? offscreen.pagesRead : 0;
       result.diagnostics.offscreenTotalPages = offscreen && offscreen.totalPages ? offscreen.totalPages : 0;
-      result.diagnostics.incompletePages = offscreen?.incompletePages || 0;
-      result.inconclusive = Boolean(offscreen?.inconclusive);
       result.textLength = Math.max(result.textLength, result.diagnostics.offscreenLength);
 
       if (offscreen && offscreen.found) {
         result.found = true;
         result.snippet = offscreen.snippet || "";
         result.matchedQuery = offscreen.matchedQuery || "";
-        result.page = offscreen.page || offscreen.pagesRead || 0;
         result.diagnostics.method = "offscreen";
       }
     } catch (error) {
       result.diagnostics.offscreenError = error && error.message ? error.message : String(error);
-      result.inconclusive = true;
     }
 
     if (!result.found && result.diagnostics.offscreenLength <= 0) {
@@ -2841,7 +2836,6 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
         const matchedQuery = findMatchingSearchTerm(rawText, query, exact);
         if (matchedQuery) {
           result.found = true;
-          result.inconclusive = false;
           result.matchedQuery = matchedQuery;
           result.snippet = buildTextSearchSnippet(rawText, matchedQuery, exact);
           result.diagnostics.method = "raw";
@@ -2853,7 +2847,7 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
       }
     }
 
-    result.inconclusive = !result.found && (result.inconclusive || result.textLength <= 0);
+    result.inconclusive = result.textLength <= 0;
     setAutosSearchCache(pdfUrl, query, exact, result);
     return result;
   } finally {
@@ -2891,7 +2885,6 @@ async function searchAutosDocumentContent(message) {
     exact,
     matchedQuery: result && result.matchedQuery ? result.matchedQuery : "",
     snippet: result && result.snippet ? result.snippet : "",
-    page: result?.page || 0,
     inconclusive: Boolean(result && result.inconclusive),
     byteLength: result && result.byteLength ? result.byteLength : 0,
     textLength: result && result.textLength ? result.textLength : 0,
@@ -4726,28 +4719,21 @@ async function ensurePdfMergeLibrary(sender) {
   }
 
   try {
-    const target = { tabId, frameIds: [Number.isInteger(sender.frameId) ? sender.frameId : 0] };
-    const inspect = async () => {
-      const results = await cdspGeneralExecuteScript({ target, world: "MAIN", func: () => ({
-        pdfLibReady: Boolean(window.PDFLib && window.PDFLib.PDFDocument),
-        coverReady: Boolean(window.MTPrevPdfCover)
-      }) });
-      return results?.[0]?.result || {};
-    };
-    const state = await inspect();
-    const files = [];
-    if (!state.pdfLibReady) files.push(CDSP_GENERAL_PDF_LIB_FILE);
-    if (!state.coverReady) files.push(CDSP_GENERAL_PDF_COVER_FILE);
-    if (files.length) {
+    const state =
+      (await cdspGeneralMainWorldResult(tabId, () => ({
+        pdfLibReady: Boolean(window.PDFLib && window.PDFLib.PDFDocument)
+      }))) || {};
+
+    if (!state.pdfLibReady) {
       await chrome.scripting.executeScript({
-        target,
-        files,
+        target: { tabId },
+        files: [CDSP_GENERAL_PDF_LIB_FILE],
         world: "MAIN"
       });
     }
 
-    const finalState = await inspect();
-    const loaded = finalState.pdfLibReady && finalState.coverReady;
+    const loaded =
+      (await cdspGeneralMainWorldResult(tabId, () => Boolean(window.PDFLib && window.PDFLib.PDFDocument))) || false;
 
     return loaded ? { ok: true, loaded: true } : { ok: false, error: "PDFLib nao ficou disponivel na pagina." };
   } catch (error) {
@@ -4799,6 +4785,15 @@ async function injectManagementPanel(sender) {
       ]
     });
 
+    // O painel gerencial executa no MAIN world. Content scripts normais
+    // usam um mundo isolado; portanto window.SpaAdapter nao fica visivel aqui.
+    // Disponibilizar a mesma leitura de workspace do SPA2 no MAIN world antes
+    // do painel, sem criar uma segunda implementacao da coleta/consultas.
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js"],
+      world: "MAIN"
+    });
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
@@ -5178,6 +5173,18 @@ async function injectPanel(sender) {
     );
     if (alreadyLoaded) return { ok: true, alreadyLoaded: true };
 
+    const autosReady = await cdspGeneralMainWorldResult(tabId, () =>
+      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED &&
+        typeof window.SPA_CDSP_AUTOMACAO?.activateTriagePanel === 'function' &&
+        !document.getElementById('spa-cdsp-panel'))
+    );
+    if (autosReady) {
+      const activated = await cdspGeneralExecuteScript({
+        target: { tabId }, world: 'MAIN',
+        func: () => window.SPA_CDSP_AUTOMACAO?.activateTriagePanel()
+      });
+      if (activated?.[0]?.result) return { ok: true, reusedAutos: true };
+    }
     await cdspGeneralExecuteScript({
       target: { tabId },
       world: "MAIN",
@@ -5218,14 +5225,22 @@ async function injectPanel(sender) {
 async function injectAutosIframe(sender) {
   const tabId = sender?.tab?.id;
   const frameId = sender?.frameId;
-  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId <= 0) {
+  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId < 0) {
     return { ok: false, error: 'Frame de processo nao identificado.' };
   }
-  const source = sender.origin || sender.url || '';
+  const source = sender.url || sender.origin || '';
   let origin;
   try { origin = new URL(source).origin; } catch (_) { return { ok: false, error: 'Origem do iframe indisponivel.' }; }
   if (!['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br'].includes(origin)) {
     return { ok: false, error: 'Iframe fora do SPA permitido.' };
+  }
+  // Na mesa SPA2 a prévia lateral não é um iframe: vive no frame principal.
+  // Exigir origem e rota da tela de processo antes de permitir esta exceção.
+  if (frameId === 0) {
+    const path = new URL(source).pathname;
+    if (!/^\/workspace\/?$/.test(path) && !/^\/procedures\/\d+(?:\/|$)/.test(path)) {
+      return { ok: false, error: 'Apenas prévias e páginas de processo podem instalar Autos.' };
+    }
   }
   const target = { tabId, frameIds: [frameId] };
   try {
@@ -5661,5 +5676,6 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 if (typeof importScripts === "function") {
+  importScripts("watch_mail_oauth.js");
   importScripts("process_watch_background.js");
 }

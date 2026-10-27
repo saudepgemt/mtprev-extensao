@@ -1,7 +1,7 @@
 /* MTPrev: painel de autos em iframes de processo (sem menu radial). */
 (() => {
   'use strict';
-  if (window === window.top || window.MTPREV_IFRAME_AUTOS_BRIDGE) return;
+  if (window.MTPREV_IFRAME_AUTOS_BRIDGE) return;
   window.MTPREV_IFRAME_AUTOS_BRIDGE = true;
 
   const allowed = new Set([
@@ -14,7 +14,7 @@
   let retryId = null;
 
   // Mesma ponte do frame principal, limitada a operacoes de leitura/visualizacao.
-  window.addEventListener('message', (event) => {
+  if (window !== window.top) window.addEventListener('message', (event) => {
     if (event.source !== window || event.origin !== location.origin) return;
     const data = event.data;
     if (!data || data.source !== 'SPA_CDSP_PAGE' || !allowed.has(data.type)) return;
@@ -39,6 +39,53 @@
       });
     } catch (_) { /* Contexto da extensao pode ter sido recarregado. */ }
   });
+
+  // Reforça o visual da mesa sem substituir o JS radial ou os estilos do SPA.
+  function applyWorkspaceAppearance() {
+    if (window !== window.top || !/^\/workspace\/?$/.test(location.pathname)) return;
+    if (document.getElementById('mtprev-workspace-unified-look')) return;
+    const style = document.createElement('style');
+    style.id = 'mtprev-workspace-unified-look';
+    style.textContent = `
+      body.mtprev-workspace-readable .workspace-panel.workspace-processes > .workspace-processes__toolbar,
+      body.mtprev-workspace-readable .workspace-processes__toolbar {
+        border-radius:16px 16px 0 0 !important;
+        border-bottom:4px solid #13748a !important;
+      }
+      body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card,
+      body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card:nth-of-type(even),
+      body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card:nth-of-type(odd) {
+        background:#ffffff !important;
+        border-radius:0 !important;
+        border-left:5px solid #4f7293 !important;
+        border-bottom:5px solid #7695ad !important;
+        box-shadow:none !important;
+      }
+      body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card:hover:not(.mtprev-workspace-hover-dismissed) {
+        background:#cfe3f5 !important;
+        border-left-color:#0f5f87 !important;
+        border-bottom-color:#0f5f87 !important;
+        box-shadow:inset 0 0 0 2px #1c6287,0 4px 14px rgba(18,52,75,.16) !important;
+      }
+      body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card
+        :is(.workspace-process-card__main,.workspace-process-card__footer,
+            .workspace-process-card__summary,.workspace-process-card__fields,.workspace-process-card__received) {
+        background:transparent !important;
+        border-radius:0 !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+    // O destaque de hover só reaparece quando o mouse sai e entra novamente.
+    document.addEventListener('click', (event) => {
+      const card = event.target.closest?.('#workspace-process-results article.workspace-process-card');
+      if (card) card.classList.add('mtprev-workspace-hover-dismissed');
+    }, true);
+    document.addEventListener('pointerout', (event) => {
+      const card = event.target.closest?.('#workspace-process-results article.workspace-process-card');
+      if (card && !card.contains(event.relatedTarget)) card.classList.remove('mtprev-workspace-hover-dismissed');
+    }, true);
+  }
+  applyWorkspaceAppearance();
 
   function hasProcess() {
     return Boolean(

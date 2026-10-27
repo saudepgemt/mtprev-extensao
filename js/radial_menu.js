@@ -241,6 +241,15 @@
         context.classList.add('is-notice');
         return;
       }
+      // Coordenação abre diretamente a janela de gerar o painel gerencial.
+      // Não inicia coleta sem que o usuário clique em Gerar.
+      if (item.key === 'gestao') {
+        document.dispatchEvent(new Event('mtprev:management:open'));
+        module = null;
+        saveView();
+        close();
+        return;
+      }
       open();
       if(restoreOption){
         const choice=options().find(entry=>entry.title===restoreOption);

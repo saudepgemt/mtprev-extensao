@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.getElementById("spa-cdsp-panel")) return;
@@ -559,7 +559,7 @@
   }
 
   function isProcedureDetailPage() {
-    if (document.querySelector('.workspace-preview__document[data-procedure-id] #workspace-preview-overview')) {
+    if (document.querySelector('.workspace-preview__document[data-procedure-id]')) {
       return Boolean(readMainProcedureId() && readCurrentProcedureProcessNumber());
     }
     if (isProcedureCollectionPage()) return false;
@@ -724,30 +724,40 @@
     ].join("|");
   }
 
+  // MTPrev: âncora full-width SPA2. O painel não pertence à coluna Dados.
   function findExternalDocumentsHost() {
-    // SPA2: acompanhar a coluna dos dados, independentemente da altura da esquerda.
-    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview .workspace-preview__overview-grid');
-    if (overview) {
-      const columns = Array.from(overview.children).filter((node) => node.id !== 'spa-cdsp-external-docs-panel');
-      const dataColumn = columns.find((column) => Array.from(column.querySelectorAll('h2, h3, h4, h5, h6, .card-title'))
-        .some((title) => normalizeProcedureLabel(title.textContent) === 'dados do processo'));
-      return dataColumn || columns[columns.length - 1] || overview;
-    }
-    const header =
-      document.querySelector(".procedure-header .card-body") ||
-      document.querySelector(".procedure-header") ||
-      (findExternalDocumentsLink() && findExternalDocumentsLink().closest(".card-body, .card, .content__inner")) ||
-      document.querySelector(".content__inner, main, .container-fluid, .container");
+    const root = document.querySelector('.workspace-preview__document[data-procedure-id]');
+    if (root) return root;
+    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
+    if (overview?.querySelector('.workspace-preview__overview-grid')) return overview;
+    const header = document.querySelector('.procedure-header .card-body') ||
+      document.querySelector('.procedure-header') ||
+      (findExternalDocumentsLink() && findExternalDocumentsLink().closest('.card-body, .card, .content__inner')) ||
+      document.querySelector('.content__inner, main, .container-fluid, .container');
     if (!header) return null;
-
-    const row = header.querySelector(".row");
+    const row=header.querySelector('.row');
     if (!row) return header;
-
-    const columns = Array.from(row.children).filter((child) =>
-      /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(child.className || "")
-    );
-
+    const columns=[...row.children].filter(col=>/\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(col.className || ''));
     return columns[1] || header;
+  }
+
+  function placeExternalDocumentsPanel(panel,host) {
+    if (!panel || !host || panel.dataset.mtprevWatchDocked==='1') return;
+    if (host.matches?.('.workspace-preview__document')) {
+      const body=host.querySelector(':scope > .workspace-preview__body');
+      const toolbar=host.querySelector(':scope > .workspace-preview__toolbar');
+      const before=body || toolbar?.nextElementSibling || null;
+      if (panel.parentElement!==host || panel.nextElementSibling!==before) host.insertBefore(panel,before);
+      return;
+    }
+    if (host.matches?.('#workspace-preview-overview')) {
+      const grid=host.querySelector(':scope > .workspace-preview__overview-grid');
+      if (grid) {
+        if (panel.parentElement!==host || panel.nextElementSibling!==grid) host.insertBefore(panel,grid);
+        return;
+      }
+    }
+    if (panel.parentElement!==host) host.appendChild(panel);
   }
 
   function injectExternalDocumentsStyles() {
@@ -756,6 +766,18 @@
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
+      .workspace-preview__document > #spa-cdsp-external-docs-panel {
+        display:block !important;position:relative !important;
+        box-sizing:border-box !important;width:calc(100% - 32px) !important;
+        max-width:none !important;min-width:0 !important;margin:16px !important;
+        grid-column:1 / -1 !important;clear:both !important;align-self:stretch !important;
+      }
+      @media(max-width:760px) {
+        .workspace-preview__document > #spa-cdsp-external-docs-panel {
+          width:calc(100% - 20px) !important;margin:10px !important;
+        }
+      }
+
       .workspace-preview__overview-grid #spa-cdsp-external-docs-panel {
         min-width: 0;
         width: 100%;
@@ -1945,11 +1967,19 @@
         // A aba em branco pode nao permitir escrita em alguns cenarios do Chrome.
       }
 
-      const bytes = await fetchExternalAutosPdfBytes(item);
-      const pdfBlob = new Blob([bytes], { type: "application/pdf" });
+      const response = await fetch(pdfUrl, {
+        credentials: "same-origin",
+        cache: "force-cache",
+      });
+
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status + " ao baixar PDF.");
+      }
+
+      const blob = await response.blob();
+      const pdfBlob = blob.type && /pdf/i.test(blob.type) ? blob : new Blob([blob], { type: "application/pdf" });
       const blobUrl = URL.createObjectURL(pdfBlob);
-      const page = Number.isInteger(item.searchPage) && item.searchPage > 0 ? item.searchPage : 0;
-      opened.location.href = blobUrl + (page ? "#page=" + page : "");
+      opened.location.href = blobUrl;
 
       setTimeout(() => {
         try {
@@ -1962,9 +1992,7 @@
       return true;
     } catch (error) {
       try {
-        const original = new URL(pdfUrl, window.location.origin);
-        if (Number.isInteger(item.searchPage) && item.searchPage > 0) original.hash = "page=" + item.searchPage;
-        opened.location.href = original.href;
+        opened.location.href = pdfUrl;
       } catch (_innerError) {
         window.open(pdfUrl, "_blank");
       }
@@ -2647,23 +2675,13 @@
   }
 
   async function fetchExternalDocumentSummary(url, sourceKey) {
-    const expected = new URL(url, window.location.origin);
-    if (expected.origin !== window.location.origin || expected.username || expected.password) {
-      throw new Error("O endereço dos documentos não pertence ao SPA atual.");
-    }
-    const response = await fetch(expected.href, {
+    const response = await fetch(url, {
       credentials: "same-origin",
       cache: "no-store",
-      signal: AbortSignal.timeout(35000),
     });
 
     if (!response.ok) {
       throw new Error("SPA retornou HTTP " + response.status + " ao carregar " + (sourceKey === "folder" ? "a pasta" : "os autos") + ".");
-    }
-
-    const returned = new URL(response.url || expected.href);
-    if (returned.origin !== expected.origin || returned.pathname !== expected.pathname) {
-      throw new Error("O SPA redirecionou a consulta. Confira sua sessão e atualize os documentos.");
     }
 
     const raw = await response.text();
@@ -2677,9 +2695,6 @@
       }
     }
     const doc = new DOMParser().parseFromString(html, "text/html");
-    if (doc.querySelector('form[action*="sign_in"], input[type="password"]')) {
-      throw new Error("A sessão do SPA expirou. Entre novamente e atualize os documentos.");
-    }
     return parseExternalDocumentLinks(doc, sourceKey);
   }
 
@@ -2839,11 +2854,11 @@
   }
 
   async function ensureExternalPdfMergeLibrary(status) {
-    if (window.PDFLib && window.PDFLib.PDFDocument && window.MTPrevPdfCover) return true;
+    if (window.PDFLib && window.PDFLib.PDFDocument) return true;
 
     if (status) status.textContent = "Carregando mesclador local de PDF...";
     const response = await requestExtensionMessage("SPA_CDSP_ENSURE_PDF_LIB", {}, 12000);
-    if (!response || !response.ok || !(window.PDFLib && window.PDFLib.PDFDocument && window.MTPrevPdfCover)) {
+    if (!response || !response.ok || !(window.PDFLib && window.PDFLib.PDFDocument)) {
       throw new Error((response && response.error) || "Nao foi possivel carregar o mesclador local de PDF.");
     }
 
@@ -2856,26 +2871,20 @@
     return header === "%PDF-";
   }
 
-  async function fetchExternalAutosPdfBytes(item, maxBytes) {
+  async function fetchExternalAutosPdfBytes(item) {
     const url = directPdfUrlFromSpaViewer(getExternalDocumentOpenUrl(item));
     if (!url) throw new Error("Link PDF nao identificado.");
 
     const response = await fetch(url, {
       credentials: "same-origin",
       cache: "force-cache",
-      signal: AbortSignal.timeout(35000),
     });
 
     if (!response.ok) {
       throw new Error("HTTP " + response.status + " ao baixar PDF.");
     }
 
-    if (maxBytes && Number(response.headers.get("content-length")) > maxBytes) {
-      throw new Error("PDF excede 30 MB para a cópia com capa.");
-    }
-
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (maxBytes && bytes.byteLength > maxBytes) throw new Error("PDF excede 30 MB para a cópia com capa.");
     if (!(await externalPdfBytesLooksLikePdf(bytes))) {
       throw new Error("Arquivo retornado nao parece ser PDF.");
     }
@@ -2883,14 +2892,12 @@
     return bytes;
   }
 
-  async function downloadExternalAutosPdfsForMerge(items, status, opened, limited) {
+  async function downloadExternalAutosPdfsForMerge(items, status, opened) {
     const docs = Array.isArray(items) ? items : [];
     const limit = Math.max(1, Math.min(CONFIG.processCompleteMergeConcurrency || 4, docs.length || 1));
     const results = new Array(docs.length);
     let nextIndex = 0;
     let completed = 0;
-    let totalBytes = 0;
-    let exceeded = false;
 
     const update = () => {
       const text =
@@ -2908,20 +2915,14 @@
     update();
 
     const workers = Array.from({ length: limit }, async () => {
-      while (nextIndex < docs.length && !exceeded) {
+      while (nextIndex < docs.length) {
         const index = nextIndex;
         nextIndex += 1;
 
         try {
-          const bytes = await fetchExternalAutosPdfBytes(docs[index], limited ? 30 * 1024 * 1024 : 0);
-          totalBytes += bytes.byteLength;
-          if (limited && totalBytes > 120 * 1024 * 1024) {
-            exceeded = true;
-            throw new Error("O conjunto excede 120 MB. Selecione menos documentos para a cópia com capa.");
-          }
           results[index] = {
             item: docs[index],
-            bytes,
+            bytes: await fetchExternalAutosPdfBytes(docs[index]),
           };
         } catch (error) {
           results[index] = {
@@ -2936,7 +2937,6 @@
     });
 
     await Promise.all(workers);
-    if (exceeded) throw new Error("O conjunto excede 120 MB. Selecione menos documentos para a cópia com capa.");
     return results;
   }
 
@@ -2960,39 +2960,14 @@
     }
   }
 
-  function readExternalCoverFields(processNumber) {
-    const current = readCurrentProcedureProcessNumber();
-    const digits = (value) => String(value || "").replace(/\D/g, "");
-    if (!digits(processNumber) || digits(current) !== digits(processNumber)) {
-      throw new Error("O processo mudou. Reabra os autos antes de gerar a capa.");
-    }
-    const fields = [{ label: "Número do processo", value: current }];
-    const definitions = [
-      ["Classe", "Classe"], ["Assunto", "Assunto Principal", "Assunto(s) principal", "Assunto"],
-      ["Assunto do tribunal", "Assunto(s) do TJ", "Assunto do TJ"],
-      ["Órgão julgador", "Órgão julgador"], ["Tribunal", "Tribunal"],
-      ["Parte(s) ativa(s)", "Parte(s) ativa(s)", "Polo ativo"],
-      ["Parte(s) passiva(s)", "Parte(s) passiva(s)", "Polo passivo"],
-      ["Valor da causa", "Valor da causa"], ["Distribuição", "Data da distribuição"],
-      ["Procurador(a)", "Procurador(a) da tarefa"], ["Subprocuradoria", "Subprocuradoria"]
-    ];
-    for (const [label, ...aliases] of definitions) {
-      const value = aliases.map(readProcedureHeaderValue).find((text) =>
-        text && !/^(?:-|—|não informado|nao informado)$/i.test(text.trim()));
-      if (value) fields.push({ label, value });
-    }
-    return fields;
-  }
-
-  async function mergeExternalAutosPdfs(opened, items, processNumber, status, coverFields) {
-    if (coverFields && items.length > 80) throw new Error("Selecione até 80 PDFs para gerar uma cópia com capa.");
+  async function mergeExternalAutosPdfs(opened, items, processNumber, status) {
     await ensureExternalPdfMergeLibrary(status);
 
     const PDFDocument = window.PDFLib.PDFDocument;
     const mergedPdf = await PDFDocument.create();
     let addedPages = 0;
     const failed = [];
-    const downloaded = await downloadExternalAutosPdfsForMerge(items, status, opened, Boolean(coverFields));
+    const downloaded = await downloadExternalAutosPdfsForMerge(items, status, opened);
 
     for (let index = 0; index < downloaded.length; index += 1) {
       const result = downloaded[index];
@@ -3008,7 +2983,7 @@
         }
 
         const sourcePdf = await PDFDocument.load(result.bytes, {
-          ignoreEncryption: !coverFields,
+          ignoreEncryption: true,
           updateMetadata: false,
         });
         const copiedPages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
@@ -3032,11 +3007,6 @@
       throw new Error("Nao foi possivel mesclar nenhum PDF dos autos.");
     }
 
-    if (coverFields && failed.length) {
-      throw new Error("A cópia com capa não foi gerada: " + failed.length + " PDF(s) não puderam ser lidos. Confira os originais.");
-    }
-    const coverPages = coverFields ? await window.MTPrevPdfCover.prepend(mergedPdf, coverFields, window.PDFLib) : 0;
-
     const finalText = "Finalizando PDF unificado com " + addedPages + " pagina(s)...";
     if (status) status.textContent = finalText;
     updateExternalAutosPdfLoadingPage(opened, finalText);
@@ -3048,7 +3018,7 @@
     openExternalAutosMergedPdf(opened, mergedBytes, processNumber);
 
     return {
-      pages: addedPages + coverPages,
+      pages: addedPages,
       failed: failed,
     };
   }
@@ -3407,7 +3377,7 @@
     }
   }
 
-  async function openCompleteAutosPdfFromPanel(source, status, button, fallbackItems, processNumber, mode, order, includeCover) {
+  async function openCompleteAutosPdfFromPanel(source, status, button, fallbackItems, processNumber, mode, order) {
     if (!source || !source.url) {
       status.textContent = "Nao encontrei o link dos autos para gerar o processo completo.";
       return;
@@ -3429,7 +3399,6 @@
     }
 
     try {
-      const coverFields = selectedMode === "merged" && includeCover ? readExternalCoverFields(processNumber) : null;
       writeExternalAutosPdfLoadingPage(
         opened,
         selectedMode === "merged" ? "Preparando PDF unificado..." : "Abrindo PDFs separados dos autos..."
@@ -3437,9 +3406,9 @@
       const items = sortExternalAutosItems(await loadExternalAutosDirectItems(source, fallbackItems, status), selectedOrder);
 
       if (selectedMode === "merged") {
-        const result = await mergeExternalAutosPdfs(opened, items, processNumber, status, coverFields);
+        const result = await mergeExternalAutosPdfs(opened, items, processNumber, status);
         status.textContent =
-          (coverFields ? "PDF unificado com capa aberto com " : "PDF unificado aberto com ") +
+          "PDF unificado aberto com " +
           result.pages +
           " pagina(s)" +
           " (" +
@@ -4432,15 +4401,7 @@
     open.target = "_blank";
     open.rel = "noopener noreferrer";
     open.textContent = item.isPdf ? "Abrir PDF" : "Abrir";
-    const page = Number(result?.page);
-    const searchItem = Number.isInteger(page) && page > 0 ? Object.assign({}, item, { searchPage: page }) : item;
-    if (searchItem.searchPage) {
-      const target = new URL(open.href, window.location.origin);
-      target.hash = "page=" + page;
-      open.href = target.href;
-      open.textContent = "Abrir na página " + page;
-    }
-    bindExternalDocumentOpenButton(open, searchItem);
+    bindExternalDocumentOpenButton(open, item);
 
     row.appendChild(info);
     row.appendChild(open);
@@ -4591,9 +4552,7 @@
         "spa-cdsp-external-docs-empty",
         panel._contentSearchStopped
           ? "Pesquisa interrompida sem resultado exibido."
-          : inconclusive || failed
-          ? "Sem ocorrência no texto que pôde ser lido. Há documentos inconclusivos ou com erro; confira os originais."
-          : "Nenhuma ocorrência encontrada no texto pesquisável dos documentos."
+          : "Nenhum documento com esse texto foi encontrado."
       );
     }
 
@@ -5066,17 +5025,6 @@
     quickActionsControls.appendChild(initialPetitionWrap);
     directQuickActionButtons.forEach((button) => quickActionsControls.appendChild(button));
     quickActionsBar.appendChild(quickActionsControls);
-
-    const coverOption = document.createElement("label");
-    coverOption.className = "spa-cdsp-external-docs-content-option";
-    const coverInput = document.createElement("input");
-    coverInput.type = "checkbox";
-    coverInput.checked = false;
-    const coverText = document.createElement("span");
-    coverText.textContent = "Incluir capa MTPrev no PDF unificado";
-    coverOption.title = "Cria uma cópia de consulta com os dados disponíveis do processo. Confira assinaturas digitais nos originais.";
-    coverOption.append(coverInput, coverText);
-    quickActionsBar.appendChild(coverOption);
 
     searchRow.appendChild(searchTools);
     searchRow.appendChild(quickActionsBar);
@@ -5562,7 +5510,6 @@
     }
 
     function setExternalDocumentActionButtonsDisabled(disabled) {
-      coverInput.disabled = disabled;
       setOpenAllButtonsDisabled(disabled);
       setProcessCompleteButtonsDisabled(disabled);
       setSelectedDocumentsButtonsDisabled(disabled);
@@ -5816,7 +5763,6 @@
       setExternalDocumentActionButtonsDisabled(true);
 
       try {
-        const coverFields = selectedMode === "merged" && coverInput.checked ? readExternalCoverFields(processNumber) : null;
         if (triggerButton) triggerButton.textContent = "Abrindo...";
         writeExternalAutosPdfLoadingPage(
           openedTab,
@@ -5826,10 +5772,9 @@
         );
 
         if (selectedMode === "merged") {
-          const result = await mergeExternalAutosPdfs(openedTab, items, processNumber, status, coverFields);
+          const result = await mergeExternalAutosPdfs(openedTab, items, processNumber, status);
           status.textContent =
             (config.mergedStatusPrefix || "PDF unificado aberto") +
-            (coverFields ? " com capa MTPrev" : "") +
             " com " +
             result.pages +
             " pagina(s) de " +
@@ -6295,7 +6240,7 @@
       event.stopPropagation();
     });
 
-    async function runProcessCompleteMode(mode, order, triggerButton) {
+    function runProcessCompleteMode(mode, order, triggerButton) {
       if (panel.dataset.loading === "1" || panel.dataset.openingAll === "1") {
         status.textContent = "Aguarde a acao atual terminar antes de gerar o Processo Completo.";
         return;
@@ -6304,14 +6249,7 @@
       processCompleteMenu.hidden = true;
       resetProcessCompleteMenuChoice();
       const autosCache = getSourceCache("autos");
-      panel.dataset.openingAll = "1";
-      setExternalDocumentActionButtonsDisabled(true);
-      try {
-        await openCompleteAutosPdfFromPanel(sources.autos, status, triggerButton, autosCache.items, processNumber, mode, order, coverInput.checked);
-      } finally {
-        panel.dataset.openingAll = "0";
-        setExternalDocumentActionButtonsDisabled(false);
-      }
+      openCompleteAutosPdfFromPanel(sources.autos, status, triggerButton, autosCache.items, processNumber, mode, order);
     }
 
     function runOpenAllMode(mode, order, triggerButton) {
@@ -6537,31 +6475,30 @@
   }
 
   function refreshExternalDocumentsPanel() {
-    const existingPanel = document.querySelector("#spa-cdsp-external-docs-panel");
-
+    const existingPanel=document.querySelector('#spa-cdsp-external-docs-panel');
+    // Acompanhamento Especial está exibindo esta mesma instância de Autos.
+    // Não a mover nem destruir enquanto a pessoa confere o expediente.
+    if (existingPanel?.dataset.mtprevWatchDocked==='1') return;
     if (!isProcedureDetailPage()) {
       if (existingPanel) existingPanel.remove();
       return;
     }
-
-    const processNumber = readCurrentProcedureProcessNumber();
-    const sources = buildExternalDocumentSources();
-    const sourceSignature = getExternalDocumentSourceSignature(sources);
-    const host = findExternalDocumentsHost();
-
-    if (!sourceSignature.replace(/\|/g, "") || !host) {
+    const processNumber=readCurrentProcedureProcessNumber();
+    const sources=buildExternalDocumentSources();
+    const signature=getExternalDocumentSourceSignature(sources);
+    const host=findExternalDocumentsHost();
+    if (!signature.replace(/\|/g,'') || !host) {
       if (existingPanel) existingPanel.remove();
       return;
     }
-
-    if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) {
-      if (existingPanel.parentElement !== host) host.appendChild(existingPanel);
+    if (existingPanel && existingPanel.dataset.processNumber===processNumber &&
+        existingPanel.dataset.sourcesSignature===signature) {
+      placeExternalDocumentsPanel(existingPanel,host);
       return;
     }
     if (existingPanel) existingPanel.remove();
-
     injectExternalDocumentsStyles();
-    host.appendChild(createExternalDocumentsPanel(sources, processNumber));
+    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources,processNumber),host);
   }
 
   function setupExternalDocumentsPanel() {
@@ -11324,7 +11261,9 @@
       #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+4) .md-stat__icon{background:#fff2df}
       #spa-cdsp-duplicate-report-overlay .md-summary-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#577088;font-size:12px;line-height:1.45}
       #spa-cdsp-duplicate-report-overlay .md-summary-line .md-note-dot{color:#86a1b5}
-      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:42px;height:42px;object-fit:contain;flex-shrink:0}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:62px;height:50px;object-fit:contain;flex-shrink:0;border:1px solid rgba(116,203,232,.45);border-radius:12px;padding:5px;background:#102c42;box-sizing:border-box}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback{font-size:16px;font-weight:900;color:#60bfd1;flex-shrink:0}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback[hidden]{display:none}
       #spa-cdsp-duplicate-report-overlay .md-group{border-radius:10px;border-color:#cbdce9;box-shadow:0 1px 3px rgba(31,54,83,.05)}
       #spa-cdsp-duplicate-report-overlay .md-group>summary{min-height:46px}
       #spa-cdsp-duplicate-report-overlay .md-group.md-match-perfect>summary{background:#ddf3e7}
@@ -11396,9 +11335,17 @@
     };
     const header=el('header','md-header');
     const brandLogo=el('img','md-header__logo');
-    try {brandLogo.src=chrome.runtime.getURL('images/logo-mtprev.png');} catch (_error) {}
+    // Este painel roda no mundo MAIN: chrome.runtime nao existe nessa execucao.
+    // A URL e recebida do background ao injetar o painel.
+    const mtprevImageUrl = VISUAL_CONFIG.headerImageUrl || '';
+    if (mtprevImageUrl) brandLogo.src = mtprevImageUrl;
     brandLogo.alt='MTPrev';
-    header.appendChild(brandLogo);
+    const logoFallback=el('span','md-header__logo-fallback','MTPrev');
+    logoFallback.hidden=Boolean(mtprevImageUrl);
+    brandLogo.addEventListener('load',()=>{logoFallback.hidden=true;brandLogo.hidden=false;});
+    brandLogo.addEventListener('error',()=>{brandLogo.hidden=true;logoFallback.hidden=false;});
+    if (!mtprevImageUrl) brandLogo.hidden=true;
+    header.append(brandLogo,logoFallback);
     const title=el('div');title.style.flex='1';title.style.minWidth='230px';
     const titleName=el('div','', 'Relatório de processos duplicados');
     titleName.style.cssText='font-size:17px;font-weight:800;';
@@ -11525,14 +11472,30 @@
       ['Outros candidatos',scores.filter(score=>score<85).length,'filter_alt'],
       ['Processos lidos',cardCount,'summarize']
     ];
+    const statIconPaths={
+      content_copy:'M8 4h12v16H8z M4 8H2V2h14v2',
+      inbox:'M4 4h16v15H4z M4 14h5l2 3h2l2-3h5',
+      fact_check:'M4 4h16v16H4z M7 9h4 M7 14h4 M14 9l2 2 3-4 M14 16l2 2 3-4',
+      format_list_numbered:'M8 6h13 M8 12h13 M8 18h13 M3 5h1v4 M3 11h2l-2 3h2 M3 17h2l-2 3h2',
+      check_circle:'M20 11V6l-3-3H8L4 7v10l4 4h8l4-4 M8 12l3 3 6-7',
+      calendar_month:'M4 5h16v16H4z M8 2v6 M16 2v6 M4 10h16 M8 14h3v3H8z',
+      filter_alt:'M3 5h18L14 13v7l-4-2v-5z',
+      summarize:'M5 3h11l3 3v15H5z M8 11h8 M8 15h8 M8 19h6'
+    };
     const statRow=el('div','md-stats');
     for(const [label,value,icon] of stats){
       const stat=el('div','md-stat');
       const iconBox=el('span','md-stat__icon');
-      const image=el('img');
-      image.alt=''; image.setAttribute('aria-hidden','true');
-      try {image.src=chrome.runtime.getURL(`images/material-rounded/${icon}.svg`);} catch (_error) {}
-      iconBox.appendChild(image);
+      // SVG inline: funciona no mundo MAIN, sem depender de chrome.runtime.
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('viewBox','0 0 24 24');
+      svg.setAttribute('width','23');svg.setAttribute('height','23');
+      svg.setAttribute('fill','none');svg.setAttribute('stroke','#1e7698');
+      svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');
+      svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',statIconPaths[icon] || statIconPaths.summarize);
+      svg.appendChild(path);iconBox.appendChild(svg);
       const copy=el('div','md-stat__copy');copy.append(el('small','',label),el('strong','',value));
       stat.append(iconBox,copy);statRow.appendChild(stat);
     }
@@ -14455,6 +14418,10 @@
     openTabsAllPages: openTabsAllPages,
     openDuplicateTabsAllPages: openDuplicateTabsAllPages,
     buildPieceReport: buildPieceReport,
+    activateTriagePanel: () => {
+      if (!document.getElementById('spa-cdsp-panel')) createPanel();
+      return Boolean(document.getElementById('spa-cdsp-panel'));
+    },
     refreshExternalDocumentsPanel: refreshExternalDocumentsPanel,
     closeMarkedAllPages: closeMarkedAllPages,
     log: log,
@@ -14473,11 +14440,11 @@
       return;
     }
 
-    createPanel();
+    if (!VISUAL_CONFIG.autosOnly) createPanel();
     setupExternalDocumentsPanel();
     window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
     // Reabrir o relatório salvo após atualizar a página, sem fazer nova coleta.
-    if (/^\/workspace\/?$/.test(location.pathname)) {
+    if (!VISUAL_CONFIG.autosOnly && /^\/workspace\/?$/.test(location.pathname)) {
       setTimeout(async()=>{
         if(document.querySelector('#spa-cdsp-duplicate-report-overlay')) return;
         let previous='';
@@ -14490,8 +14457,10 @@
         } catch (_error) { /* O cache indisponível nunca dispara uma coleta automática. */ }
       },900);
     }
-    setTimeout(continuePendingTriageClassification, 450);
-    setTimeout(continuePendingTriageTaskClosure, 650);
+    if (!VISUAL_CONFIG.autosOnly) {
+      setTimeout(continuePendingTriageClassification, 450);
+      setTimeout(continuePendingTriageTaskClosure, 650);
+    }
     log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
   }
 
