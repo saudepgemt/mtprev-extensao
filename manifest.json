@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "0.0.1",
-  "version_name": "0.0.1",
+  "version": "2.0.72",
+  "version_name": "2.72",
   "minimum_chrome_version": "116",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
@@ -14,7 +14,8 @@
     "clipboardWrite",
     "downloads",
     "unlimitedStorage",
-    "notifications"
+    "notifications",
+    "identity"
   ],
   "host_permissions": [
     "https://spa.pge.mt.gov.br/*",
@@ -24,7 +25,9 @@
     "https://pje2.tjmt.jus.br/*",
     "https://www.sigadoc.mt.gov.br/*",
     "https://sigadoc.mt.gov.br/*",
-    "https://docs.google.com/*"
+    "https://docs.google.com/*",
+    "https://login.microsoftonline.com/*",
+    "https://graph.microsoft.com/*"
   ],
   "background": {
     "service_worker": "js/background.js"

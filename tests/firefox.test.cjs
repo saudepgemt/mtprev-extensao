@@ -65,7 +65,7 @@ test('Firefox empacota dependencias completas e exclui arquivos do ambiente de t
   assert.ok(context.MTPrevTriageRules);
   assert.ok(context.pdfjsLib.getDocument);
   assert.ok(context.MTPrevPdfReader.searchPdfText);
-  assert.equal(listeners.length, 3, 'leitor, rotinas e acompanhamento devem iniciar uma vez');
+  assert.equal(listeners.length, 4, 'leitor, rotinas, OAuth e acompanhamento iniciam uma vez');
 });
 
 test('build falha ao faltar um arquivo obrigatorio, sem omitir funcoes silenciosamente', (t) => {
@@ -144,13 +144,13 @@ test('Triagem sem adaptador preserva confirmacao, cancelamento e verificacao do 
   await assert.rejects(context.confirmTriageAction('Classificar', records, () => false), /O processo mudou/);
 });
 
-test('Firefox inicia mensagens, armazenamento e o alarme de acompanhamento sem importScripts', async () => {
+test('Firefox inicia mensagens e armazenamento sem alarme periódico', async () => {
   const { run, context, listeners, alarms } = backgroundContext();
   run('js/shared/mtprev_triage_rules.js');
   run('js/background.js');
   run('js/process_watch_background.js');
   await new Promise(setImmediate);
-  assert.equal(alarms.get('cdsp-process-watch').periodInMinutes, 30);
+  assert.equal(alarms.has('cdsp-process-watch'), false);
   const config = await context.getRoutineConfig();
   assert.equal(config.active, false);
   const reply = await new Promise((resolve) => {
@@ -167,8 +167,8 @@ test('Chrome continua importando as dependencias pelo service worker', () => {
   const imported = [];
   context.importScripts = (file) => { imported.push(file); run(`js/${file}`); };
   run('js/background.js');
-  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'vendor/pdf.min.js', 'process_watch_background.js']);
-  assert.equal(listeners.length, 2);
+  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'vendor/pdf.min.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
+  assert.equal(listeners.length, 3);
   assert.ok(context.pdfjsLib.getDocument);
 });
 

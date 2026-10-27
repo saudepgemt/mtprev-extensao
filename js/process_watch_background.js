@@ -3,6 +3,9 @@
   "use strict";
   const KEY = "CDSP_PROCESS_WATCH_V1";
   const ALARM = "cdsp-process-watch";
+  const LAST_CHECK_KEY = "MTPREV_WATCH_LAST_PAGE_CHECK";
+  const MIN_PAGE_INTERVAL_MS = 120000; // Uma unica checagem entre abas abertas num intervalo curto.
+
   let queue = Promise.resolve();
   const serial = (fn) => { const result = queue.then(fn); queue = result.catch(() => {}); return result; };
   const read = async () => (await chrome.storage.local.get(KEY))[KEY] || {};
@@ -40,6 +43,18 @@
       record.history = [{ at: record.checkedAt, items: changes.map((item) => item.text), unread: true }, ...(record.history || [])].slice(0, 30);
     }
     await save(records);
+    // A primeira leitura é referência, não gera e-mail. Nas seguintes, apenas
+    // mudanças ainda não vistas são elegíveis, com OAuth e consentimento explícitos.
+    if (changes.length && globalThis.MTPrevWatchMail?.notify) {
+      try {
+        const mail = await globalThis.MTPrevWatchMail.notify(record, changes.map(item => item.text));
+        if (mail?.accepted) {record.emailStatus='Aceito para envio pelo Microsoft Graph';record.emailError='';}
+        else if (mail?.skipped) {record.emailStatus='';}
+      } catch (error) {
+        record.emailError = String(error?.message||'Falha no alerta por e-mail').slice(0,220);
+      }
+      await save(records);
+    }
     if (changes.length && chrome.notifications) {
       try { await chrome.notifications.create(`cdsp-watch-${number}`, { type: "basic", iconUrl: "images/icon-mtprev128.png", title: "Processo acompanhado: nova alteração", message: `${number}: ${changes.length} alteração(ões). Confira em Acompanhar processos.` }); } catch (_) { /* Panel and badge retain the alert. */ }
     }
@@ -48,6 +63,16 @@
     const records = await read();
     const number = String(message.processNumber || "").replace(/\D/g, "");
     if (message.action === "list") return { ok: true, records };
+    if (message.action === "pageOpened") {
+      const previous = (await chrome.storage.local.get(LAST_CHECK_KEY))[LAST_CHECK_KEY];
+      const last = Number(previous) || 0;
+      const now = Date.now();
+      if (now - last < MIN_PAGE_INTERVAL_MS && now >= last) return { ok:true, records, skipped:true };
+      // Marca antes das consultas: diversas abas nao criam rajadas simultaneas.
+      await chrome.storage.local.set({ [LAST_CHECK_KEY]: now });
+      for (const key of Object.keys(records)) await check(records, key);
+      return { ok:true, records, checked: Object.keys(records).length };
+    }
     if (message.action === "checkAll") {
       for (const key of Object.keys(records)) await check(records, key);
       return { ok: true, records };
@@ -77,11 +102,10 @@
     operation.then(reply, (error) => reply({ ok: false, error: error.message }));
     return true;
   });
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === ALARM) serial(() => handle({ action: "checkAll" })).catch(() => {});
-  });
+  // A consulta agora e iniciada pelo content script ao abrir o SPA.
+  // Retira o alarme legado para impedir consultas de meia em meia hora.
   const restore = async () => {
-    if (!(await chrome.alarms.get(ALARM))) await chrome.alarms.create(ALARM, { periodInMinutes: 30, delayInMinutes: 1 });
+    if (chrome.alarms?.clear) await chrome.alarms.clear(ALARM);
     await save(await read());
   };
   chrome.runtime.onStartup.addListener(() => serial(restore).catch(() => {}));

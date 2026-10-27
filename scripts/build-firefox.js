@@ -12,6 +12,7 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
       "js/vendor/pdf.min.js",
       "js/triagem/offscreen_pdf_reader.js",
       manifest.background.service_worker,
+      "js/watch_mail_oauth.js",
       "js/process_watch_background.js"
     ]
   };

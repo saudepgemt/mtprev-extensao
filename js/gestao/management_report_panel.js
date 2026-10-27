@@ -1854,14 +1854,38 @@
 
   async function collectAllRecords() {
     state.workspaceCoverage = null;
-    if (window.SpaAdapter?.isWorkspace()) {
+    // A rota /workspace do SPA2 nao possui as colunas DataTables do SPA1.
+    // Reconhecer pela URL primeiro, mesmo quando a SPA apresenta no DOM
+    // uma tabela legada oculta. Nunca recorrer a columnsForManagement aqui.
+    if (/^\/workspace\/?$/.test(window.location.pathname)) {
+      const adapter = window.SpaAdapter;
+      if (!adapter || typeof adapter.collectWorkspaceRecords !== 'function') {
+        throw new Error('Leitor do SPA2 nao carregado. Recarregue o SPA e a extensao para habilitar o adaptador de workspace.');
+      }
       const reportDate = startOfToday();
-      const coverage = await window.SpaAdapter.collectWorkspaceReport({
-        isStopped: () => state.stopped,
-        onProgress: ({count,total}) => setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`)
-      });
+      const onProgress = ({count, total}) => {
+        if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
+        setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`);
+      };
+      const coverage = typeof adapter.collectWorkspaceReport === 'function'
+        ? await adapter.collectWorkspaceReport({isStopped: () => state.stopped, onProgress})
+        : await adapter.collectWorkspaceRecords({onProgress});
+      if (!coverage || !Array.isArray(coverage.records)) {
+        throw new Error('A consulta do SPA2 nao devolveu registros validos para o painel gerencial.');
+      }
+      if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
+      if (coverage.reason !== 'complete') {
+        throw new Error('Leitura da mesa incompleta: ' + coverage.records.length +
+          ' de ' + (coverage.total ?? '?') + ' expedientes. Nao foi gerado um painel parcial.');
+      }
       state.workspaceCoverage = coverage;
-      log(window.SpaAdapter.collectionSummary(coverage));
+      log(typeof adapter.collectionSummary === 'function'
+        ? adapter.collectionSummary(coverage)
+        : `Leitura completa do SPA2: ${coverage.records.length} expediente(s).`);
+      const withoutAssessor = coverage.records.filter(item => !String(item.assessor || '').trim()).length;
+      if (withoutAssessor) {
+        log(`${withoutAssessor} expediente(s) sem Assessor(a) disponivel no card do SPA2; classificados como sem assessor(a), sem inferir responsavel.`, 'error');
+      }
       return { records: coverage.records.map(item => buildRecord(item, {}, reportDate)), reportDate, coverage };
     }
     const dt = getDataTable();
@@ -2128,6 +2152,113 @@
     if (text != null) element.textContent = text;
     if (cssText) element.style.cssText = cssText;
     return element;
+  }
+
+  // Estilos isolados: nao alteram o SPA nem dependem de CSS externo.
+  function ensureManagementDashboardStyles() {
+    if (document.getElementById('mtprev-management-dashboard-css')) return;
+    const style = document.createElement('style');
+    style.id = 'mtprev-management-dashboard-css';
+    style.textContent = `
+      #${CONFIG.modalId}.mtprev-mgmt-overlay {position:fixed;inset:0;z-index:2147483630;display:flex;align-items:center;justify-content:center;background:rgba(13,28,48,.68);padding:12px;box-sizing:border-box;font:13px/1.45 system-ui,'Segoe UI',Arial,sans-serif;color:#223d5b;}
+      #${CONFIG.modalId} .mtprev-mgmt-dialog {width:min(1600px,100%);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;background:#f7faff;border-radius:15px;border:1px solid #9eb7cf;box-shadow:0 24px 80px rgba(8,27,47,.4);}
+      #${CONFIG.modalId} .mtprev-mgmt-head {position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(110deg,#14334c,#1b5373);color:#fff;padding:17px 20px;border-bottom:3px solid #2a8ba4;}
+      #${CONFIG.modalId} .mtprev-mgmt-brand {display:flex;align-items:center;justify-content:center;width:154px;min-height:52px;padding:6px 10px;box-sizing:border-box;background:#112d43;border:1px solid #3d7790;border-radius:11px;}
+      #${CONFIG.modalId} .mtprev-mgmt-brand img {max-width:100%;max-height:46px;object-fit:contain;}
+      #${CONFIG.modalId} .mtprev-mgmt-headline {flex:1;min-width:230px;}
+      #${CONFIG.modalId} .mtprev-mgmt-headline h2 {font-size:20px;color:#fff;font-weight:800;line-height:1.2;margin:0 0 5px;}
+      #${CONFIG.modalId} .mtprev-mgmt-headline small {font-size:11px;color:#c9e1ee;}
+      #${CONFIG.modalId} .mtprev-mgmt-actions {display:flex;flex-wrap:wrap;align-items:center;gap:7px;}
+      #${CONFIG.modalId} .mtprev-mgmt-actions button {border:1px solid #8cb0cb;border-radius:8px;background:#eaf4ff;color:#153952;font-weight:750;padding:8px 11px;font-size:12px;cursor:pointer;white-space:nowrap;}
+      #${CONFIG.modalId} .mtprev-mgmt-actions button:hover {background:#fff;}
+      #${CONFIG.modalId} .mtprev-mgmt-actions .mtprev-mgmt-close {background:#254c69;color:#fff;border-color:#93b9d1;}
+      #${CONFIG.modalId} .mtprev-mgmt-body {padding:14px 17px 22px;}
+      #${CONFIG.modalId} .mtprev-mgmt-filters {margin:0 0 13px;background:#fff;border:1px solid #d5e3f1;border-radius:11px;padding:13px 13px 10px;}
+      #${CONFIG.modalId} .mtprev-mgmt-filtertitle {font-size:13px;font-weight:850;color:#153f5d;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+      #${CONFIG.modalId} .mtprev-mgmt-filtertitle svg {width:18px;height:18px;flex:none;}
+      #${CONFIG.modalId} .mtprev-mgmt-filtergrid {display:grid;grid-template-columns:repeat(5,minmax(175px,1fr)) auto;gap:9px;align-items:end;}
+      #${CONFIG.modalId} .mtprev-mgmt-field {display:flex;flex-direction:column;gap:4px;min-width:0;}
+      #${CONFIG.modalId} .mtprev-mgmt-field > span {font-weight:750;font-size:11px;color:#4a6884;}
+      #${CONFIG.modalId} .mtprev-mgmt-field details {max-width:100%!important;min-width:0!important;width:100%!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-field details > summary {min-height:37px!important;border-radius:7px!important;border-color:#cbdcef!important;color:#294662!important;padding:9px 27px 7px 9px!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-field details > div {z-index:100!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-critical-label {min-height:37px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:750;color:#2e4b68;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs {display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid #cbddeb;margin:0 0 13px;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs button {border:1px solid transparent!important;border-radius:8px 8px 0 0!important;background:#e6edf6!important;color:#34516a!important;padding:10px 15px!important;font-size:12px!important;font-weight:750!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs button[aria-selected="true"] {background:#176cb8!important;color:white!important;box-shadow:inset 0 -3px #51b7ec;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpi {background:#fff;border:1px solid #d6e4f0;border-radius:11px;min-width:0;min-height:92px;padding:13px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 6px rgba(21,51,78,.04);}
+      #${CONFIG.modalId} .mtprev-mgmt-kpiicon,.mtprev-mgmt-charticon {width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--icon-soft,#e4f1ff);color:var(--icon-color,#2173ca);}
+      #${CONFIG.modalId} .mtprev-mgmt-kpiicon svg,#${CONFIG.modalId} .mtprev-mgmt-charticon svg {width:21px;height:21px;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpibody {min-width:0;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpilabel {font-size:11px;color:#607994;font-weight:700;line-height:1.2;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpivalue {font-size:25px;color:var(--value-color,#153e62);font-weight:850;letter-spacing:-.025em;line-height:1.2;margin-top:5px;}
+      #${CONFIG.modalId} .mtprev-mgmt-kpidetail {font-size:10px;color:#859ab0;margin-top:3px;}
+      #${CONFIG.modalId} .mtprev-mgmt-charts {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px;}
+      #${CONFIG.modalId} .mtprev-mgmt-chart {background:#fff;border:1px solid #d8e5f1;border-radius:11px;padding:14px;min-width:0;}
+      #${CONFIG.modalId} .mtprev-mgmt-charthead {display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+      #${CONFIG.modalId} .mtprev-mgmt-charttitle {font-size:13px;font-weight:850;color:#153e61;}
+      #${CONFIG.modalId} .mtprev-mgmt-chartsub {font-size:10px;color:#7a8fa4;}
+      #${CONFIG.modalId} .mtprev-mgmt-charthead button {margin-left:auto;background:transparent;border:0;color:#1971b4;font-size:11px;font-weight:700;text-decoration:underline;cursor:pointer;}
+      #${CONFIG.modalId} .mtprev-mgmt-barrow {display:grid;grid-template-columns:minmax(80px,35%) 1fr 34px;gap:9px;align-items:center;margin:9px 0;font-size:10px;}
+      #${CONFIG.modalId} .mtprev-mgmt-barlabel {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#46617d;font-weight:650;}
+      #${CONFIG.modalId} .mtprev-mgmt-bartrack {background:#eaf0f7;border-radius:999px;height:11px;overflow:hidden;display:flex;}
+      #${CONFIG.modalId} .mtprev-mgmt-barfill {height:100%;border-radius:999px;min-width:2px;}
+      #${CONFIG.modalId} .mtprev-mgmt-barvalue {text-align:right;font-size:11px;font-weight:800;color:#223f5f;}
+      #${CONFIG.modalId} .mtprev-mgmt-legend {display:flex;flex-wrap:wrap;gap:11px;font-size:10px;color:#657f99;margin-top:10px;}
+      #${CONFIG.modalId} .mtprev-mgmt-dot {display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle;background:var(--dot);}
+      #${CONFIG.modalId} .mtprev-mgmt-donutwrap {display:flex;gap:12px;align-items:center;justify-content:center;min-height:200px;}
+      #${CONFIG.modalId} .mtprev-mgmt-donut {width:min(170px,44%);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;flex:none;}
+      #${CONFIG.modalId} .mtprev-mgmt-donutcenter {height:60%;width:60%;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#224764;font-weight:850;font-size:22px;}
+      #${CONFIG.modalId} .mtprev-mgmt-donutcenter small {font-size:10px;color:#7992a7;font-weight:500;}
+      #${CONFIG.modalId} .mtprev-mgmt-donutlegend {flex:1;min-width:95px;font-size:10px;display:grid;gap:7px;}
+      #${CONFIG.modalId} .mtprev-mgmt-donutlegend>div {display:flex;gap:5px;align-items:center;color:#536d84;}
+      #${CONFIG.modalId} .mtprev-mgmt-donutlegend strong {margin-left:auto;color:#193e60;}
+      #${CONFIG.modalId} .mtprev-mgmt-tablewrap {background:#fff;border:1px solid #d8e5f1;border-radius:11px;overflow:auto;}
+      #${CONFIG.modalId} .mtprev-mgmt-tablehead {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:13px 14px;border-bottom:1px solid #e1eaf3;}
+      #${CONFIG.modalId} .mtprev-mgmt-tablehead strong {font-size:13px;color:#20465f;}
+      #${CONFIG.modalId} .mtprev-mgmt-tablehead input {max-width:245px;width:100%;border:1px solid #d2e0ed;border-radius:7px;padding:8px 10px;font-size:12px;color:#284764;}
+      #${CONFIG.modalId} .mtprev-mgmt-table {border-collapse:collapse;width:100%;min-width:860px;font-size:11px;}
+      #${CONFIG.modalId} .mtprev-mgmt-table th {background:#ecf3fa;color:#59718a;text-align:left;font-size:10px;font-weight:800;padding:11px;border-bottom:1px solid #dbe7f0;}
+      #${CONFIG.modalId} .mtprev-mgmt-table td {padding:10px 11px;border-bottom:1px solid #edf2f8;color:#35506c;}
+      #${CONFIG.modalId} .mtprev-mgmt-table tbody tr:hover {background:#f0f7fd;}
+      #${CONFIG.modalId} .mtprev-mgmt-table .mtprev-mgmt-num {text-align:center;font-weight:800;}
+      #${CONFIG.modalId} .mtprev-mgmt-badge {padding:4px 7px;border-radius:6px;font-size:10px;font-weight:850;background:var(--badge-bg,#dff0ff);color:var(--badge-color,#1d629b);}
+      #${CONFIG.modalId} .mtprev-mgmt-note {font-size:11px;color:#73879e;margin:9px 2px 13px;}
+      #${CONFIG.modalId} button:focus-visible,#${CONFIG.modalId} input:focus-visible,#${CONFIG.modalId} summary:focus-visible {outline:3px solid #43a8e0!important;outline-offset:2px;}
+      #mtprev-management-launcher {position:fixed;inset:0;z-index:2147483630;background:rgba(12,27,46,.68);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font:13px system-ui,Arial,sans-serif;}
+      #mtprev-management-launcher .mtprev-launch-dialog {width:min(480px,100%);background:#fff;border-radius:15px;box-shadow:0 20px 70px #061a345c;overflow:hidden;}
+      #mtprev-management-launcher .mtprev-launch-head {background:linear-gradient(110deg,#14334c,#1c5876);color:white;padding:18px 21px;font-size:17px;font-weight:800;}
+      #mtprev-management-launcher .mtprev-launch-body {padding:18px 21px;line-height:1.5;color:#46617b;}
+      #mtprev-management-launcher .mtprev-launch-actions {display:flex;justify-content:flex-end;gap:9px;margin-top:17px;}
+      #mtprev-management-launcher button {padding:10px 13px;border:1px solid #c8d8e6;border-radius:8px;background:#eef4fa;color:#284962;font-weight:750;cursor:pointer;}
+      #mtprev-management-launcher .mtprev-launch-primary {background:#126fae;color:white;border-color:#126fae;}
+      @media(max-width:1200px) {#${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:repeat(3,minmax(170px,1fr));} #${CONFIG.modalId} .mtprev-mgmt-charts {grid-template-columns:repeat(2,minmax(0,1fr));}}
+      @media(max-width:800px) {#${CONFIG.modalId} .mtprev-mgmt-dialog {max-height:calc(100dvh - 12px);} #${CONFIG.modalId} .mtprev-mgmt-overlay {padding:5px;} #${CONFIG.modalId} .mtprev-mgmt-charts {grid-template-columns:1fr;} #${CONFIG.modalId} .mtprev-mgmt-kpis {grid-template-columns:repeat(2,minmax(0,1fr));} #${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:repeat(2,minmax(0,1fr));} #${CONFIG.modalId} .mtprev-mgmt-head {position:relative;} }
+      @media(max-width:480px) {#${CONFIG.modalId} .mtprev-mgmt-kpis,#${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:1fr;} }
+      @media print {body > :not(#${CONFIG.modalId}){display:none!important;}#${CONFIG.modalId} {position:static!important;padding:0!important;background:#fff!important;}#${CONFIG.modalId} .mtprev-mgmt-dialog {max-height:none!important;box-shadow:none!important;overflow:visible!important;}#${CONFIG.modalId} .mtprev-mgmt-actions {display:none!important;}}
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  const DASHBOARD_ICONS = {
+    file:'M7 2h7l5 5v15H7z M14 2v5h5 M10 12h6 M10 16h6',
+    users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+    alert:'M12 3L2 21h20L12 3z M12 9v4 M12 17h.01',
+    clock:'M12 22a10 10 0 1 0 0-20a10 10 0 0 0 0 20 M12 6v6l4 2',
+    calendar:'M4 5h16v16H4z M8 3v4 M16 3v4 M4 10h16',
+    building:'M4 21V3h16v18 M2 21h20 M8 7h2 M14 7h2 M8 12h2 M14 12h2 M8 17h2 M14 17h2',
+    bars:'M5 20V12 M11 20V5 M17 20V9 M2 21h20',
+    layers:'M12 2l9 5-9 5-9-5 9-5z M3 12l9 5 9-5 M3 17l9 5 9-5',
+    chart:'M3 3v18h18 M6 16l5-6 4 3 5-8',
+    filter:'M3 5h18l-7 8v6l-4 2v-8z'
+  };
+  function dashIcon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');
+    svg.setAttribute('stroke-width','1.9');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', DASHBOARD_ICONS[name] || DASHBOARD_ICONS.file);svg.appendChild(path);return svg;
   }
 
   function card(title, value, detail, accent) {
@@ -2814,48 +2945,25 @@
   }
 
   function renderControls(container, records, rerender) {
-    const controls = createElement(
-      "div",
-      "",
-      "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0;"
-    );
-
-    const left = createElement("div", "", "display:flex;align-items:center;gap:8px;flex-wrap:wrap;");
-    left.appendChild(createElement("span", "Setor", "font-size:12px;font-weight:900;color:#192452;"));
-    left.appendChild(createSectorMultiSelect(records, rerender));
-    left.appendChild(createElement("span", "Assessor(a)", "font-size:12px;font-weight:900;color:#192452;"));
-    left.appendChild(createAssessorMultiSelect(records, rerender));
-    left.appendChild(createElement("span", "Categoria", "font-size:12px;font-weight:900;color:#192452;"));
-    left.appendChild(createCategoryMultiSelect(rerender));
-    left.appendChild(createElement("span", "Tipo da caixa", "font-size:12px;font-weight:900;color:#192452;"));
-    left.appendChild(createInboxTypeMultiSelect(rerender));
-    left.appendChild(createElement("span", "Motivo", "font-size:12px;font-weight:900;color:#192452;"));
-    left.appendChild(createRiskReasonMultiSelect(records, rerender));
-
-    const criticalLabel = createElement(
-      "label",
-      "",
-      "display:flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:#192452;"
-    );
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = state.modal.onlyCritical;
-    checkbox.addEventListener("change", () => {
-      state.modal.onlyCritical = checkbox.checked;
-      rerender();
+    const controls=createElement('section','');controls.className='mtprev-mgmt-filters';
+    const title=createElement('div','Filtros · Escolha os recortes para atualizar os indicadores');
+    title.className='mtprev-mgmt-filtertitle';title.prepend(dashIcon('filter'));controls.appendChild(title);
+    const grid=createElement('div','');grid.className='mtprev-mgmt-filtergrid';
+    [
+      ['Setor',createSectorMultiSelect(records,rerender)],
+      ['Assessor(a)',createAssessorMultiSelect(records,rerender)],
+      ['Categoria',createCategoryMultiSelect(rerender)],
+      ['Tipo da caixa',createInboxTypeMultiSelect(rerender)],
+      ['Motivo',createRiskReasonMultiSelect(records,rerender)]
+    ].forEach(([label,widget])=>{
+      const field=createElement('div','');field.className='mtprev-mgmt-field';
+      field.appendChild(createElement('span',label));field.appendChild(widget);grid.appendChild(field);
     });
-    criticalLabel.appendChild(checkbox);
-    criticalLabel.appendChild(createElement("span", "Somente criticos"));
-    left.appendChild(criticalLabel);
-
-    const right = createElement(
-      "div",
-      "Filtros afetam as abas; selecione setores, assessores, categorias, tipos de caixa e motivos para visualizar dados juntos. PDF e Excel exportam a visao gerencial unificada.",
-      "font-size:11px;color:#687789;"
-    );
-    controls.appendChild(left);
-    controls.appendChild(right);
-    container.appendChild(controls);
+    const criticalLabel=createElement('label','');criticalLabel.className='mtprev-mgmt-critical-label';
+    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=state.modal.onlyCritical;
+    checkbox.addEventListener('change',()=>{state.modal.onlyCritical=checkbox.checked;rerender();});
+    criticalLabel.append(checkbox,createElement('span','Somente críticos'));grid.appendChild(criticalLabel);
+    controls.appendChild(grid);container.appendChild(controls);
   }
 
   function renderTabs(container, rerender) {
@@ -2866,6 +2974,7 @@
       { key: "detalhe", label: "Detalhamento" }
     ];
     const nav = createElement("div", "", "display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid #d2dae8;margin-bottom:12px;");
+    nav.className='mtprev-mgmt-tabs';
     tabs.forEach((tab) => {
       const active = state.modal.activeTab === tab.key;
       const button = createElement(
@@ -2878,7 +2987,7 @@
           (active ? "#fff" : "#192452") +
           ";"
       );
-      button.type = "button";
+      button.type = "button";button.setAttribute("aria-selected",String(active));
       button.addEventListener("click", () => {
         state.modal.activeTab = tab.key;
         rerender();
@@ -3108,65 +3217,154 @@
     container.appendChild(section);
   }
 
-  function renderOverview(container, records, reportDate) {
-    const metrics = generalMetrics(records, reportDate);
-    const summaries = buildAssessorSummaries(records, reportDate);
-    const cards = grid("margin-bottom:12px;");
-    cards.appendChild(card("Total de processos", String(metrics.total), "Resultado atual da caixa", "#10264f"));
-    cards.appendChild(card("Assessores com processos", String(metrics.assessors), "Agrupado pela coluna Assessor(a)", "#272f7e"));
-    cards.appendChild(card("Setores", String(metrics.sectors), "Base interna de equipe", "#0f766e"));
-    cards.appendChild(card("Criticos", String(metrics.critical), "Veja os criterios na explicacao", "#b42318"));
-    cards.appendChild(card("Em atencao", String(metrics.attention), "Processos perto dos limites", "#b7791f"));
-    cards.appendChild(card("Prazo SPA ate 8 dias", String(metrics.pjeNear), "Prazo no SPA (PJE) proximo", "#b7791f"));
-    cards.appendChild(card("+20 dias na caixa", String(metrics.over20), "Processos antigos", "#9f1239"));
-    cards.appendChild(card("Media na caixa", metrics.averageReceivedText, "Tempo medio recebido", "#0f766e"));
-    if (metrics.unmatchedTeam) {
-      cards.appendChild(card("Sem setor identificado", String(metrics.unmatchedTeam), "Conferir nomes divergentes", "#b7791f"));
-    }
-    container.appendChild(cards);
-    renderCriticalExplanation(container);
-
-    const charts = createElement("div", "", "display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;");
-    const loadBox = chartBox("Carga por assessor(a)");
-    renderHorizontalBars(
-      loadBox,
-      summaries.map((item) => ({ label: item.assessor, value: item.total, color: "#272f7e" })),
-      {}
-    );
-    charts.appendChild(loadBox);
-
-    const riskBox = chartBox("Carga critica por assessor(a)");
-    renderHorizontalBars(
-      riskBox,
-      summaries
-        .slice()
-        .sort((a, b) => b.criticalLoadRank - a.criticalLoadRank || b.critical - a.critical || b.attention - a.attention)
-        .map((item) => ({
-          label: item.assessor + " - " + item.criticalLoad,
-          value: item.critical * 2 + item.attention,
-          displayValue: item.critical + "C/" + item.attention + "A",
-          color: item.criticalLoadColor
-        })),
-      {}
-    );
-    charts.appendChild(riskBox);
-
-    const stackedBox = chartBox("Categorias por assessor(a)");
-    renderStackedBars(stackedBox, summaries);
-    charts.appendChild(stackedBox);
-
-    const sectorBox = chartBox("Processos por setor");
-    renderHorizontalBars(sectorBox, sectorCounts(records), {});
-    charts.appendChild(sectorBox);
-
-    const ageBox = chartBox("Idade dos processos na caixa");
-    renderHorizontalBars(ageBox, ageBins(records), { limit: 4 });
-    charts.appendChild(ageBox);
-
-    const assessorAgeBox = chartBox("Idade dos processos por assessor(a)");
-    renderAssessorAgeBars(assessorAgeBox, records);
-    charts.appendChild(assessorAgeBox);
+  function dashKpi(title, value, note, icon, color, soft) {
+    const el=createElement('div','');el.className='mtprev-mgmt-kpi';
+    const mark=createElement('div','');mark.className='mtprev-mgmt-kpiicon';
+    mark.style.setProperty('--icon-color',color);mark.style.setProperty('--icon-soft',soft);
+    mark.appendChild(dashIcon(icon));el.appendChild(mark);
+    const info=createElement('div','');info.className='mtprev-mgmt-kpibody';
+    const titleEl=createElement('div',title);titleEl.className='mtprev-mgmt-kpilabel';
+    const number=createElement('div',value);number.className='mtprev-mgmt-kpivalue';number.style.setProperty('--value-color',color);
+    const noteEl=createElement('div',note);noteEl.className='mtprev-mgmt-kpidetail';
+    info.append(titleEl,number,noteEl);el.appendChild(info);return el;
+  }
+  function dashChart(title,subtitle,icon,action) {
+    const box=createElement('section','');box.className='mtprev-mgmt-chart';
+    const head=createElement('div','');head.className='mtprev-mgmt-charthead';
+    const mark=createElement('div','');mark.className='mtprev-mgmt-charticon';mark.appendChild(dashIcon(icon));head.appendChild(mark);
+    const titlewrap=createElement('div','');
+    const titleNode=createElement('div',title);titleNode.className='mtprev-mgmt-charttitle';
+    const subNode=createElement('div',subtitle);subNode.className='mtprev-mgmt-chartsub';titlewrap.append(titleNode,subNode);head.appendChild(titlewrap);
+    if(action){const btn=createElement('button','Ver todos');btn.type='button';btn.addEventListener('click',action);head.appendChild(btn);}
+    box.appendChild(head);return box;
+  }
+  function dashBarRow(box,label,value,max,color,display) {
+    const row=createElement('div','');row.className='mtprev-mgmt-barrow';
+    const name=createElement('span',label);name.className='mtprev-mgmt-barlabel';name.title=label;
+    const track=createElement('div','');track.className='mtprev-mgmt-bartrack';
+    const fill=createElement('div','');fill.className='mtprev-mgmt-barfill';fill.style.background=color;
+    fill.style.width=(max ? Math.max(0,(value/max)*100):0)+'%';track.appendChild(fill);
+    const number=createElement('strong',display ?? String(value));number.className='mtprev-mgmt-barvalue';
+    row.append(name,track,number);box.appendChild(row);
+  }
+  function dashStackedRow(box,label,values,max,display) {
+    const row=createElement('div','');row.className='mtprev-mgmt-barrow';
+    const name=createElement('span',label);name.className='mtprev-mgmt-barlabel';name.title=label;
+    const track=createElement('div','');track.className='mtprev-mgmt-bartrack';
+    values.forEach(([count,color])=>{
+      const part=createElement('div','');part.style.height='100%';part.style.flex='0 0 '+(max ? Math.max(0,count/max*100) : 0)+'%';part.style.background=color;track.appendChild(part);
+    });
+    const number=createElement('strong',display);number.className='mtprev-mgmt-barvalue';
+    row.append(name,track,number);box.appendChild(row);
+  }
+  function dashLegend(box,parts) {
+    const legend=createElement('div','');legend.className='mtprev-mgmt-legend';
+    parts.forEach(([label,color])=>{
+      const span=createElement('span','');const dot=createElement('i','');dot.className='mtprev-mgmt-dot';dot.style.setProperty('--dot',color);
+      span.append(dot,createElement('span',label));legend.appendChild(span);
+    });box.appendChild(legend);
+  }
+  function dashDonut(box,records) {
+    const sectors=sectorCounts(records);const total=records.length;
+    const colors=['#176596','#3095b5','#3c93a2','#7b79b7','#c2a3d8','#e4ad53','#789db8'];
+    let current=0;const arcs=[];
+    const other={value:0};
+    sectors.forEach((item,index)=>{
+      const value=item.value;const next=current+(total ? value/total*100:0);
+      arcs.push(`${colors[index%colors.length]} ${current.toFixed(3)}% ${next.toFixed(3)}%`);current=next;
+    });
+    const wrap=createElement('div','');wrap.className='mtprev-mgmt-donutwrap';
+    const circle=createElement('div','');circle.className='mtprev-mgmt-donut';
+    circle.style.background=arcs.length ? `conic-gradient(${arcs.join(',')})` : '#e2eaf2';
+    const inside=createElement('div','');inside.className='mtprev-mgmt-donutcenter';inside.append(createElement('span',String(total)),createElement('small','processos'));
+    circle.appendChild(inside);wrap.appendChild(circle);
+    const legend=createElement('div','');legend.className='mtprev-mgmt-donutlegend';
+    sectors.slice(0,6).forEach((item,index)=>{
+      const row=createElement('div','');const dot=createElement('i','');dot.className='mtprev-mgmt-dot';dot.style.setProperty('--dot',colors[index%colors.length]);
+      const label=createElement('span',item.label);label.title=item.label;label.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px;';
+      row.append(dot,label,createElement('strong',String(item.value)));legend.appendChild(row);
+    });
+    if(sectors.length>6) legend.appendChild(createElement('small',`+ ${sectors.length-6} outros setores`));
+    wrap.appendChild(legend);box.appendChild(wrap);
+  }
+  function dashSummaryTable(container,summaries) {
+    const wrap=createElement('section','');wrap.className='mtprev-mgmt-tablewrap';
+    const head=createElement('div','');head.className='mtprev-mgmt-tablehead';
+    const title=createElement('strong','Resumo por assessor(a)');head.appendChild(title);
+    const search=createElement('input','');search.type='search';search.placeholder='Buscar assessor(a)…';search.setAttribute('aria-label','Buscar assessor(a)');head.appendChild(search);wrap.appendChild(head);
+    const table=createElement('table','');table.className='mtprev-mgmt-table';
+    const thead=document.createElement('thead');const tr=document.createElement('tr');
+    ['Assessor(a)','Setor','Total','Críticos','Em atenção','SPA até 8 dias','Média na caixa','Carga crítica'].forEach(label=>tr.appendChild(createElement('th',label)));
+    thead.appendChild(tr);table.appendChild(thead);
+    const tbody=document.createElement('tbody');table.appendChild(tbody);
+    const redraw=()=>{
+      tbody.replaceChildren();
+      const query=normalizeKey(search.value || '');
+      const selected=summaries.filter(item=>!query||normalizeKey(item.assessor).includes(query));
+      selected.slice(0,25).forEach(item=>{
+        const row=document.createElement('tr');
+        const values=[item.assessor,item.sector,item.total,item.critical,item.attention,item.pjeNear,item.averageReceivedText,item.criticalLoad];
+        values.forEach((value,index)=>{
+          const cell=createElement('td','');if(index===0) cell.style.fontWeight='800';
+          if([3,4,7].includes(index)){
+            const badge=createElement('span',String(value));badge.className='mtprev-mgmt-badge';
+            badge.style.setProperty('--badge-bg',index===3?'#ffebec':index===4?'#fff0d7':'#e0edf9');
+            badge.style.setProperty('--badge-color',index===3?'#ae2931':index===4?'#a26d1b':'#276b99');cell.appendChild(badge);
+          }else{cell.textContent=String(value);}if(index>=2&&index<=5) cell.classList.add('mtprev-mgmt-num');row.appendChild(cell);
+        });
+        row.title='Clique duas vezes para abrir o detalhamento deste assessor';
+        row.addEventListener('dblclick',()=>{
+          state.modal.detailAssessor=item.assessor;state.modal.selectedAssessor=item.assessor;
+          setSelectedAssessors([item.assessor],state.lastRecords||[]);state.modal.activeTab='detalhe';renderModalContent();
+        });tbody.appendChild(row);
+      });
+      if(!selected.length){const row=document.createElement('tr');const td=createElement('td','Nenhum assessor encontrado');td.colSpan=8;row.appendChild(td);tbody.appendChild(row);}
+    };
+    search.addEventListener('input',redraw);redraw();wrap.appendChild(table);container.appendChild(wrap);
+    container.appendChild(createElement('div','Até 25 assessores por vez. Para consulta completa, use a aba Assessores ou a exportação Excel.','font-size:11px;color:#7a90a5;margin:7px 2px 12px;'));
+  }
+  function renderOverview(container,records,reportDate) {
+    const metrics=generalMetrics(records,reportDate);
+    const summaries=buildAssessorSummaries(records,reportDate);
+    const kpis=createElement('div','');kpis.className='mtprev-mgmt-kpis';
+    [
+      ['Total de processos',String(metrics.total),'Na visão filtrada','file','#1766a0','#e6f3fe'],
+      ['Assessores com processos',String(metrics.assessors),'Com expedientes','users','#315f9d','#e6efff'],
+      ['Críticos',String(metrics.critical),'Conforme regras da extensão','alert','#cc3232','#fff0ef'],
+      ['Em atenção',String(metrics.attention),'Próximos dos limites','alert','#b87516','#fff1db'],
+      ['Prazo SPA até 8 dias',String(metrics.pjeNear),'Prazo próximo','clock','#2472bd','#e8f2ff'],
+      ['Mais de 20 dias na caixa',String(metrics.over20),'Processos antigos','calendar','#ba4a60','#ffeef1'],
+      ['Média na caixa',metrics.averageReceivedText,'Tempo desde recebimento','clock','#108779','#e0f5f1'],
+      ['Sem setor identificado',String(metrics.unmatchedTeam),'Revisar cadastro','building','#58718d','#eaf0f6']
+    ].forEach(item=>kpis.appendChild(dashKpi(...item)));container.appendChild(kpis);
+    const charts=createElement('div','');charts.className='mtprev-mgmt-charts';
+    const showAssessors=()=>{state.modal.activeTab='assessores';renderModalContent();};
+    const load=dashChart('Carga por assessor(a)','Quantidade de processos','users',showAssessors);
+    const bySize=summaries.slice().sort((a,b)=>b.total-a.total);
+    bySize.slice(0,8).forEach(x=>dashBarRow(load,x.assessor,x.total,Math.max(1,bySize[0]?.total||1),'linear-gradient(90deg,#234d8a,#2383ba)'));
+    charts.appendChild(load);
+    const risk=dashChart('Críticos x atenção por assessor(a)','Classificação dos processos','bars',showAssessors);
+    const byCritical=summaries.slice().sort((a,b)=>(b.critical+b.attention)-(a.critical+a.attention));
+    const maxRisk=Math.max(1,...byCritical.map(x=>x.critical+x.attention));
+    byCritical.slice(0,8).forEach(x=>dashStackedRow(risk,x.assessor,[[x.critical,'#d44440'],[x.attention,'#e9a640']],maxRisk,`${x.critical}C/${x.attention}A`));
+    dashLegend(risk,[['Críticos','#d44440'],['Em atenção','#e9a640']]);charts.appendChild(risk);
+    const sectors=dashChart('Processos por setor','Distribuição atual da mesa','building');dashDonut(sectors,records);charts.appendChild(sectors);
+    const categories=dashChart('Categorias por assessor(a)','Recursos · Contestação · Demais','layers',showAssessors);
+    const maxCat=Math.max(1,...bySize.map(x=>x.total));
+    bySize.slice(0,8).forEach(x=>dashStackedRow(categories,x.assessor,[[x.recursos,'#257bb3'],[x.contestacao,'#16a5ac'],[x.demais,'#8092a8']],maxCat,String(x.total)));
+    dashLegend(categories,[['Recursos','#257bb3'],['Contestação','#16a5ac'],['Demais','#8092a8']]);charts.appendChild(categories);
+    const age=dashChart('Permanência na caixa','Tempo desde o recebimento — não é prazo PJe','clock');
+    const bins=ageBins(records);const maxAge=Math.max(1,...bins.map(x=>x.value));
+    bins.forEach((x,i)=>dashBarRow(age,x.label,x.value,maxAge,['#259d80','#418dd0','#e9a83f','#cc4d4d'][i],`${x.value}`));charts.appendChild(age);
+    const pressure=dashChart('Situação da mesa','Críticos, atenção e demais','chart');
+    const regular=Math.max(0,metrics.total-metrics.critical-metrics.attention);
+    const maxPressure=Math.max(1,metrics.total);
+    [['Críticos',metrics.critical,'#d44440'],['Em atenção',metrics.attention,'#e9a640'],['Demais',regular,'#268a90'],['Prazo SPA até 8 dias',metrics.pjeNear,'#3b88d3'],['+20 dias na caixa',metrics.over20,'#b66a7d']]
+      .forEach(([label,value,color])=>dashBarRow(pressure,label,value,maxPressure,color,`${value}`));
+    charts.appendChild(pressure);
     container.appendChild(charts);
+    const note=createElement('p','Indicadores calculados a partir da visão filtrada atual. Não há histórico mensal armazenado; por isso não é exibida uma evolução fictícia.');note.className='mtprev-mgmt-note';container.appendChild(note);
+    dashSummaryTable(container,summaries);
   }
 
   function toggleTableSort(sortName, key) {
@@ -3630,141 +3828,93 @@
 
   function openManagementReport(records, reportDate) {
     closeModal();
-    state.lastRecords = records;
-    state.lastReportDate = reportDate;
-    state.modal.activeTab = "visao";
-    state.modal.selectedSectors = sectorOptions(records);
-    state.modal.selectedAssessor = "todos";
-    state.modal.selectedAssessors = assessorOptions(records);
-    state.modal.selectedCategory = "todos";
-    state.modal.selectedCategories = CATEGORY_ORDER.slice();
-    state.modal.selectedInboxType = "todos";
-    state.modal.selectedInboxTypes = INBOX_TYPE_ORDER.slice();
-    state.modal.selectedRiskReasons = riskReasonOptions(records).map((item) => item.value);
-    state.modal.onlyCritical = false;
-    state.modal.detailAssessor = assessorOptions(records)[0] || "";
-    state.modal.assessorSort = { key: "", direction: "asc" };
-    state.modal.recordSort = { key: "", direction: "asc" };
-
-    const overlay = createElement(
-      "div",
-      "",
-      "position:fixed;inset:0;z-index:999999;background:rgba(10,14,20,.58);display:flex;align-items:flex-start;justify-content:center;" +
-        "padding:18px 6px;box-sizing:border-box;overflow:auto;font-family:Arial,sans-serif;"
-    );
-    overlay.id = CONFIG.modalId;
-    overlay.setAttribute("role", "dialog");
-    overlay.setAttribute("aria-modal", "true");
-
-    const dialog = createElement(
-      "div",
-      "",
-      "width:min(1780px,calc(100vw - 8px));background:#fff;color:#1c2b39;border-radius:8px;border:1px solid #d2dae8;" +
-        "box-shadow:0 18px 55px rgba(0,0,0,.35);padding:12px 12px 18px;box-sizing:border-box;"
-    );
-
-    const toolbar = createElement(
-      "div",
-      "",
-      "display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;"
-    );
-    const billingGroup = createElement(
-      "div",
-      "",
-      "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-right:auto;"
-    );
-    Object.keys(EMAIL_ALERT_TYPES).forEach((key) => {
-      const item = EMAIL_ALERT_TYPES[key];
-      const alertButton = createElement("button", item.button, buttonCss("#0f766e"));
-      alertButton.type = "button";
-      alertButton.title = "Montar mensagens de cobrança usando os dados deste relatório.";
-      alertButton.addEventListener("click", () => generateBillingAlerts(key));
-      billingGroup.appendChild(alertButton);
-    });
-
-    const pdfButton = createElement("button", "Imprimir / salvar PDF", buttonCss("#26317d"));
-    pdfButton.type = "button";
-    pdfButton.addEventListener("click", () => {
-      setStatus("Abrindo impressão...");
-      log("Use a opção Salvar como PDF na janela de impressão do Chrome.", "ok");
-      window.print();
-      setStatus("Impressão aberta");
-    });
-
-    const excelButton = createElement("button", "Exportar Excel", buttonCss("#107c41"));
-    excelButton.type = "button";
-    excelButton.addEventListener("click", () => {
-      setStatus("Gerando Excel gerencial...");
-      generateExcel(filteredRecords(records), reportDate)
-        .then(() => {
-          setStatus("Excel gerado");
-          log("Excel gerencial gerado.", "ok");
-        })
-        .catch((error) => {
-          const message = error && error.message ? error.message : String(error);
-          setStatus("Erro ao gerar Excel");
-          log(message, "error");
-          window.alert("Nao foi possivel gerar o Excel: " + message);
-        });
-    });
-
-    const closeButton = createElement("button", "Fechar", buttonCss("#425466"));
-    closeButton.type = "button";
-    closeButton.addEventListener("click", closeModal);
-    toolbar.appendChild(billingGroup);
-    toolbar.appendChild(pdfButton);
-    toolbar.appendChild(excelButton);
-    toolbar.appendChild(closeButton);
-    dialog.appendChild(toolbar);
-
-    if (CONFIG.headerImageUrl) {
-      const headerWrap = document.createElement("div");
-      headerWrap.style.cssText =
-        "display:flex;align-items:center;justify-content:center;width:100%;height:112px;" +
-        "background:#272f7e;margin:0 0 10px;overflow:hidden;";
-      const header = document.createElement("img");
-      header.src = CONFIG.headerImageUrl;
-      header.alt = "CDSP PGE-MT";
-      header.style.cssText =
-        "display:block;width:auto;height:94px;max-width:calc(100% - 24px);" +
-        "object-fit:contain;object-position:center;background:#272f7e;border-radius:0;margin:0;";
-      headerWrap.appendChild(header);
-      dialog.appendChild(headerWrap);
-    }
-
-    dialog.appendChild(
-      createElement(
-        "h2",
-        "Painel Gerencial de Processos - CDSP",
-        "margin:0 0 6px;text-align:center;color:#00245b;font-size:23px;line-height:1.2;"
-      )
-    );
-    const metrics = generalMetrics(records, reportDate);
-    dialog.appendChild(
-      createElement(
-        "div",
-        "Gerado em " +
-          formatDateTime(new Date()) +
-          " | Processos: " +
-          metrics.total +
-          " | Assessores: " +
-          metrics.assessors +
-          " | Setores: " +
-          metrics.sectors +
-          " | Criticos: " +
-          metrics.critical +
-          " | Atencao: " +
-          metrics.attention,
-        "margin:0 0 10px;text-align:center;color:#344252;font-size:12px;"
-      )
-    );
-
-    const content = createElement("div", "", "");
-    content.id = "spa-cdsp-management-modal-content";
-    dialog.appendChild(content);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
+    ensureManagementDashboardStyles();
+    state.lastRecords=records;state.lastReportDate=reportDate;
+    state.modal.activeTab='visao';
+    state.modal.selectedSectors=sectorOptions(records);
+    state.modal.selectedAssessor='todos';state.modal.selectedAssessors=assessorOptions(records);
+    state.modal.selectedCategory='todos';state.modal.selectedCategories=CATEGORY_ORDER.slice();
+    state.modal.selectedInboxType='todos';state.modal.selectedInboxTypes=INBOX_TYPE_ORDER.slice();
+    state.modal.selectedRiskReasons=riskReasonOptions(records).map(item=>item.value);
+    state.modal.onlyCritical=false;state.modal.detailAssessor=assessorOptions(records)[0]||'';
+    state.modal.assessorSort={key:'',direction:'asc'};state.modal.recordSort={key:'',direction:'asc'};
+    const overlay=createElement('div','');overlay.id=CONFIG.modalId;
+    overlay.className='mtprev-mgmt-overlay';overlay.setAttribute('role','dialog');
+    overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Painel Gerencial de Processos - CDSP');
+    const dialog=createElement('div','');dialog.className='mtprev-mgmt-dialog';
+    const header=createElement('header','');header.className='mtprev-mgmt-head';
+    const brand=createElement('div','');brand.className='mtprev-mgmt-brand';
+    if(CONFIG.headerImageUrl){const img=document.createElement('img');img.src=CONFIG.headerImageUrl;img.alt='MTPrev';brand.appendChild(img);}
+    else{brand.textContent='MTPrev';brand.style.fontSize='23px';brand.style.fontWeight='850';}
+    header.appendChild(brand);
+    const heading=createElement('div','');heading.className='mtprev-mgmt-headline';
+    heading.appendChild(createElement('h2','Painel Gerencial de Processos - CDSP'));
+    const metrics=generalMetrics(records,reportDate);
+    heading.appendChild(createElement('small',
+      `Gerado em ${formatDateTime(new Date())} · ${metrics.total} processos · ${metrics.assessors} assessores · ${metrics.critical} críticos · ${metrics.attention} em atenção`));
+    header.appendChild(heading);
+    const actions=createElement('div','');actions.className='mtprev-mgmt-actions';
+    const billing=createElement('div','');billing.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
+    Object.keys(EMAIL_ALERT_TYPES).forEach(key=>{
+      const btn=createElement('button',EMAIL_ALERT_TYPES[key].button);btn.type='button';
+      btn.title='Preparar cobranças a partir do relatório; não envia automaticamente.';
+      btn.addEventListener('click',()=>generateBillingAlerts(key));billing.appendChild(btn);
+    });actions.appendChild(billing);
+    const pdfButton=createElement('button','Imprimir / salvar PDF');pdfButton.type='button';
+    pdfButton.addEventListener('click',()=>{setStatus('Abrindo impressão...');window.print();});
+    actions.appendChild(pdfButton);
+    const excelButton=createElement('button','Exportar Excel');excelButton.type='button';
+    excelButton.addEventListener('click',()=>{
+      excelButton.disabled=true;excelButton.textContent='Exportando…';
+      generateExcel(filteredRecords(state.lastRecords||[]),state.lastReportDate||startOfToday())
+        .then(()=>{setStatus('Excel gerado');log('Excel gerencial gerado.','ok');})
+        .catch(error=>{log(error?.message||String(error),'error');window.alert('Erro ao exportar Excel: '+(error?.message||String(error)));})
+        .finally(()=>{excelButton.disabled=false;excelButton.textContent='Exportar Excel';});
+    });actions.appendChild(excelButton);
+    const closeButton=createElement('button','Fechar');closeButton.type='button';closeButton.className='mtprev-mgmt-close';
+    closeButton.addEventListener('click',closeModal);actions.appendChild(closeButton);
+    header.appendChild(actions);dialog.appendChild(header);
+    const body=createElement('div','');body.className='mtprev-mgmt-body';
+    const content=createElement('div','');content.id='spa-cdsp-management-modal-content';
+    body.appendChild(content);dialog.appendChild(body);overlay.appendChild(dialog);document.body.appendChild(overlay);
+    overlay.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();closeModal();}});
     renderModalContent();
+    closeButton.focus({preventScroll:true});
+  }
+
+  // Acao do radial: apresenta uma janela de geracao antes de consultar a mesa.
+  // As consultas permanecem sob decisao explicita do usuario.
+  function openManagementLauncher() {
+    ensureManagementDashboardStyles();
+    document.getElementById('mtprev-management-launcher')?.remove();
+    const overlay=createElement('div','');overlay.id='mtprev-management-launcher';
+    overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
+    overlay.setAttribute('aria-label','Gerar painel gerencial');
+    const dialog=createElement('div','');dialog.className='mtprev-launch-dialog';
+    const head=createElement('div','Painel Gerencial · MTPrev');head.className='mtprev-launch-head';dialog.appendChild(head);
+    const body=createElement('div','');body.className='mtprev-launch-body';
+    body.appendChild(createElement('div','Gerar os indicadores e gráficos usando os processos da visão atual do SPA. A coleta considera os filtros da mesa e pode levar alguns segundos.'));
+    const hint=createElement('p','O relatório não altera expedientes. A exportação Excel continua disponível após gerar.');
+    hint.style.cssText='font-size:12px;color:#67809a;margin:11px 0 0;';body.appendChild(hint);
+    const status=createElement('p','');status.style.cssText='color:#315c7b;font-size:12px;min-height:18px;';
+    body.appendChild(status);
+    const actions=createElement('div','');actions.className='mtprev-launch-actions';
+    const cancel=createElement('button','Cancelar');cancel.type='button';cancel.addEventListener('click',()=>overlay.remove());actions.appendChild(cancel);
+    if(Array.isArray(state.lastRecords)&&state.lastRecords.length){
+      const reuse=createElement('button','Reabrir último');reuse.type='button';
+      reuse.addEventListener('click',()=>{overlay.remove();openManagementReport(state.lastRecords,state.lastReportDate||startOfToday());});actions.appendChild(reuse);
+    }
+    const generate=createElement('button','Gerar painel gerencial');generate.type='button';generate.className='mtprev-launch-primary';
+    generate.addEventListener('click',async()=>{
+      if(state.running) return;
+      generate.disabled=true;generate.textContent='Lendo mesa de trabalho…';cancel.disabled=true;
+      status.textContent='Consultando os processos e preparando os indicadores…';
+      try { await generateManagementReport(); }
+      finally {if(overlay.isConnected){generate.disabled=false;cancel.disabled=false;generate.textContent='Gerar painel gerencial';status.textContent='Consulta encerrada. Se houve erro, confira o aviso da extensão.';}}
+    });actions.appendChild(generate);body.appendChild(actions);dialog.appendChild(body);overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('keydown',event=>{if(event.key==='Escape'&&!state.running){overlay.remove();}});
+    generate.focus({preventScroll:true});
   }
 
   function buttonCss(background) {
@@ -3991,6 +4141,7 @@
         log(unmatched + " assessor(es)/processo(s) sem setor identificado automaticamente.", "error");
       }
       setStatus("Gerando painel...");
+      document.getElementById('mtprev-management-launcher')?.remove();
       openManagementReport(records, result.reportDate);
       window.SpaAdapter?.showCollectionSummary(document.querySelector("#" + CONFIG.modalId + " > div"), result.coverage);
       setStatus("Painel gerado");
@@ -4361,5 +4512,6 @@
     log("Painel carregado. Versao " + CONFIG.version + ".", "ok");
   }
 
+  document.addEventListener('mtprev:management:open', openManagementLauncher);
   createPanel();
 })();
