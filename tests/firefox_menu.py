@@ -6,6 +6,7 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--firefox', default='/usr/lib64/firefox/firefox' if Path('/usr/lib64/firefox/firefox').exists() else shutil.which('firefox'))
 parser.add_argument('--store-assets', action='store_true', help='Captura a interface real com dados fictícios para a ficha da loja')
+parser.add_argument('--autos', action='store_true', help='Testa autos e capa com PDF fictício e extensão real')
 args = parser.parse_args()
 if not args.firefox:
     parser.error('Informe o executavel do Firefox com --firefox')
@@ -16,8 +17,34 @@ with socket.socket() as port_probe:
 profile = Path(tempfile.mkdtemp(prefix='mtprev-firefox-ui-'))
 extension = profile / 'extension'
 shutil.copytree(root / 'dist/firefox', extension)
+if args.autos:
+    subprocess.run(['node', '-e', """
+      const fs=require('node:fs'),lib=require(process.argv[1]);
+      (async()=>{const pdf=await lib.PDFDocument.create();
+        const font=await pdf.embedFont(lib.StandardFonts.Helvetica);
+        pdf.addPage(lib.PageSizes.A4).drawText('Documento fictício para consulta.',{x:42,y:740,font,size:12});
+        fs.writeFileSync(process.argv[2],await pdf.save());})();
+    """, str(root / 'js/libs/pdf-lib.min.js'), str(profile / 'fixture.pdf')], check=True)
 class Fixture(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        if args.autos:
+            request_path = urlsplit(self.path).path
+            content_type = 'text/html; charset=utf-8'
+            if request_path == '/fixture.pdf':
+                content_type = 'application/pdf'
+                content = (profile / 'fixture.pdf').read_bytes()
+            elif request_path == '/workspace/processes/123/timeline':
+                content_type = 'application/json'
+                content = json.dumps({'html':'<article data-workspace-preview-filter-item>Documento fictício 27/10/2026 <a href="/fixture.pdf">Documento de teste</a></article>'}).encode()
+            elif request_path == '/judicial_processes/123/documents':
+                content = b'<div id="tree-documents-list"><a class="document-link" id="document-1" href="/fixture.pdf" title="Documento ficticio">Documento ficticio</a></div>'
+            else:
+                content = (root / 'tests/fixtures/autos.html').read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.end_headers()
+            self.wfile.write(content)
+            return
         asset = (root / urlsplit(self.path).path.lstrip('/')).resolve()
         if args.store_assets and asset.is_file() and any(folder in asset.parents for folder in [root / 'store', root / 'images']):
             self.send_response(200)
@@ -40,6 +67,7 @@ class Fixture(http.server.BaseHTTPRequestHandler):
 server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Fixture)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 url = 'http://127.0.0.1:%d/procedures' % server.server_port
+if args.autos: url += '/123'
 manifest = json.loads((extension / 'manifest.json').read_text())
 manifest['host_permissions'].append('http://127.0.0.1/*')
 manifest['content_scripts'][0]['matches'].append('http://127.0.0.1/*')
@@ -76,6 +104,25 @@ def execute(script, async_=False):
 
 def inspect():
     return execute("""return {shell: !!document.getElementById('cdsp-general-shell'), panel: !!document.getElementById('spa-cdsp-panel'), status: document.querySelector('.cdsp-general-shell__status')?.textContent, caption: document.querySelector('.mtprev-orbit__context')?.textContent, options: [...document.querySelectorAll('.mtprev-context-nav > button')].map(b=>b.textContent), ring: [...document.querySelectorAll('.mtprev-orbit__item')].map(b=>b.textContent)};""")
+
+def click_orbit(label):
+    # O submenu tem páginas; Registro pode ficar depois de Mais opções.
+    for _ in range(10):
+        outcome = execute("""
+          const label = LABEL;
+          const item = [...document.querySelectorAll('.mtprev-orbit__item')].find(b=>b.textContent===label);
+          if (item) { item.click(); return 'clicked'; }
+          const buttons = [...document.querySelectorAll('#cdsp-general-shell button')];
+          const next = buttons.find(b=>b.textContent==='Mais opções' && !b.hidden);
+          if (next) { next.click(); return 'page'; }
+          const previous = buttons.find(b=>b.textContent==='Opções anteriores' && !b.hidden);
+          if (previous) { previous.click(); return 'page'; }
+          return 'missing';
+        """.replace('LABEL', json.dumps(label)))
+        if outcome == 'clicked': return
+        if outcome == 'missing': break
+        time.sleep(.1)
+    raise AssertionError('Opção da mandala ausente: ' + label)
 
 def store_assets():
     output = root / 'store/assets'
@@ -122,6 +169,20 @@ try:
     command('WebDriver:Navigate', {'url': url})
     time.sleep(.5)
     print('INITIAL', inspect())
+    if args.autos:
+        for _ in range(100):
+            autos = execute("""const p=document.getElementById('spa-cdsp-external-docs-panel');return {loaded:p?.dataset.loaded,status:p?.querySelector('.spa-cdsp-external-docs-status')?.textContent,cover:[...p?.querySelectorAll('label')||[]].some(l=>l.textContent.includes('Incluir capa MTPrev'))};""")
+            if autos.get('loaded') == '1' and autos['cover']: break
+            time.sleep(.1)
+        assert autos.get('loaded') == '1' and autos['cover'], autos
+        execute("""const p=document.getElementById('spa-cdsp-external-docs-panel');const c=[...p.querySelectorAll('label')].find(l=>l.textContent.includes('Incluir capa MTPrev')).querySelector('input');if(c.checked)throw Error('Capa deve iniciar desmarcada');c.click();const b=p.querySelector('.spa-cdsp-external-docs-open-all');b.click();const wrap=b.closest('.spa-cdsp-external-docs-process-wrap');[...wrap.querySelectorAll('button')].find(b=>b.textContent==='Unificado').click();[...wrap.querySelectorAll('button')].find(b=>b.textContent==='Crescente').click();""")
+        for _ in range(200):
+            result = execute("""const p=document.getElementById('spa-cdsp-external-docs-panel');return {busy:p.dataset.openingAll,text:p.textContent,library:!!window.wrappedJSObject.MTPrevPdfCover};""")
+            if result.get('busy') == '0': break
+            time.sleep(.1)
+        assert result['library'] and 'com capa MTPrev com 2 pagina(s)' in result['text'], result
+        print('PASS autos reais: andamentos carregados, capa opcional, biblioteca sob demanda e PDF com 2 páginas')
+        raise SystemExit(0)
     if args.store_assets:
         store_assets()
         raise SystemExit(0)
@@ -159,7 +220,7 @@ try:
     print('TRIAGE', triage)
     assert triage['options'] == ['Triagem', 'Duplicados', 'Peças', 'Filtros', 'Programada', 'Registro'], triage
     for label, tab in [('Triagem','triagem'),('Duplicados','duplicados'),('Peças','pecas'),('Filtros','filtros'),('Programada','programada'),('Registro','registro')]:
-        execute("[...document.querySelectorAll('.mtprev-orbit__item')].find(b => b.textContent === LABEL).click();".replace('LABEL',json.dumps(label)))
+        click_orbit(label)
         execute("document.querySelectorAll('.mtprev-context-pages details').forEach(d=>d.open=true);")
         state = execute("""return {active: document.querySelector('.mtprev-context-pages').dataset.activeTab, panelVisible: document.getElementById('spa-cdsp-panel').checkVisibility(), buttons: [...document.querySelectorAll('#spa-cdsp-panel button')].filter(b=>b.checkVisibility()).map(b=>b.textContent), backVisible: document.querySelector('.mtprev-orbit__back').checkVisibility()};""")
         print('PASS submenu:', label)
@@ -170,8 +231,8 @@ try:
     team = execute("const done = arguments[arguments.length-1]; window.wrappedJSObject.SPA_CDSP_TEAM_DATABASE.loadActiveNames().then(names => done({count:names.length}), error => done({error:String(error)}));", True)
     print('TEAM_DATABASE', team)
     assert team.get('count',0) > 0, team
-    execute("[...document.querySelectorAll('.mtprev-orbit__item')].find(b => b.textContent === 'Duplicados').click();")
-    execute("[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>b.textContent==='Relatorio Duplicados').click();")
+    click_orbit('Duplicados')
+    execute("[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>['Gerar Relatório','Relatorio Duplicados'].includes(b.textContent)).click();")
     for _ in range(200):
         report = execute("return {ready:!!document.getElementById('spa-cdsp-duplicate-report-overlay'), progress:document.querySelector('.mtprev-duplicates-loading')?.textContent, busy:document.querySelector('.mtprev-duplicates-page').getAttribute('aria-busy')};")
         if report['busy'] == 'false': break
@@ -213,12 +274,12 @@ try:
     execute("document.getElementById('cdsp-general-shell').removeAttribute('data-mt-theme');document.documentElement.classList.add('cdsp-spa-dark-mode');")
     assert execute(contrast_script)['scheme'] == 'dark'
     print('PASS tema escuro da página aplicado também aos botões do relatório')
-    execute("document.getElementById('spa-cdsp-duplicate-report-overlay').remove();window.wrappedJSObject.fixture.fail=true;[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>b.textContent==='Relatorio Duplicados').click();")
+    execute("document.getElementById('spa-cdsp-duplicate-report-overlay').remove();window.wrappedJSObject.fixture.fail=true;[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>['Gerar Relatório','Relatorio Duplicados'].includes(b.textContent)).click();")
     time.sleep(.2)
     failure = execute("const n=document.querySelector('.mtprev-duplicates-page .mtprev-duplicates-loading');return {text:n.textContent,visible:n.checkVisibility(),role:n.getAttribute('role'),busy:document.querySelector('.mtprev-duplicates-page').getAttribute('aria-busy'),retry:!document.querySelector('.mtprev-duplicates-page button').disabled};")
     assert failure['visible'] and failure['role'] == 'alert' and failure['busy'] == 'false' and failure['retry'] and 'Falha simulada' in failure['text'], failure
     print('PASS falha aparece no painel de duplicados e permite tentar novamente')
-    execute("window.wrappedJSObject.fixture.fail=false;window.wrappedJSObject.fixture.hang=true;window.wrappedJSObject.dtProceduresBox.page(0).draw();[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>b.textContent==='Relatorio Duplicados').click();")
+    execute("window.wrappedJSObject.fixture.fail=false;window.wrappedJSObject.fixture.hang=true;window.wrappedJSObject.dtProceduresBox.page(0).draw();[...document.querySelectorAll('.mtprev-duplicates-page button')].find(b=>['Gerar Relatório','Relatorio Duplicados'].includes(b.textContent)).click();")
     for _ in range(230):
         stalled = execute("const p=document.querySelector('.mtprev-duplicates-page');return {busy:p.getAttribute('aria-busy'),text:p.querySelector('.mtprev-duplicates-loading').textContent,ready:!!document.getElementById('spa-cdsp-duplicate-report-overlay')};")
         if stalled['busy'] == 'false': break

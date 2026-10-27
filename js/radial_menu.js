@@ -46,6 +46,23 @@
     const context = create('span', 'mtprev-orbit__context', 'MTPrev', tools);
     context.setAttribute('aria-live', 'polite');
     let expanded = false, module = null, generation = 0, page = 0;
+    // A opção ativa pertence à aba do SPA; permanece após recarregar,
+    // mas não afeta outras abas, contas ou páginas diferentes.
+    const LAST_VIEW_KEY='mtprev.radial.active-view.v1';
+    const viewScope=()=>`${location.origin}${location.pathname}|${new URLSearchParams(location.search).get('user_id') || ''}`;
+    const saveView=(option='')=>{
+      try {
+        if(!module){sessionStorage.removeItem(LAST_VIEW_KEY);return;}
+        sessionStorage.setItem(LAST_VIEW_KEY,JSON.stringify({scope:viewScope(),moduleKey:module.key,option}));
+      } catch (_error) {}
+    };
+    const loadView=()=>{
+      try {
+        const data=JSON.parse(sessionStorage.getItem(LAST_VIEW_KEY)||'null');
+        return data && data.scope===viewScope() && typeof data.moduleKey==='string' ? data : null;
+      } catch (_error){return null;}
+    };
+
     const previous = create('button', '', 'Opções anteriores', tools); previous.type = 'button';
     const next = create('button', '', 'Mais opções', tools); next.type = 'button';
     previous.classList.add('mtprev-orbit__previous'); next.classList.add('mtprev-orbit__next');
@@ -100,6 +117,7 @@
       api.expand();
       context.textContent = module?.title || 'MTPrev';
       theme.textContent = label || target?.textContent.trim() || module?.title || '';
+      saveView(theme.textContent);
       back.hidden = false; back.textContent = 'Voltar'; header.appendChild(back);
       if (target) target.click();
       const activePane = shell.querySelector('[data-cdsp-module-pane]:not([hidden])');
@@ -209,8 +227,8 @@
       timer = setTimeout(() => { if (!expanded) { shell.classList.remove('mtprev-radial-operational', 'mtprev-panel-leaving'); shell.classList.add('mtprev-radial-compact'); clamp(); } }, delay());
       center.focus({ preventScroll: true });
     }
-    async function select(item) {
-      collapseItems(); module = item; page = 0; const token = ++generation;
+    async function select(item, restoreOption = '') {
+      collapseItems(); module = item; page = 0; saveView(); const token = ++generation;
       context.textContent = `Carregando ${item.title}…`; back.hidden = false;
       api.load(item.key);
       const started = performance.now();
@@ -223,7 +241,20 @@
         context.classList.add('is-notice');
         return;
       }
+      // Coordenação abre diretamente a janela de gerar o painel gerencial.
+      // Não inicia coleta sem que o usuário clique em Gerar.
+      if (item.key === 'gestao') {
+        document.dispatchEvent(new Event('mtprev:management:open'));
+        module = null;
+        saveView();
+        close();
+        return;
+      }
       open();
+      if(restoreOption){
+        const choice=options().find(entry=>entry.title===restoreOption);
+        if(choice) choice.run();
+      }
     }
     center.addEventListener('click', (event) => {
       if (suppressClick && event.detail !== 0) { event.preventDefault(); suppressClick = false; return; }
@@ -232,9 +263,9 @@
     });
     shell.addEventListener('mtprev-close-drawer', close);
     back.addEventListener('click', () => {
-      if (shell.classList.contains('mtprev-radial-operational')) { open(); return; }
+      if (shell.classList.contains('mtprev-radial-operational')) { saveView(); open(); return; }
       collapseItems(); const token = ++generation;
-      clearTimeout(timer); timer = setTimeout(() => { if (token === generation) { module = null; page = 0; open(); } }, delay());
+      clearTimeout(timer); timer = setTimeout(() => { if (token === generation) { module = null; saveView(); page = 0; open(); } }, delay());
     });
     previous.addEventListener('click', () => { page--; paint(entries()); });
     next.addEventListener('click', () => { page++; paint(entries()); });
@@ -292,6 +323,11 @@
     new MutationObserver(extras).observe(nav, { childList: true }); extras();
     ring.inert = true; back.hidden = true;
     shell.classList.add('mtprev-radial-compact'); layout(); clamp();
+    const lastView=loadView();
+    if(lastView){
+      const item=api.modules.find(entry=>entry.key===lastView.moduleKey);
+      if(item) requestAnimationFrame(()=>{void select(item,lastView.option || '');});
+    }
   };
 })();
 

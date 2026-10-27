@@ -1,4 +1,4 @@
-MTPrev - Extensão Geral — versão 2.0.72
+MTPrev - Extensão Geral — versão 0.0.1
 Desenvolvedor: Arthur Costa Dias | arthurcostadias1@gmail.com
 
 PROPÓSITO ÚNICO

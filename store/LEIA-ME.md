@@ -1,12 +1,12 @@
 # Publicar a MTPrev na Chrome Web Store
 
-Pacote: `dist/mtprev-2.0.72-chrome-web-store.zip`, relativo à raiz do projeto. O ZIP contém `manifest.json` diretamente na raiz e somente os arquivos da lista `scripts/runtime-files.js`. Não envie o projeto inteiro nem o ZIP antigo.
+Pacote: `dist/mtprev-0.0.1-chrome-web-store.zip`, relativo à raiz do projeto. O ZIP contém `manifest.json` diretamente na raiz e somente os arquivos da lista `scripts/runtime-files.js`. Não envie o projeto inteiro nem o ZIP antigo.
 
 ## Arquivos para o painel
 
 | Campo | Arquivo |
 | --- | --- |
-| Extensão | `../dist/mtprev-2.0.72-chrome-web-store.zip` |
+| Extensão | `../dist/mtprev-0.0.1-chrome-web-store.zip` |
 | Nome e descrição | `FICHA_DA_LOJA.md` |
 | Propósito, permissões e dados | `../JUSTIFICATIVAS_PRIVACIDADE_CHROME_WEB_STORE.txt` |
 | Política a hospedar | `../privacy.html` |
@@ -30,6 +30,20 @@ Pacote: `dist/mtprev-2.0.72-chrome-web-store.zip`, relativo à raiz do projeto. 
 4. Envie ícone, imagem promocional e capturas. Informe a URL pública da política e os textos de privacidade/permissões.
 5. Preencha as instruções de teste para a análise. O SPA/SIGADOC exigem autenticação: se o Google pedir acesso, forneça uma conta de demonstração autorizada no campo privado do painel. Não coloque credenciais no código, na descrição pública ou nas imagens. Consulte `INSTRUCOES_REVISAO.md`.
 6. Confira os campos obrigatórios apontados pelo painel e envie para revisão. A conta, a hospedagem, o upload e o envio à análise ficam a cargo do desenvolvedor. Não foram executados automaticamente.
+
+## Versões e tags
+
+A numeração própria da MTPrev começa em `0.0.1`, substituindo a numeração herdada da extensão usada como base. O histórico Git é preservado.
+
+Para cada lançamento, atualize `version` e `version_name` no `manifest.json`, mantenha as referências de versão na documentação consistentes e gere um novo pacote. Os empacotadores de Chrome e Firefox leem a versão do manifesto.
+
+Use tags no formato `v0.0.1`, `v0.0.2` etc. Depois de validar e criar o commit do lançamento, crie a tag correspondente:
+
+```bash
+git tag -a v0.0.1 -m "MTPrev 0.0.1"
+```
+
+A tag identifica o commit do lançamento; ela não publica a extensão na loja. Para as próximas versões, aumente a numeração. O reinício em `0.0.1` se destina à primeira publicação própria: versões inferiores não atualizam instalações com uma versão maior sob a mesma identidade de extensão. Consulte as [regras de versão do Chrome](https://developer.chrome.com/docs/extensions/reference/manifest/version).
 
 ## Gerar novamente
 

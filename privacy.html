@@ -8,7 +8,7 @@
 </head>
 <body>
   <h1>Política de privacidade</h1>
-  <p><strong>MTPrev - Extensão Geral</strong><br><small>Atualizada em 22 de outubro de 2026 · versão 2.0.72</small></p>
+  <p><strong>MTPrev - Extensão Geral</strong><br><small>Atualizada em 27 de outubro de 2026 · versão 2.0.72</small></p>
   <p>A extensão é mantida por <strong>Arthur Costa Dias</strong>. Contato para suporte e privacidade: <a href="mailto:arthurcostadias1@gmail.com">arthurcostadias1@gmail.com</a>.</p>
   <h2>Finalidade e acesso</h2>
   <p>A extensão auxilia usuários autorizados na organização e tramitação de processos no SPA e na elaboração de documentos no SIGADOC. Ela utiliza o acesso que o usuário já possui nesses sistemas e não fornece contas, senhas ou acesso a processos restritos.</p>
@@ -23,11 +23,13 @@
     <li><strong>SPA e SIGADOC:</strong> leituras e ações de trabalho, incluindo preenchimento, assinatura e tramitação, são realizadas nos sistemas correspondentes com a sessão do usuário, quando ele aciona os recursos ou programa as rotinas.</li>
     <li><strong>PJe/TJMT:</strong> documentos e páginas são acessados para as consultas e pesquisas solicitadas, conforme as permissões do usuário.</li>
     <li><strong>Serviço externo de andamentos:</strong> desativado por padrão. Após o usuário configurar um endereço e autorizar expressamente nas opções, a extensão envia número do processo e instância para <code>pje-mcp-worker-tjmt.joaooliveira.workers.dev</code>. A finalidade é consultar andamentos, expedientes e dados de cabeçalho do processo. O acompanhamento pode repetir essas consultas em segundo plano enquanto estiver ativo. Como em qualquer conexão HTTPS, o serviço recebe dados técnicos da conexão, como o endereço IP. Esse serviço é administrado separadamente; consulte seu administrador sobre a retenção e o tratamento no servidor antes de autorizá-lo. A extensão não controla nem apaga os registros mantidos por ele.</li>
+    <li><strong>Alertas por e-mail Microsoft 365:</strong> desativados por padrão e opcionais. Quando o usuário configura Client ID, Tenant ID, destinatário, conecta sua conta Microsoft por OAuth e autoriza explicitamente o envio automático, novos andamentos identificados no acompanhamento podem gerar mensagens à Microsoft Graph e ao destinatário. As mensagens contêm número CNJ, data e descrições de movimentações; não incluem anexos PDF. A primeira consulta apenas cria referência e não envia mensagens. A Microsoft e o destinatário passam a tratar o conteúdo da mensagem conforme suas próprias políticas.</li>
     <li><strong>Google Docs:</strong> quando o usuário escolhe gerar uma minuta no fluxo de Simples Encerramento, o texto gerado é inserido no documento aberto para esse fluxo e passa a ser tratado pelo Google Docs. A extensão não faz leitura geral dos documentos da conta.</li>
   </ul>
   <p>O endereço configurado para o serviço de andamentos pode conter uma chave de acesso. Ele é salvo apenas no armazenamento local da extensão. Desativar o serviço nas opções apaga esse endereço e impede novas consultas ao serviço; uma requisição já iniciada pode terminar.</p>
   <h2>Uso limitado e compartilhamento</h2>
   <p>A extensão não vende dados, não inclui publicidade ou análise de uso e não envia relatórios ou PDFs ao desenvolvedor. O tratamento descrito aqui serve às funcionalidades apresentadas ao usuário. Dados não são utilizados para publicidade, avaliação de crédito ou finalidades sem relação com o apoio ao trabalho processual. O uso e a transferência de informações observam a Política de Dados do Usuário da Chrome Web Store, incluindo os requisitos de Uso Limitado.</p>
+  <p>Os identificadores públicos do aplicativo Microsoft Entra e o destinatário ficam no armazenamento local da extensão; os tokens OAuth ficam apenas no armazenamento de sessão do navegador. Ao fechar/reiniciar o navegador pode ser necessário autorizar novamente a conta. A extensão não armazena senha Microsoft. A funcionalidade requer permissão delegada <code>Mail.Send</code> e pode depender de autorização institucional.</p>
   <h2>Área de transferência, arquivos e notificações</h2>
   <p>Comandos de cópia escrevem o conteúdo solicitado na área de transferência. Exportações salvam arquivos no computador do usuário. Notificações de acompanhamento podem exibir o número do processo e avisos de mudança na área de notificações do sistema operacional.</p>
   <h2>Retenção, controle e exclusão</h2>

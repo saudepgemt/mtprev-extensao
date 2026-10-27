@@ -4785,6 +4785,15 @@ async function injectManagementPanel(sender) {
       ]
     });
 
+    // O painel gerencial executa no MAIN world. Content scripts normais
+    // usam um mundo isolado; portanto window.SpaAdapter nao fica visivel aqui.
+    // Disponibilizar a mesma leitura de workspace do SPA2 no MAIN world antes
+    // do painel, sem criar uma segunda implementacao da coleta/consultas.
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js"],
+      world: "MAIN"
+    });
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
@@ -5164,6 +5173,18 @@ async function injectPanel(sender) {
     );
     if (alreadyLoaded) return { ok: true, alreadyLoaded: true };
 
+    const autosReady = await cdspGeneralMainWorldResult(tabId, () =>
+      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED &&
+        typeof window.SPA_CDSP_AUTOMACAO?.activateTriagePanel === 'function' &&
+        !document.getElementById('spa-cdsp-panel'))
+    );
+    if (autosReady) {
+      const activated = await cdspGeneralExecuteScript({
+        target: { tabId }, world: 'MAIN',
+        func: () => window.SPA_CDSP_AUTOMACAO?.activateTriagePanel()
+      });
+      if (activated?.[0]?.result) return { ok: true, reusedAutos: true };
+    }
     await cdspGeneralExecuteScript({
       target: { tabId },
       world: "MAIN",
@@ -5204,14 +5225,22 @@ async function injectPanel(sender) {
 async function injectAutosIframe(sender) {
   const tabId = sender?.tab?.id;
   const frameId = sender?.frameId;
-  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId <= 0) {
+  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId < 0) {
     return { ok: false, error: 'Frame de processo nao identificado.' };
   }
-  const source = sender.origin || sender.url || '';
+  const source = sender.url || sender.origin || '';
   let origin;
   try { origin = new URL(source).origin; } catch (_) { return { ok: false, error: 'Origem do iframe indisponivel.' }; }
   if (!['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br'].includes(origin)) {
     return { ok: false, error: 'Iframe fora do SPA permitido.' };
+  }
+  // Na mesa SPA2 a prévia lateral não é um iframe: vive no frame principal.
+  // Exigir origem e rota da tela de processo antes de permitir esta exceção.
+  if (frameId === 0) {
+    const path = new URL(source).pathname;
+    if (!/^\/workspace\/?$/.test(path) && !/^\/procedures\/\d+(?:\/|$)/.test(path)) {
+      return { ok: false, error: 'Apenas prévias e páginas de processo podem instalar Autos.' };
+    }
   }
   const target = { tabId, frameIds: [frameId] };
   try {
@@ -5647,5 +5676,6 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 if (typeof importScripts === "function") {
+  importScripts("watch_mail_oauth.js");
   importScripts("process_watch_background.js");
 }

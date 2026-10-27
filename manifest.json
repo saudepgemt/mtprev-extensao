@@ -14,7 +14,8 @@
     "clipboardWrite",
     "downloads",
     "unlimitedStorage",
-    "notifications"
+    "notifications",
+    "identity"
   ],
   "host_permissions": [
     "https://spa.pge.mt.gov.br/*",
@@ -24,7 +25,9 @@
     "https://pje2.tjmt.jus.br/*",
     "https://www.sigadoc.mt.gov.br/*",
     "https://sigadoc.mt.gov.br/*",
-    "https://docs.google.com/*"
+    "https://docs.google.com/*",
+    "https://login.microsoftonline.com/*",
+    "https://graph.microsoft.com/*"
   ],
   "background": {
     "service_worker": "js/background.js"

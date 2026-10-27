@@ -22,7 +22,7 @@ Ela funciona como uma **camada de apoio** sobre o SPA da PGE/MT, incluindo o wor
 
 Seu princípio é simples: **automatizar o trabalho repetitivo e deixar as decisões processuais sob responsabilidade de quem analisa o caso**.
 
-> **Versão indicada no manifesto do projeto:** 2.72 (`2.0.72`). Algumas funcionalidades podem variar conforme a versão dos arquivos instalada e a interface disponibilizada pelo SPA.
+> **Versão indicada no manifesto do projeto:** `0.0.1`. Algumas funcionalidades podem variar conforme a versão dos arquivos instalada e a interface disponibilizada pelo SPA.
 
 ## O que você encontra no MTPrev
 
@@ -73,6 +73,8 @@ Essas informações refletem as fontes consultadas. Um prazo que não apareceu n
 Nas páginas de processo, o painel **Autos do processo** facilita o acesso aos documentos associados ao expediente. Ele reúne fontes como autos, pasta do processo e, quando configurado, andamentos do PJe/TJMT.
 
 Entre os recursos estão a organização de documentos por data, a abertura de PDFs, os filtros de leitura e a **pesquisa por palavras ou expressões dentro dos PDFs** já acessíveis à ferramenta. Dependendo da origem, o painel também oferece recursos para reunir ou consultar documentos do processo.
+
+Nos PDFs unificados, a opção **Incluir capa MTPrev** acrescenta os dados disponíveis do processo à cópia de consulta. Na pesquisa interna, os resultados permitem abrir diretamente a página encontrada; páginas sem texto ou com imagem predominante são consideradas na indicação de leitura inconclusiva. Veja a [comparação com a extensão CDSP e os limites da adaptação](docs/comparacao-extensao-colega.md).
 
 No SPA2, a integração utiliza as informações e as rotas fornecidas pela própria página, incluindo a aba de andamentos. A leitura de documentos é feita **sob demanda**, quando o usuário solicita uma fonte ou uma atualização; abrir o menu não significa baixar automaticamente todos os PDFs.
 
