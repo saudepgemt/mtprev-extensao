@@ -4769,8 +4769,8 @@
     ];
     const movementPgeStateFilterDefinition = {
       id: "pge_state_inline",
-      label: "PGE/Estado",
-      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO",
+      label: "Estado / MTPrev",
+      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO;FUNDAÇÃO MATO GROSSO PREVIDÊNCIA;MATO GROSSO PREVIDÊNCIA;MTPREV",
     };
     const selectedQuickFilters = new Set();
     const quickFilterInputs = {};
@@ -4822,11 +4822,11 @@
     const pgeStateOption = document.createElement("label");
     pgeStateOption.className = "spa-cdsp-external-docs-exact-option";
     pgeStateOption.style.display = "none";
-    pgeStateOption.title = "Filtrar o Andamento PJE por Estado/PGE.";
+    pgeStateOption.title = "Filtrar o Andamento PJe por Estado de Mato Grosso ou Fundação Mato Grosso Previdência (MTPrev).";
     const pgeStateInput = document.createElement("input");
     pgeStateInput.type = "checkbox";
     const pgeStateText = document.createElement("span");
-    pgeStateText.textContent = "PGE/Estado";
+    pgeStateText.textContent = "Estado / MTPrev";
     pgeStateOption.appendChild(pgeStateInput);
     pgeStateOption.appendChild(pgeStateText);
     searchTools.appendChild(pgeStateOption);
@@ -11261,7 +11261,7 @@
       #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+4) .md-stat__icon{background:#fff2df}
       #spa-cdsp-duplicate-report-overlay .md-summary-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#577088;font-size:12px;line-height:1.45}
       #spa-cdsp-duplicate-report-overlay .md-summary-line .md-note-dot{color:#86a1b5}
-      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:62px;height:50px;object-fit:contain;flex-shrink:0;border:1px solid rgba(116,203,232,.45);border-radius:12px;padding:5px;background:#102c42;box-sizing:border-box}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:53px;height:42px;object-fit:contain;flex-shrink:0}
       #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback{font-size:16px;font-weight:900;color:#60bfd1;flex-shrink:0}
       #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback[hidden]{display:none}
       #spa-cdsp-duplicate-report-overlay .md-group{border-radius:10px;border-color:#cbdce9;box-shadow:0 1px 3px rgba(31,54,83,.05)}
@@ -14275,6 +14275,15 @@
 
     const triagemPage = document.createElement("div");
     triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
+    // Ações operacionais permanecem disponíveis, separadas do relatório consultivo.
+    const triagemAdvanced = document.createElement('details');
+    triagemAdvanced.className = 'mtprev-triagem-advanced';
+    triagemAdvanced.style.cssText = 'margin:12px 0;border:1px solid #49647a;border-radius:10px;padding:10px;background:#1e3446;color:#e9f2f8';
+    const triagemAdvancedSummary = document.createElement('summary');
+    triagemAdvancedSummary.textContent = 'Ferramentas avançadas · ciência, classificação e abertura de processos';
+    triagemAdvancedSummary.style.cssText = 'font-weight:750;cursor:pointer;font-size:12px;line-height:1.5';
+    triagemAdvanced.appendChild(triagemAdvancedSummary);
+    triagemPage.appendChild(triagemAdvanced);
     const triagemButtons = createButtonGrid();
     triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
@@ -14282,9 +14291,9 @@
       triagemButtons,
       createButton("Abrir Abas", () => openTabsAllPages(currentActionLimit()), "purple")
     );
-    triagemPage.appendChild(createTriageClassificationFlow());
-    triagemPage.appendChild(createExpedienteContentControls());
-    triagemPage.appendChild(triagemButtons);
+    triagemAdvanced.appendChild(createTriageClassificationFlow());
+    triagemAdvanced.appendChild(createExpedienteContentControls());
+    triagemAdvanced.appendChild(triagemButtons);
 
     const duplicadosPage = document.createElement("div");
     duplicadosPage.className = 'mtprev-duplicates-page';
@@ -14395,7 +14404,7 @@
     if (window.MTPrevTriageWorkspace) {
       triageWorkspace?.dispose();
       triageWorkspace = window.MTPrevTriageWorkspace.create({ getRecords: mtprevPopRecords });
-      content.appendChild(triageWorkspace.root);
+      triagemAdvanced.appendChild(triageWorkspace.root);
     }
     content.appendChild(moduleTabs.pages);
     panel.appendChild(content);
