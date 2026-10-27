@@ -3,10 +3,11 @@
 // Lista explícita: um backup ou arquivo novo no workspace nunca entra no ZIP por acaso.
 const RUNTIME_FILES = [
   "offscreen.html", "options.html", "privacy.html", "THIRD_PARTY_NOTICES.txt",
-  "js/background.js", "js/content_bridge.js", "js/radial_menu.js", "js/options.js",
+  "js/background.js", "js/content_bridge.js", "js/iframe_autos_bridge.js", "js/radial_menu.js", "js/options.js",
   "js/process_watch_background.js", "js/process_watch_panel.js",
   "js/shared/spa_selectors.js", "js/shared/spa_adapter.js",
   "js/shared/active_team_database.js", "js/shared/mtprev_triage_rules.js",
+  "js/shared/pdf_cover.js",
   "js/extrator/content.js", "js/gestao/management_report_panel.js",
   "js/prazos/deadline_report_panel.js", "js/triagem/spa_extension_panel.js",
   "js/triagem/mtprev_pop_panel.js", "js/triagem/offscreen_pdf_reader.js",

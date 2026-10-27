@@ -50,6 +50,7 @@ const CDSP_GENERAL_SHARED_REPORT_LIB_FILES = [
   "js/libs/exceljs.min.js"
 ];
 const CDSP_GENERAL_PDF_LIB_FILE = "js/libs/pdf-lib.min.js";
+const CDSP_GENERAL_PDF_COVER_FILE = "js/shared/pdf_cover.js";
 const CDSP_GENERAL_MANAGEMENT_PANEL_FILE = "js/gestao/management_report_panel.js";
 const CDSP_GENERAL_DEADLINE_PANEL_FILE = "js/prazos/deadline_report_panel.js";
 const CDSP_GENERAL_TRIAGEM_PANEL_FILE = "js/triagem/spa_extension_panel.js";
@@ -2814,16 +2815,20 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
       result.diagnostics.offscreenLength = offscreen && offscreen.textLength ? offscreen.textLength : 0;
       result.diagnostics.offscreenPagesRead = offscreen && offscreen.pagesRead ? offscreen.pagesRead : 0;
       result.diagnostics.offscreenTotalPages = offscreen && offscreen.totalPages ? offscreen.totalPages : 0;
+      result.diagnostics.incompletePages = offscreen?.incompletePages || 0;
+      result.inconclusive = Boolean(offscreen?.inconclusive);
       result.textLength = Math.max(result.textLength, result.diagnostics.offscreenLength);
 
       if (offscreen && offscreen.found) {
         result.found = true;
         result.snippet = offscreen.snippet || "";
         result.matchedQuery = offscreen.matchedQuery || "";
+        result.page = offscreen.page || offscreen.pagesRead || 0;
         result.diagnostics.method = "offscreen";
       }
     } catch (error) {
       result.diagnostics.offscreenError = error && error.message ? error.message : String(error);
+      result.inconclusive = true;
     }
 
     if (!result.found && result.diagnostics.offscreenLength <= 0) {
@@ -2836,6 +2841,7 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
         const matchedQuery = findMatchingSearchTerm(rawText, query, exact);
         if (matchedQuery) {
           result.found = true;
+          result.inconclusive = false;
           result.matchedQuery = matchedQuery;
           result.snippet = buildTextSearchSnippet(rawText, matchedQuery, exact);
           result.diagnostics.method = "raw";
@@ -2847,7 +2853,7 @@ async function searchPdfUrlForQuery(pdfUrl, query, exact) {
       }
     }
 
-    result.inconclusive = result.textLength <= 0;
+    result.inconclusive = !result.found && (result.inconclusive || result.textLength <= 0);
     setAutosSearchCache(pdfUrl, query, exact, result);
     return result;
   } finally {
@@ -2885,6 +2891,7 @@ async function searchAutosDocumentContent(message) {
     exact,
     matchedQuery: result && result.matchedQuery ? result.matchedQuery : "",
     snippet: result && result.snippet ? result.snippet : "",
+    page: result?.page || 0,
     inconclusive: Boolean(result && result.inconclusive),
     byteLength: result && result.byteLength ? result.byteLength : 0,
     textLength: result && result.textLength ? result.textLength : 0,
@@ -4719,21 +4726,28 @@ async function ensurePdfMergeLibrary(sender) {
   }
 
   try {
-    const state =
-      (await cdspGeneralMainWorldResult(tabId, () => ({
-        pdfLibReady: Boolean(window.PDFLib && window.PDFLib.PDFDocument)
-      }))) || {};
-
-    if (!state.pdfLibReady) {
+    const target = { tabId, frameIds: [Number.isInteger(sender.frameId) ? sender.frameId : 0] };
+    const inspect = async () => {
+      const results = await cdspGeneralExecuteScript({ target, world: "MAIN", func: () => ({
+        pdfLibReady: Boolean(window.PDFLib && window.PDFLib.PDFDocument),
+        coverReady: Boolean(window.MTPrevPdfCover)
+      }) });
+      return results?.[0]?.result || {};
+    };
+    const state = await inspect();
+    const files = [];
+    if (!state.pdfLibReady) files.push(CDSP_GENERAL_PDF_LIB_FILE);
+    if (!state.coverReady) files.push(CDSP_GENERAL_PDF_COVER_FILE);
+    if (files.length) {
       await chrome.scripting.executeScript({
-        target: { tabId },
-        files: [CDSP_GENERAL_PDF_LIB_FILE],
+        target,
+        files,
         world: "MAIN"
       });
     }
 
-    const loaded =
-      (await cdspGeneralMainWorldResult(tabId, () => Boolean(window.PDFLib && window.PDFLib.PDFDocument))) || false;
+    const finalState = await inspect();
+    const loaded = finalState.pdfLibReady && finalState.coverReady;
 
     return loaded ? { ok: true, loaded: true } : { ok: false, error: "PDFLib nao ficou disponivel na pagina." };
   } catch (error) {

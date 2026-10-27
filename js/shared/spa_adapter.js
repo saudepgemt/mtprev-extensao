@@ -149,7 +149,8 @@
   }
   // Coleta de leitura: ate 100 processos por pagina (limite medido no SPA2).
   // O numero de paginas usa Math.ceil(total/100), sem perder a pagina final.
-  // Ate oito GETs simultaneos, validando cobertura antes de entregar ao relatorio.
+  // Concorrência moderada: reduz picos no servidor e mede cada pagina para
+  // diagnosticar a latencia da última resposta sem novas requisicoes.
   // O cache de duplicatas e mantido pela triagem SOMENTE apos cobertura completa.
   async function collectWorkspaceViaApi({signal, onProgress, timeout}) {
     const form = document.querySelector('form.workspace-search[data-partial-url]');
@@ -160,7 +161,7 @@
     if (endpoint.protocol !== 'https:' || endpoint.origin !== location.origin) return null;
 
     const PAGE_SIZE = 100;
-    const MAX_CONCURRENT = 8; // Testado com oito paginas e 742 processos; nao abrir concorrencia ilimitada.
+    const MAX_CONCURRENT = 4; // Limite conservador por mesa; nunca aumentar por causa do total.
     const REQUEST_TIMEOUT_MS = 45000;
     const totalPages = Math.ceil(original.total / PAGE_SIZE);
     if (totalPages < 1 || totalPages > 2000) return null;
@@ -193,6 +194,7 @@
     const results = new Array(totalPages);
     const ids = new Set();
     let nextPage = 1, completed = 0, failure = null;
+    const pageTimings = [];
 
     const check = () => {
       if (signal?.aborted) throw new DOMException('Coleta cancelada', 'AbortError');
@@ -245,6 +247,7 @@
       while (!failure && nextPage <= totalPages) {
         const page = nextPage++;
         let requestTimer;
+        const requestStarted = Date.now();
         try {
           check();
           const result = await Promise.race([
@@ -260,8 +263,11 @@
           }
           results[page - 1] = result.records;
           completed++;
+          const requestMs=Date.now()-requestStarted;
+          pageTimings.push({page,ms:requestMs,count:result.records.length});
           onProgress({count:ids.size,loaded:ids.size,total:original.total,
-            rounds:completed,pages:totalPages,concurrency,stage:'api-parallel'});
+            rounds:completed,pages:totalPages,concurrency,stage:'api-parallel',
+            lastCompletedPage:page,lastCompletedMs:requestMs,batchSize:PAGE_SIZE});
         } catch (error) {
           if (!failure) failure = error;
           controller.abort();
@@ -278,10 +284,13 @@
       check();
       if (completed !== totalPages || ids.size !== original.total || results.filter(Boolean).length !== totalPages)
         throw new Error('Cobertura incompleta: nenhum relatorio deve ser salvo.');
+      const slowestPage=pageTimings.reduce((slow,item)=>!slow || item.ms>slow.ms ? item : slow,null);
       return {
         records:results.flat(), reason:'complete', rounds:completed,
         endJumps:0, loaded:ids.size, total:original.total,
-        source:'workspace-api-parallel',concurrency
+        source:'workspace-api-parallel',concurrency,
+        apiMetrics:{slowestPage,lastPage:pageTimings.find(item=>item.page===totalPages) || null,
+          durationMs:Date.now()-started,completedPages:completed,concurrency}
       };
     } catch (error) {
       if (signal?.aborted || error?.name === 'AbortError' ||

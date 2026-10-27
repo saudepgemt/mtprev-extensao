@@ -46,6 +46,23 @@
     const context = create('span', 'mtprev-orbit__context', 'MTPrev', tools);
     context.setAttribute('aria-live', 'polite');
     let expanded = false, module = null, generation = 0, page = 0;
+    // A opção ativa pertence à aba do SPA; permanece após recarregar,
+    // mas não afeta outras abas, contas ou páginas diferentes.
+    const LAST_VIEW_KEY='mtprev.radial.active-view.v1';
+    const viewScope=()=>`${location.origin}${location.pathname}|${new URLSearchParams(location.search).get('user_id') || ''}`;
+    const saveView=(option='')=>{
+      try {
+        if(!module){sessionStorage.removeItem(LAST_VIEW_KEY);return;}
+        sessionStorage.setItem(LAST_VIEW_KEY,JSON.stringify({scope:viewScope(),moduleKey:module.key,option}));
+      } catch (_error) {}
+    };
+    const loadView=()=>{
+      try {
+        const data=JSON.parse(sessionStorage.getItem(LAST_VIEW_KEY)||'null');
+        return data && data.scope===viewScope() && typeof data.moduleKey==='string' ? data : null;
+      } catch (_error){return null;}
+    };
+
     const previous = create('button', '', 'Opções anteriores', tools); previous.type = 'button';
     const next = create('button', '', 'Mais opções', tools); next.type = 'button';
     previous.classList.add('mtprev-orbit__previous'); next.classList.add('mtprev-orbit__next');
@@ -100,6 +117,7 @@
       api.expand();
       context.textContent = module?.title || 'MTPrev';
       theme.textContent = label || target?.textContent.trim() || module?.title || '';
+      saveView(theme.textContent);
       back.hidden = false; back.textContent = 'Voltar'; header.appendChild(back);
       if (target) target.click();
       const activePane = shell.querySelector('[data-cdsp-module-pane]:not([hidden])');
@@ -209,8 +227,8 @@
       timer = setTimeout(() => { if (!expanded) { shell.classList.remove('mtprev-radial-operational', 'mtprev-panel-leaving'); shell.classList.add('mtprev-radial-compact'); clamp(); } }, delay());
       center.focus({ preventScroll: true });
     }
-    async function select(item) {
-      collapseItems(); module = item; page = 0; const token = ++generation;
+    async function select(item, restoreOption = '') {
+      collapseItems(); module = item; page = 0; saveView(); const token = ++generation;
       context.textContent = `Carregando ${item.title}…`; back.hidden = false;
       api.load(item.key);
       const started = performance.now();
@@ -224,6 +242,10 @@
         return;
       }
       open();
+      if(restoreOption){
+        const choice=options().find(entry=>entry.title===restoreOption);
+        if(choice) choice.run();
+      }
     }
     center.addEventListener('click', (event) => {
       if (suppressClick && event.detail !== 0) { event.preventDefault(); suppressClick = false; return; }
@@ -232,9 +254,9 @@
     });
     shell.addEventListener('mtprev-close-drawer', close);
     back.addEventListener('click', () => {
-      if (shell.classList.contains('mtprev-radial-operational')) { open(); return; }
+      if (shell.classList.contains('mtprev-radial-operational')) { saveView(); open(); return; }
       collapseItems(); const token = ++generation;
-      clearTimeout(timer); timer = setTimeout(() => { if (token === generation) { module = null; page = 0; open(); } }, delay());
+      clearTimeout(timer); timer = setTimeout(() => { if (token === generation) { module = null; saveView(); page = 0; open(); } }, delay());
     });
     previous.addEventListener('click', () => { page--; paint(entries()); });
     next.addEventListener('click', () => { page++; paint(entries()); });
@@ -292,6 +314,11 @@
     new MutationObserver(extras).observe(nav, { childList: true }); extras();
     ring.inert = true; back.hidden = true;
     shell.classList.add('mtprev-radial-compact'); layout(); clamp();
+    const lastView=loadView();
+    if(lastView){
+      const item=api.modules.find(entry=>entry.key===lastView.moduleKey);
+      if(item) requestAnimationFrame(()=>{void select(item,lastView.option || '');});
+    }
   };
 })();
 
@@ -334,7 +361,6 @@
       background:#23485d !important;
       border-color:#1d485d !important;
       border-bottom:3px solid #1a7893 !important;
-      border-radius:18px 18px 0 0 !important;
     }
     body.mtprev-workspace-readable .workspace-processes__heading .workspace-eyebrow {
       color:#aee3ec !important;
@@ -354,31 +380,26 @@
     body.mtprev-workspace-readable .workspace-navigation .workspace-panel__heading {
       color:#2b4158;
     }
-    /* O arredondamento fica apenas no cabeçalho azul-petróleo.
-       Cards quadrados, fundo único e separação pela borda espessa. */
+    /* Somente os cards de /workspace; não interfere no preview do SPA. */
+    /* O fundo alterna entre branco puro e azul perceptivelmente mais fechado.
+       A barra espessa separa processos sem depender só da percepção de cor. */
     body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card {
       background:#ffffff !important;
-      border:1px solid #c9d7e5 !important;
-      border-left:5px solid #4f7293 !important;
-      border-bottom:5px solid #7695ad !important;
-      border-radius:0 !important;
-      box-shadow:none !important;
+      border-left:4px solid #849fb7 !important;
+      border-bottom:4px solid #7695ad !important;
+      box-shadow:none;
       transition:background-color 160ms ease,border-color 160ms ease,box-shadow 160ms ease;
     }
-    /* O conteúdo estrutural acompanha a cor do card, sem apagar os avisos e botões. */
-    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card
-      :is(.workspace-process-card__main,.workspace-process-card__footer,
-          .workspace-process-card__fields,.workspace-process-card__summary,
-          .workspace-process-card__received) {
-      background:transparent !important;
-      border-radius:0 !important;
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:nth-of-type(even) {
+      background:#d9e6f3 !important;
+      border-left-color:#486f90 !important;
     }
-    /* Hover azul em toda a superfície. Após clique, aguarda o mouse sair para reativar. */
-    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:hover:not(.mtprev-workspace-hover-dismissed) {
-      background:#cfe3f5 !important;
+    /* Cor do hover preservada; contorno e relevo tornam o foco inconfundível.
+       Também funciona no foco por teclado (focus-within). */
+    body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:is(:hover,:focus-within) {
+      background:#c4d8eb !important;
       border-left-color:#0f5f87 !important;
-      border-bottom-color:#0f5f87 !important;
-      box-shadow:inset 0 0 0 2px #1c6287,0 4px 14px rgba(18,52,75,.16) !important;
+      box-shadow:inset 0 0 0 3px #1c6287,0 4px 14px rgba(18,52,75,.16) !important;
       position:relative;
       z-index:1;
     }
@@ -546,18 +567,6 @@
         queueScan();
       }
     }).observe(results,{childList:true,subtree:true});
-    // Ao clicar, o realce de hover cessa imediatamente; só volta ao sair e entrar com o ponteiro.
-    // Delegação: também funciona para os cards carregados depois da primeira página.
-    results.addEventListener('click', event => {
-      const card = event.target.closest?.('article.workspace-process-card');
-      if (card && results.contains(card)) card.classList.add('mtprev-workspace-hover-dismissed');
-    });
-    results.addEventListener('pointerout', event => {
-      const card = event.target.closest?.('article.workspace-process-card');
-      if (card && !card.contains(event.relatedTarget)) {
-        card.classList.remove('mtprev-workspace-hover-dismissed');
-      }
-    });
     document.addEventListener('click', event => {
       const mode = event.target.closest('.mtprev-workspace-mode-toggle');
       if (mode) {

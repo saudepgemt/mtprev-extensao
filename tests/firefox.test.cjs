@@ -50,7 +50,7 @@ test('Firefox empacota dependencias completas e exclui arquivos do ambiente de t
   assert.ok(manifest.browser_specific_settings.gecko.id);
   assert.equal(manifest.browser_specific_settings.gecko.strict_min_version, '128.0');
   for (const script of manifest.content_scripts) {
-    for (const file of [...script.js, ...script.css]) assert.ok(fs.existsSync(path.join(output, file)), file);
+    for (const file of [...(script.js || []), ...(script.css || [])]) assert.ok(fs.existsSync(path.join(output, file)), file);
   }
   for (const entry of ['.git', '.agents', '.aws', '.codex', 'scripts', 'tests']) {
     assert.equal(fs.existsSync(path.join(output, entry)), false, entry);

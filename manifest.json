@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.72",
-  "version_name": "2.72",
+  "version": "0.0.1",
+  "version_name": "0.0.1",
   "minimum_chrome_version": "116",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
