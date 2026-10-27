@@ -159,30 +159,53 @@
         typeof fetch !== 'function' || typeof DOMParser !== 'function') return null;
     const endpoint = new URL(form.getAttribute('data-partial-url'), location.href);
     if (endpoint.protocol !== 'https:' || endpoint.origin !== location.origin) return null;
+
+    const PAGE_SIZE = 100;
+    const MAX_CONCURRENT = 4; // Limite conservador por mesa; nunca aumentar por causa do total.
+    const REQUEST_TIMEOUT_MS = 45000;
+    const totalPages = Math.ceil(original.total / PAGE_SIZE);
+    if (totalPages < 1 || totalPages > 2000) return null;
+    const concurrency = Math.min(MAX_CONCURRENT, totalPages);
     const startHref = location.href;
     const params = new URLSearchParams(new FormData(form));
     const initialParams = params.toString();
-    // Mesmo contexto da busca selecionada no workspace.
+    // Preservar os filtros e a visao selecionada no SPA2.
     const view = form.querySelector('input[name="view"]')?.value;
     const flowId = form.querySelector('input[name="flow_id"]')?.value;
     if (params.get('flow_id')) params.delete('view');
     else if (!params.has('view') && view) params.set('view', view);
     if (params.get('view') !== 'all' && !params.has('flow_id') && flowId) params.set('flow_id', flowId);
     params.set('overview', 'false');
+    params.set('per_page', String(PAGE_SIZE));
     for (const name of [...params.keys()]) {
       if (/^(?:authenticity_token|csrf_token|_csrf|password|session)$/i.test(name)) params.delete(name);
     }
+
     const started = Date.now();
+    const controller = new AbortController();
+    const timeoutLimit = Math.max(1000, Number(timeout) || 360000);
+    const globalTimer = setTimeout(() => controller.abort(), timeoutLimit);
+    const forwardAbort = () => controller.abort();
+    if (signal?.aborted) forwardAbort();
+    else signal?.addEventListener('abort', forwardAbort, {once:true});
     const key = record => record.rowKey || record.id;
+    const rendered = locate('workspace', 'cards').nodes.slice(0, 10)
+      .map(workspaceRecordFromNode).map(key).filter(Boolean);
+    const results = new Array(totalPages);
+    const ids = new Set();
+    let nextPage = 1, completed = 0, failure = null;
+    const pageTimings = [];
+
     const check = () => {
       if (invalidated || signal?.aborted) throw new DOMException('Coleta cancelada', 'AbortError');
       if (location.href !== startHref || !form.isConnected ||
           new URLSearchParams(new FormData(form)).toString() !== initialParams ||
           workspaceCounts().total !== original.total)
         throw new Error('Os filtros da mesa mudaram durante a leitura.');
-      if (Date.now() - started > timeout) throw new Error('Tempo limite da coleta por API.');
+      if (Date.now() - started > timeoutLimit) throw new Error('Tempo limite da coleta por API.');
     };
-    const request = async (page, perPage) => {
+
+    const request = async page => {
       check();
       const requestStarted = Date.now();
       const url = new URL(endpoint.href);
@@ -190,10 +213,9 @@
         url.searchParams.delete(name);
         for (const value of params.getAll(name)) url.searchParams.append(name, value);
       }
-      url.searchParams.set('per_page', String(perPage));
       url.searchParams.set('page', String(page));
       const response = await fetch(url.href, {
-        method:'GET', credentials:'same-origin', signal,
+        method:'GET', credentials:'same-origin', signal:controller.signal,
         headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -205,6 +227,18 @@
       const responseTotal = Number(pager?.getAttribute('data-total-count'));
       if (Number.isFinite(responseTotal) && responseTotal > 0 && responseTotal !== original.total)
         throw new Error('O total da resposta difere da mesa atual.');
+      const expected = Math.min(PAGE_SIZE, original.total - (page - 1) * PAGE_SIZE);
+      if (cards.length !== expected)
+        throw new Error(`Pagina ${page}: recebidos ${cards.length} de ${expected} processos.`);
+      const records = cards.map(workspaceRecordFromNode);
+      const pageKeys = records.map(key);
+      if (pageKeys.some(id => !id) || new Set(pageKeys).size !== expected)
+        throw new Error(`Pagina ${page}: registros sem ID ou repetidos.`);
+      if (page === 1 && rendered.length) {
+        const firstIds = new Set(pageKeys);
+        if (rendered.filter(id => firstIds.has(id)).length < Math.ceil(rendered.length / 2))
+          throw new Error('A resposta nao corresponde a visao da mesa.');
+      }
       check();
       return {page, records:cards.map(workspaceRecordFromNode), requestMs:Date.now() - requestStarted};
     };
@@ -256,9 +290,23 @@
         const concurrency = batchSize ? 1 : perPage > 100 ? 2 : 3;
         for (let page = 2; page <= pages; page += concurrency) {
           check();
-          const indices = Array.from({length:Math.min(concurrency, pages-page+1)}, (_,i)=>page+i);
-          const responses = await Promise.all(indices.map(index=>request(index,perPage)));
-          responses.forEach(absorb);
+          for (const id of result.pageKeys) {
+            if (ids.has(id)) throw new Error('ID repetido em paginas diferentes.');
+            ids.add(id);
+          }
+          results[page - 1] = result.records;
+          completed++;
+          const requestMs=Date.now()-requestStarted;
+          pageTimings.push({page,ms:requestMs,count:result.records.length});
+          onProgress({count:ids.size,loaded:ids.size,total:original.total,
+            rounds:completed,pages:totalPages,concurrency,stage:'api-parallel',
+            lastCompletedPage:page,lastCompletedMs:requestMs,batchSize:PAGE_SIZE});
+        } catch (error) {
+          if (!failure) failure = error;
+          controller.abort();
+          return;
+        } finally {
+          clearTimeout(requestTimer);
         }
         check();
         if (collected.size === original.total) {

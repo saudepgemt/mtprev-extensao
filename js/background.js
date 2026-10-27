@@ -4785,6 +4785,15 @@ async function injectManagementPanel(sender) {
       ]
     });
 
+    // O painel gerencial executa no MAIN world. Content scripts normais
+    // usam um mundo isolado; portanto window.SpaAdapter nao fica visivel aqui.
+    // Disponibilizar a mesma leitura de workspace do SPA2 no MAIN world antes
+    // do painel, sem criar uma segunda implementacao da coleta/consultas.
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js"],
+      world: "MAIN"
+    });
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
@@ -5164,6 +5173,18 @@ async function injectPanel(sender) {
     );
     if (alreadyLoaded) return { ok: true, alreadyLoaded: true };
 
+    const autosReady = await cdspGeneralMainWorldResult(tabId, () =>
+      Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED &&
+        typeof window.SPA_CDSP_AUTOMACAO?.activateTriagePanel === 'function' &&
+        !document.getElementById('spa-cdsp-panel'))
+    );
+    if (autosReady) {
+      const activated = await cdspGeneralExecuteScript({
+        target: { tabId }, world: 'MAIN',
+        func: () => window.SPA_CDSP_AUTOMACAO?.activateTriagePanel()
+      });
+      if (activated?.[0]?.result) return { ok: true, reusedAutos: true };
+    }
     await cdspGeneralExecuteScript({
       target: { tabId },
       world: "MAIN",
@@ -5196,6 +5217,63 @@ async function injectPanel(sender) {
       ok: false,
       error: error && error.message ? error.message : String(error)
     };
+  }
+}
+
+// Painel de Autos em iframes do SPA: injeta somente na subjanela solicitante.
+// Não injeta menu radial, não usa todos os frames e não executa tarefas de triagem.
+async function injectAutosIframe(sender) {
+  const tabId = sender?.tab?.id;
+  const frameId = sender?.frameId;
+  if (!Number.isInteger(tabId) || !Number.isInteger(frameId) || frameId < 0) {
+    return { ok: false, error: 'Frame de processo nao identificado.' };
+  }
+  const source = sender.url || sender.origin || '';
+  let origin;
+  try { origin = new URL(source).origin; } catch (_) { return { ok: false, error: 'Origem do iframe indisponivel.' }; }
+  if (!['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br'].includes(origin)) {
+    return { ok: false, error: 'Iframe fora do SPA permitido.' };
+  }
+  // Na mesa SPA2 a prévia lateral não é um iframe: vive no frame principal.
+  // Exigir origem e rota da tela de processo antes de permitir esta exceção.
+  if (frameId === 0) {
+    const path = new URL(source).pathname;
+    if (!/^\/workspace\/?$/.test(path) && !/^\/procedures\/\d+(?:\/|$)/.test(path)) {
+      return { ok: false, error: 'Apenas prévias e páginas de processo podem instalar Autos.' };
+    }
+  }
+  const target = { tabId, frameIds: [frameId] };
+  try {
+    const check = await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: () => Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel)
+    });
+    if (check[0]?.result) {
+      await cdspGeneralExecuteScript({
+        target, world: 'MAIN',
+        func: () => window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel()
+      });
+      return { ok: true, alreadyLoaded: true };
+    }
+    await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: (config) => { window.SPA_CDSP_TRIAGEM_CONFIG = config; },
+      args: [{ autosOnly: true, version: chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version,
+        headerImageUrl: chrome.runtime.getURL('images/logo-mtprev.png') }]
+    });
+    await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      files: ['js/shared/spa_selectors.js', 'js/shared/spa_adapter.js',
+        CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, 'js/shared/mtprev_triage_rules.js',
+        'js/triagem/mtprev_pop_panel.js', CDSP_GENERAL_TRIAGEM_PANEL_FILE]
+    });
+    const ready = await cdspGeneralExecuteScript({
+      target, world: 'MAIN',
+      func: () => Boolean(window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && window.SPA_CDSP_AUTOMACAO?.refreshExternalDocumentsPanel)
+    });
+    return ready[0]?.result ? { ok: true } : { ok: false, error: 'Leitor de autos nao iniciou no iframe.' };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
   }
 }
 
@@ -5437,6 +5515,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'MTPREV_INJECT_AUTOS_IFRAME') {
+    injectAutosIframe(_sender).then(sendResponse).catch(error =>
+      sendResponse({ ok: false, error: error?.message || String(error) })
+    );
+    return true;
+  }
+
   if (message.type === "SPA_CDSP_INJECT_PANEL") {
     injectPanel(_sender)
       .then(sendResponse)
@@ -5591,5 +5676,6 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 if (typeof importScripts === "function") {
+  importScripts("watch_mail_oauth.js");
   importScripts("process_watch_background.js");
 }

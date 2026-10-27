@@ -13,7 +13,7 @@ function validateRuntime(root, manifest) {
   const allowed = new Set(RUNTIME_FILES);
   const references = [manifest.background.service_worker, manifest.options_ui.page,
     ...Object.values(manifest.icons), ...Object.values(manifest.action.default_icon),
-    ...manifest.content_scripts.flatMap(item => [...item.js, ...item.css]),
+    ...manifest.content_scripts.flatMap(item => [...(item.js || []), ...(item.css || [])]),
     ...manifest.web_accessible_resources.flatMap(item => item.resources).filter(file => !file.includes("*"))];
   for (const file of references) {
     if (!allowed.has(file)) throw new Error(`Referência fora da lista de publicação: ${file}`);
