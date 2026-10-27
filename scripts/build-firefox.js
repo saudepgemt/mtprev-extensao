@@ -56,6 +56,9 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
     fs.mkdirSync(path.dirname(path.join(outputRoot, entry)), { recursive: true });
     fs.copyFileSync(path.join(sourceRoot, entry), path.join(outputRoot, entry));
   }
+  // A configuração de outro computador é importada nas opções, sem depender de .local.
+  fs.writeFileSync(path.join(outputRoot, "js/background.js"), backgroundSource
+    .replace(/^const LOCAL_MNI_SETTINGS_PATH = .*;$/m, 'const LOCAL_MNI_SETTINGS_PATH = "";'));
   fs.writeFileSync(path.join(outputRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return outputRoot;
 }

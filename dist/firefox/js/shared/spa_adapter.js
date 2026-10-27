@@ -147,11 +147,12 @@
     }
     return document.scrollingElement || document.documentElement;
   }
-  // Coleta baseada no total da mesa/filtros atuais. Uma única tentativa de
+  // O preload solicita lotes de 100 e se adapta ao limite devolvido pelo servidor.
+  // Sem tamanho explícito, uma única tentativa de
   // lote grande (até 1000) é feita primeiro; servidores que limitam per_page
   // recebem novas consultas com lotes menores, sem rolar a página.
   // Apenas GET no endpoint parcial do próprio SPA; não altera processos.
-  async function collectWorkspaceViaApi({signal, onProgress, timeout}) {
+  async function collectWorkspaceViaApi({signal, onProgress, timeout, batchSize, adaptiveBatch}) {
     const form = document.querySelector('form.workspace-search[data-partial-url]');
     const original = workspaceCounts();
     if (!form || !Number.isSafeInteger(original.total) || original.total <= 0 ||
@@ -174,7 +175,7 @@
     const started = Date.now();
     const key = record => record.rowKey || record.id;
     const check = () => {
-      if (signal?.aborted) throw new DOMException('Coleta cancelada', 'AbortError');
+      if (invalidated || signal?.aborted) throw new DOMException('Coleta cancelada', 'AbortError');
       if (location.href !== startHref || !form.isConnected ||
           new URLSearchParams(new FormData(form)).toString() !== initialParams ||
           workspaceCounts().total !== original.total)
@@ -183,6 +184,7 @@
     };
     const request = async (page, perPage) => {
       check();
+      const requestStarted = Date.now();
       const url = new URL(endpoint.href);
       for (const name of new Set(params.keys())) {
         url.searchParams.delete(name);
@@ -204,15 +206,17 @@
       if (Number.isFinite(responseTotal) && responseTotal > 0 && responseTotal !== original.total)
         throw new Error('O total da resposta difere da mesa atual.');
       check();
-      return {page, records:cards.map(workspaceRecordFromNode)};
+      return {page, records:cards.map(workspaceRecordFromNode), requestMs:Date.now() - requestStarted};
     };
     const rendered = locate('workspace','cards').nodes.slice(0, 10)
       .map(workspaceRecordFromNode).map(key).filter(Boolean);
     // Limite preventivo evita um HTML excessivo em mesas muito grandes.
-    const requested = Math.min(original.total, 1000);
-    const choices = [...new Set([requested, Math.min(original.total, 100)])];
+    const requested = batchSize || Math.min(original.total, 1000);
+    const choices = [...new Set(adaptiveBatch
+      ? [requested, ...[1000, 200, 100, 25].filter(size => size < requested)]
+      : batchSize ? [requested] : [requested, Math.min(original.total, 100)])];
     const tried = new Set();
-    for (let attempt = 0; choices.length && attempt < 4; attempt++) {
+    for (let attempt = 0; choices.length && attempt < 6; attempt++) {
       const perPage = choices.shift();
       if (!perPage || tried.has(perPage)) continue;
       tried.add(perPage);
@@ -228,8 +232,8 @@
         // Se um lote grande foi limitado pelo servidor, repetir usando a
         // quantidade realmente suportada. Evita pular páginas quando o
         // servidor calcula offset com base no tamanho solicitado.
-        if (actual < perPage && perPage > 100) {
-          if (actual >= 100 && !tried.has(actual) && !choices.includes(actual)) choices.unshift(actual);
+        if (actual < perPage && actual < original.total) {
+          if (actual > 0 && !tried.has(actual) && !choices.includes(actual)) choices.unshift(actual);
           continue;
         }
         const batch = actual < perPage ? actual : perPage;
@@ -243,12 +247,13 @@
           }
           rounds++;
           onProgress({count:collected.size, loaded:collected.size, total:original.total,
-            rounds, stage:'api'});
+            rounds, batchSize:result.records.length, requestedBatchSize:perPage,
+            requestMs:result.requestMs, stage:'api'});
         };
         absorb(first);
         // Limitar a concorrência: lotes grandes (mais de 100) em até 2 GETs;
         // para lotes menores, manter os 3 GETs da versão já testada.
-        const concurrency = perPage > 100 ? 2 : 3;
+        const concurrency = batchSize ? 1 : perPage > 100 ? 2 : 3;
         for (let page = 2; page <= pages; page += concurrency) {
           check();
           const indices = Array.from({length:Math.min(concurrency, pages-page+1)}, (_,i)=>page+i);
@@ -269,9 +274,54 @@
     return null;
   }
 
-  async function collectWorkspaceRecords({
+  let workspaceCollection = null;
+  let workspaceSnapshot = null;
+  function workspaceCollectionContext() {
+    const list = locate('workspace', 'list').nodes[0];
+    const form = document.querySelector('form.workspace-search');
+    const signature = location.href + '|' + JSON.stringify(workspaceCounts()) + '|' + Array.from(form?.querySelectorAll('input,select,textarea') || [])
+      .map(input => `${input.name}=${input.value}:${input.checked ?? ''}`).join('&');
+    return {list, signature};
+  }
+  function getWorkspacePreload({onProgress} = {}) {
+    const {list, signature} = workspaceCollectionContext();
+    if (invalidated) return null;
+    if (workspaceCollection?.list === list && workspaceCollection.signature === signature) {
+      if (onProgress) workspaceCollection.listeners.add(onProgress);
+      return workspaceCollection.promise;
+    }
+    if (!workspaceSnapshot || workspaceSnapshot.list !== list || workspaceSnapshot.signature !== signature) return null;
+    const result = workspaceSnapshot.result;
+    onProgress?.({count:result.records.length, loaded:result.records.length, total:result.total, stage:'cached'});
+    return Promise.resolve(result);
+  }
+  function collectWorkspaceRecords(options = {}) {
+    // Reports opened during preload share the current read instead of requesting pages twice.
+    const {list, signature} = workspaceCollectionContext();
+    if (!options.signal && workspaceSnapshot?.list === list && workspaceSnapshot.signature === signature &&
+        Date.now() - workspaceSnapshot.time < 60000) {
+      const result = workspaceSnapshot.result;
+      options.onProgress?.({count:result.records.length, loaded:result.records.length, total:result.total, stage:'cached'});
+      return Promise.resolve(result);
+    }
+    if (!options.signal && workspaceCollection?.list === list && workspaceCollection.signature === signature) {
+      if (options.onProgress) workspaceCollection.listeners.add(options.onProgress);
+      return workspaceCollection.promise;
+    }
+    const current = {list, signature, listeners:new Set(options.onProgress ? [options.onProgress] : [])};
+    current.promise = readWorkspaceRecords({...options, onProgress:progress => {
+      for (const listener of current.listeners) listener(progress);
+    }}).then(result => {
+      if (result.reason === 'complete' && result.source === 'workspace-api')
+        workspaceSnapshot = {list, signature, time:Date.now(), result};
+      return result;
+    }).finally(() => { if (workspaceCollection === current) workspaceCollection = null; });
+    if (!options.signal) workspaceCollection = current;
+    return current.promise;
+  }
+  async function readWorkspaceRecords({
     signal, onProgress = () => {}, timeout = 360000, pause = 90,
-    idleTimeout = 18000, maxRetries = 2
+    idleTimeout = 18000, maxRetries = 2, useApi = true, batchSize, allowScroll = true, adaptiveBatch = false
   } = {}) {
     // Ordem: botão nativo sem rolar; caso ele não acione a paginação,
     // salto instantâneo até o fim (equivalente à tecla End).
@@ -281,8 +331,9 @@
     const list = listed && listed !== firstCard ? listed : firstCard?.parentElement || listed;
     if (!list || !firstCard) throw new Error('Cards do workspace não encontrados. Abra a mesa de trabalho.');
 
-    const viaApi = await collectWorkspaceViaApi({signal,onProgress,timeout});
+    const viaApi = useApi ? await collectWorkspaceViaApi({signal,onProgress,timeout,batchSize,adaptiveBatch}) : null;
     if (viaApi) return viaApi;
+    if (!allowScroll) throw new Error('O SPA não disponibilizou o carregamento em lotes sem rolagem.');
 
     const href = location.href;
     const form = document.querySelector('form.workspace-search');
@@ -302,7 +353,7 @@
     const processedNodes = new WeakMap();
 
     const check = () => {
-      if (signal?.aborted) throw new DOMException('Carregamento cancelado', 'AbortError');
+      if (invalidated || signal?.aborted) throw new DOMException('Carregamento cancelado', 'AbortError');
       if (location.href !== href || !list.isConnected || signature() !== initial) {
         throw new Error('Os filtros ou a lista mudaram. Inicie outra leitura na tela atual.');
       }
@@ -533,7 +584,7 @@
     const collected = new Map(), started = Date.now();
     let stable = 0, rounds = 0, reason = 'timeout';
     const check = () => {
-      if (signal?.aborted) throw new DOMException('Carregamento cancelado', 'AbortError');
+      if (invalidated || signal?.aborted) throw new DOMException('Carregamento cancelado', 'AbortError');
       if (location.href !== href || !list.isConnected) throw new Error('A caixa mudou durante a leitura. Inicie novamente na tela atual.');
     };
     const capture = () => {
@@ -583,7 +634,7 @@
       document.body.append(dialog); dialog.showModal(); dialog.querySelector('button').focus();
     });
   }
-  globalThis.SpaAdapter = Object.freeze({ route, locate, readRows, field, records, isWorkspace, workspaceRecordFromNode, workspacePreviewRecords, workspaceRecords, workspaceCounts, collectWorkspaceRecords, collectWorkspaceReport, collectionSummary, showCollectionSummary, inspect, observe, waitFor, dispose, filterRecords, collectLazyRecords,
+  globalThis.SpaAdapter = Object.freeze({ route, locate, readRows, field, records, isWorkspace, workspaceRecordFromNode, workspacePreviewRecords, workspaceRecords, workspaceCounts, collectWorkspaceRecords, getWorkspacePreload, collectWorkspaceReport, collectionSummary, showCollectionSummary, inspect, observe, waitFor, dispose, filterRecords, collectLazyRecords,
     actions: Object.freeze({ confirm: confirmAction }), registry });
   if (typeof window !== 'undefined') window.addEventListener('mtprev-extension-context-invalidated', () => {
     invalidated = true;

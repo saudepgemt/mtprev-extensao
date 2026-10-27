@@ -10721,7 +10721,22 @@
     let failure = '';
     try {
       const scope = workspaceDuplicateCacheScope();
-      if (scope && !options.forceRefresh) {
+      const onWorkspaceProgress = ({count,total}) => {
+        if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
+        setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
+      };
+      let preloaded = null;
+      if (scope && window.SpaAdapter?.getWorkspacePreload) {
+        setDuplicateLoading(true, 'Aguardando os lotes carregados ao abrir a mesa…');
+        try { preloaded = await window.SpaAdapter.getWorkspacePreload({onProgress:onWorkspaceProgress}); }
+        catch (error) {
+          if (state.stopped || error?.name === 'AbortError') throw error;
+          log('Leitura inicial indisponível: ' + error.message, 'error');
+        }
+        if (workspaceDuplicateCacheScope() !== scope) throw new Error('Os filtros da mesa mudaram. Gere o relatório novamente.');
+        if (preloaded?.reason !== 'complete') preloaded = null;
+      }
+      if (scope && !options.forceRefresh && !preloaded) {
         const cached = await readWorkspaceDuplicateCache(scope);
         if (cached && workspaceDuplicateCacheScope() === scope) {
           showDuplicateReport(cached);
@@ -10741,10 +10756,9 @@
         if (!detectedCards.length) {
           throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
         }
-        const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total}) => {
-          if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
-          setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
-        }});
+        const collection = preloaded || await window.SpaAdapter.collectWorkspaceRecords({
+          batchSize:100, allowScroll:false, onProgress:onWorkspaceProgress
+        });
         const grouped = new Map(); let skippedSes=0;
         // No workspace, analisar todos os cards recuperados na visão filtrada.
         // Não excluir candidatos pelo assunto/último andamento nesta comparação.
@@ -11226,7 +11240,6 @@
     const subtitle=el('div','', 'Grupos por número do processo · partes ativas · distribuição · conferência de expedientes');
     subtitle.style.cssText='font-size:11px;color:#c1d0e0;margin-top:4px;';
     title.append(titleName,subtitle);header.appendChild(title);
-    const openAll=button('Abrir candidatos','md-muted-btn');
     const bulkClosure=button('Sugestões em lote (0)','md-amber');
     bulkClosure.disabled=true;
     bulkClosure.title='Selecione manualmente os expedientes a revisar. A fila é preparada um por vez, nunca faz gravações paralelas.';
@@ -11239,7 +11252,7 @@
     });
     const close=button('Fechar','md-muted-btn');
     close.addEventListener('click',()=>overlay.remove());
-    header.append(openAll,bulkClosure,refresh,close);sheet.appendChild(header);
+    header.append(bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
     const complete=coverage.reason==='complete';
@@ -11263,14 +11276,12 @@
     const entries=(report.groups || []).map(group=>({...group,evidence:workspaceDuplicateEvidence(group)}))
       .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
     const totalCandidateTabs=workspaceDuplicateCandidateUrls(entries).length;
-    openAll.textContent=`Abrir candidatos (${totalCandidateTabs})`;
-    openAll.disabled=!totalCandidateTabs;
     let tabsOpening=false;
     const openCandidates=async (groups,scope)=>{
       if(tabsOpening)return;
       const count=workspaceDuplicateCandidateUrls(groups).length;
       if(!count){tabStatus.textContent='Nenhum link individual de expediente encontrado.';return;}
-      tabsOpening=true;openAll.disabled=true;
+      tabsOpening=true;
       tabStatus.textContent=`Abrindo ${count} expediente(s) em abas separadas...`;
       try {
         const result=await openWorkspaceDuplicateCandidates(groups,({opened,total})=>{
@@ -11280,9 +11291,8 @@
           ? `${result.opened} de ${result.total} abas abertas. Confira as permissões de abertura.`
           : `${result.opened} aba(s) abertas em segundo plano (${scope}).`;
       } catch(error){if(overlay.isConnected)tabStatus.textContent=`Não foi possível abrir as abas: ${error.message}`;}
-      finally{tabsOpening=false;if(overlay.isConnected)openAll.disabled=!totalCandidateTabs;}
+      finally{tabsOpening=false;}
     };
-    openAll.addEventListener('click',()=>{void openCandidates(entries,'ação manual');});
 
     const scores=entries.map(group=>group.evidence.score);
     const allRecords=entries.reduce((sum,group)=>sum+group.records.length,0);
@@ -11539,11 +11549,11 @@
     sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
     // A abertura automatica acontece apenas após coleta completa nova.
     if(report.fromCache){
-      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use “Abrir candidatos” se desejar.';
+      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use os controles de cada grupo ou expediente para abrir os links.';
     } else if(!complete){
-      tabStatus.textContent='Coleta parcial: abertura automática desativada. Ainda é possível abrir candidatos manualmente.';
+      tabStatus.textContent='Coleta parcial: abertura automática desativada. Use os controles de cada grupo ou expediente para abrir os links.';
     } else if(totalCandidateTabs>60){
-      tabStatus.textContent=`${totalCandidateTabs} links encontrados: por segurança, clique em “Abrir candidatos” para abrir todas as abas.`;
+      tabStatus.textContent=`${totalCandidateTabs} links encontrados: abertura automática desativada para este volume. Use os controles de cada grupo ou expediente para abrir os links.`;
     } else if(totalCandidateTabs){
       void openCandidates(entries,'automático após a análise');
     } else {
@@ -14054,10 +14064,6 @@
     duplicateLoading.setAttribute('role', 'status');
     duplicadosPage.appendChild(duplicateLoading);
     const duplicadosButtons = createButtonGrid();
-    appendFullWidthButton(
-      duplicadosButtons,
-      createButton("Abrir Duplicados", () => openDuplicateTabsAllPages(currentActionLimit()), "amber")
-    );
     appendFullWidthButton(
       duplicadosButtons,
       createButton("Relatorio Duplicados", () => buildDuplicateReport(false), "info")

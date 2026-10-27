@@ -132,6 +132,16 @@
       width = centerRect.width;
       height = centerRect.height;
     }
+    const loading = shell.querySelector('.mtprev-orbit__loading:not([hidden])');
+    if (loading && !shell.classList.contains('mtprev-radial-operational')) {
+      const rect = shell.getBoundingClientRect();
+      const status = loading.getBoundingClientRect();
+      const right = Math.max(offsetLeft + width, status.right - rect.left);
+      const bottom = Math.max(offsetTop + height, status.bottom - rect.top);
+      offsetLeft = Math.min(offsetLeft, status.left - rect.left);
+      offsetTop = Math.min(offsetTop, status.top - rect.top);
+      width = right - offsetLeft; height = bottom - offsetTop;
+    }
     const minLeft = margin - offsetLeft, minTop = margin - offsetTop;
     const maxLeft = Math.max(minLeft, window.innerWidth - offsetLeft - width - margin);
     const maxTop = Math.max(minTop, window.innerHeight - offsetTop - height - margin);

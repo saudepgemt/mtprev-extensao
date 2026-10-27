@@ -32,6 +32,7 @@
     const node = element("button", text, parent, className || "cdsp-watch-button");
     node.type = "button";
     if (fn) node.addEventListener("click", async () => {
+      if (fn === close) { close(); return; }
       if (busy) return;
       busy = true;
       node.disabled = true;
@@ -140,6 +141,18 @@
       addMovementList(record.latest, latest, false);
     }
     const actions = element("div", "", body, "cdsp-watch-card-actions");
+    // O acompanhamento MNI/PJe conhece o CNJ, mas não necessariamente o ID interno
+    // de cada expediente no SPA. Não inventar /procedures/ID.
+    const cnj = displayNumber(record.number);
+    const currentField = Array.from(document.querySelectorAll('.workspace-preview__field')).find((field) =>
+      /número do processo/i.test(field.querySelector('small')?.textContent || '')
+    );
+    const currentNumber = (currentField?.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || currentField?.querySelector('strong')?.textContent || '').replace(/\D/g,'');
+    const onMatchingProcess = currentNumber.length === 20 && currentNumber === cleanNumber(record.number) && /^\/procedures\/\d+\/?$/.test(location.pathname);
+    const spaLink = element('a', onMatchingProcess ? 'Abrir autos/PDFs deste processo' : 'Localizar processo no SPA / Autos', actions, 'cdsp-watch-button cdsp-watch-button--primary');
+    spaLink.href = onMatchingProcess ? location.href : new URL('/procedures/search?gq=' + encodeURIComponent(cnj), location.origin).href;
+    spaLink.target = '_blank';spaLink.rel='noopener noreferrer';
+    spaLink.title = onMatchingProcess ? 'Abrir o processo no SPA2 com o painel de autos.' : 'Pesquisar o CNJ no SPA, selecionar o expediente correto e consultar Autos/Andamentos.';
     button("Verificar agora", actions, async () => { await request("check", record.number); await render(); });
     if (record.unread) button("Marcar como lido", actions, async () => { await request("read", record.number); await render(); }, "cdsp-watch-button cdsp-watch-button--primary");
     button("Parar de acompanhar", actions, async () => {
@@ -246,6 +259,16 @@
       await render();
     }, "cdsp-watch-button cdsp-watch-button--primary");
     button("Verificar todos agora", actions, async () => { await request("checkAll"); await render(); });
+    const configure = button("Configurar consulta PJe", actions);
+    configure.addEventListener("click", async () => {
+      try {
+        const result = await chrome.runtime.sendMessage({ type: "MTPREV_OPEN_OPTIONS" });
+        if (!result?.ok) throw new Error(result?.error || "Não foi possível abrir a configuração.");
+      } catch (error) {
+        const status = panel.querySelector(".cdsp-watch-status");
+        status.textContent = error.message; status.dataset.tone = "error";
+      }
+    });
     const status = element("p", "", main, "cdsp-watch-status");
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
     element("p", "0 processo(s) exibido(s)", main, "cdsp-watch-visible-count");

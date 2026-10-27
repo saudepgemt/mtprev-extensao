@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   "use strict";
 
   if (window.CDSP_GENERAL_BRIDGE_INITIALIZED) return;
@@ -131,6 +131,16 @@
       offsetTop = centerRect.top - shellRect.top;
       width = centerRect.width;
       height = centerRect.height;
+    }
+    const loading = shell.querySelector('.mtprev-orbit__loading:not([hidden])');
+    if (loading && !shell.classList.contains('mtprev-radial-operational')) {
+      const rect = shell.getBoundingClientRect();
+      const status = loading.getBoundingClientRect();
+      const right = Math.max(offsetLeft + width, status.right - rect.left);
+      const bottom = Math.max(offsetTop + height, status.bottom - rect.top);
+      offsetLeft = Math.min(offsetLeft, status.left - rect.left);
+      offsetTop = Math.min(offsetTop, status.top - rect.top);
+      width = right - offsetLeft; height = bottom - offsetTop;
     }
     const minLeft = margin - offsetLeft, minTop = margin - offsetTop;
     const maxLeft = Math.max(minLeft, window.innerWidth - offsetLeft - width - margin);
@@ -407,6 +417,8 @@
   }
 
   function isProcedureRoute() {
+    const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+    if (/^\d+$/.test(previewId)) return true;
     const path = window.location.pathname;
     return (
       /^\/procedures\/\d+\/?$/.test(path) ||
@@ -471,7 +483,8 @@
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
       if (extensionContextInvalidated) return;
-      const route = window.location.pathname + window.location.search + window.location.hash;
+      const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+      const route = window.location.pathname + window.location.search + window.location.hash + '|' + previewId;
       if (route === rootToolsLastRoute) return;
       rootToolsLastRoute = route;
       window.dispatchEvent(new Event('mtprev-spa-routechange'));

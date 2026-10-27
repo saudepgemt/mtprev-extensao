@@ -45,7 +45,71 @@
     const theme = create('span', 'mtprev-panel-theme', '', title);
     const context = create('span', 'mtprev-orbit__context', 'MTPrev', tools);
     context.setAttribute('aria-live', 'polite');
+    const loading = create('div', 'mtprev-orbit__loading', '', shell);
+    loading.hidden = true;
+    const loadingText = create('div', '', '', loading);
+    loadingText.setAttribute('role', 'status');
+    const loadingBar = create('progress', '', '', loading);
+    loadingBar.setAttribute('aria-label', 'Carregamento dos processos da mesa');
+    let preloadList = null, preloadKey = '', preloadRunning = false, preloadStopped = false;
+    function preloadWorkspace() {
+      const adapter = window.SpaAdapter;
+      if (preloadStopped || !adapter) return;
+      if (!adapter.isWorkspace()) { loading.hidden = true; preloadList = null; preloadKey = ''; return; }
+      if (preloadRunning) return;
+      const list = adapter.locate('workspace', 'list').nodes[0];
+      const counts = adapter.workspaceCounts();
+      if (!list || counts.total === null || (counts.total > 0 && !adapter.locate('workspace', 'cards').nodes.length)) return;
+      const form = document.querySelector('form.workspace-search');
+      const key = location.href + '|' + counts.total + '|' + Array.from(form?.querySelectorAll('input,select,textarea') || [])
+        .map(input => `${input.name}=${input.value}:${input.checked ?? ''}`).join('&');
+      if (list === preloadList && key === preloadKey) return;
+      preloadList = list; preloadKey = key;
+      loading.hidden = false;
+      let previousCount = counts.loaded || 0, batchSize = 0;
+      const started = Date.now();
+      let requestSeconds = null;
+      const update = (count, total, complete = false) => {
+        if (total !== null && total > 0) { loadingBar.max = total; loadingBar.value = Math.min(count, total); }
+        else if (complete) { loadingBar.max = 1; loadingBar.value = 1; }
+        else loadingBar.removeAttribute('value');
+        loadingText.textContent = `${complete ? 'Carregamento concluído' : 'Carregando processos'}: ${count}${total === null ? '' : ' de ' + total} · Lote: ${batchSize || (complete ? 'nenhum' : 'aguardando')}${batchSize ? ' processos' : ''}`;
+        loadingText.textContent += ` · Tempo total: ${((Date.now() - started) / 1000).toFixed(1)} s${requestSeconds === null ? '' : ' · Última requisição: ' + requestSeconds + ' s'}`;
+        requestAnimationFrame(clamp);
+      };
+      update(previousCount, counts.total, counts.total === 0);
+      if (counts.total === 0) return;
+      preloadRunning = true;
+      adapter.collectWorkspaceRecords({batchSize:100, allowScroll:false, onProgress:({count, loaded, total, batchSize:receivedBatch, requestMs}) => {
+        const current = loaded ?? count;
+        if (current > previousCount) batchSize = current - previousCount;
+        if (receivedBatch) batchSize = receivedBatch;
+        if (Number.isFinite(requestMs)) requestSeconds = (requestMs / 1000).toFixed(1);
+        previousCount = current;
+        update(count, total);
+      }}).then(result => {
+        update(result.records.length, result.total, result.reason === 'complete');
+        if (result.reason !== 'complete') loadingText.textContent = `Carregamento parcial: ${result.records.length} de ${result.total ?? '?'} processos · Lote: ${batchSize}`;
+      }).catch(() => {
+        loadingText.textContent = 'Não foi possível carregar o lote solicitado sem rolagem. A página permanece na mesma posição.';
+      }).finally(() => { preloadRunning = false; });
+    }
+    // The workspace may arrive after the menu or be replaced when its filters change.
+    const preloadTimer = setInterval(preloadWorkspace, 1000);
+    window.addEventListener('mtprev-extension-context-invalidated', () => {
+      preloadStopped = true; clearInterval(preloadTimer); loading.hidden = true;
+    });
+    preloadWorkspace();
     let expanded = false, module = null, generation = 0, page = 0;
+    const viewKey = 'MTPREV_RADIAL_VIEW_V1';
+    let restoringView = false;
+    function rememberView() {
+      if (restoringView) return;
+      const mode = shell.classList.contains('mtprev-radial-external') ? 'watch'
+        : shell.classList.contains('mtprev-radial-operational') ? 'panel' : expanded ? 'menu' : 'compact';
+      try { sessionStorage.setItem(viewKey, JSON.stringify({mode, module:module?.key || null, option:theme.textContent, page})); } catch (_) {}
+    }
+    window.addEventListener('pagehide', rememberView);
     const previous = create('button', '', 'Opções anteriores', tools); previous.type = 'button';
     const next = create('button', '', 'Mais opções', tools); next.type = 'button';
     previous.classList.add('mtprev-orbit__previous'); next.classList.add('mtprev-orbit__next');
@@ -96,6 +160,7 @@
       theme.textContent = label || target?.textContent.trim() || module?.title || '';
       back.hidden = false; back.textContent = 'Voltar'; header.appendChild(back);
       if (target) target.click();
+      rememberView();
       const activePane = shell.querySelector('[data-cdsp-module-pane]:not([hidden])');
       if (activePane) { activePane.tabIndex = -1; activePane.focus({ preventScroll: true }); }
       clamp();
@@ -161,6 +226,7 @@
     function open() {
       shell.classList.remove('mtprev-panel-leaving');
       expanded = true; generation++; clearTimeout(timer);
+      shell.classList.add('mtprev-radial-draggable');
       context.classList.remove('is-notice');
       center.setAttribute('aria-expanded', 'true');
       shell.classList.remove('mtprev-radial-operational', 'mtprev-radial-compact'); api.expand();
@@ -169,9 +235,14 @@
       tools.prepend(back);
       paint(entries());
       center.focus({ preventScroll: true });
+      rememberView();
     }
     function close() {
       expanded = false; generation++; clearTimeout(timer); collapseItems();
+      shell.classList.remove('mtprev-radial-draggable');
+      if (!restoringView) {
+        try { sessionStorage.setItem(viewKey, JSON.stringify({mode:'compact', module:module?.key || null, page})); } catch (_) {}
+      }
       if (shell.classList.contains('mtprev-radial-operational')) shell.classList.add('mtprev-panel-leaving');
       timer = setTimeout(() => { if (!expanded) { shell.classList.remove('mtprev-radial-operational', 'mtprev-panel-leaving'); shell.classList.add('mtprev-radial-compact'); clamp(); } }, delay());
       center.focus({ preventScroll: true });
@@ -191,12 +262,19 @@
         return;
       }
       open();
+      return true;
     }
     center.addEventListener('click', (event) => {
       if (suppressClick && event.detail !== 0) { event.preventDefault(); suppressClick = false; return; }
       shell.classList.remove('mtprev-radial-compact');
       if (expanded) close(); else open();
     });
+    // Cancel the release click before any option handler runs after a drag.
+    shell.addEventListener('click', (event) => {
+      if (!suppressClick || event.detail === 0) return;
+      suppressClick = false;
+      event.preventDefault(); event.stopImmediatePropagation();
+    }, true);
     shell.addEventListener('mtprev-close-drawer', close);
     back.addEventListener('click', () => {
       if (shell.classList.contains('mtprev-radial-operational')) { open(); return; }
@@ -210,17 +288,21 @@
       event.stopPropagation(); event.preventDefault();
       if (expanded && module) back.click(); else if (expanded) close(); else { shell.classList.remove('mtprev-radial-compact'); open(); }
     });
-    center.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || drag) return;
+    shell.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || drag || shell.classList.contains('mtprev-radial-operational')) return;
       const rect = shell.getBoundingClientRect();
       drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, dx: 0, dy: 0, moved: false };
-      suppressClick = false; center.setPointerCapture(event.pointerId);
+      suppressClick = false;
     });
-    center.addEventListener('pointermove', (event) => {
+    shell.addEventListener('pointermove', (event) => {
       if (!drag || drag.id !== event.pointerId) return;
       const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-      drag.moved = true;
+      if (!drag.moved) {
+        shell.setPointerCapture(event.pointerId);
+        shell.classList.add('mtprev-radial-dragging');
+        drag.moved = true;
+      }
       const position = api.clamp(shell, drag.left + dx, drag.top + dy);
       drag.dx = position.left - drag.left;
       drag.dy = position.top - drag.top;
@@ -233,10 +315,11 @@
       shell.style.transform = '';
       shell.style.left = `${drag.left + drag.dx}px`; shell.style.top = `${drag.top + drag.dy}px`;
       drag = null;
-      if (center.hasPointerCapture(event.pointerId)) center.releasePointerCapture(event.pointerId);
+      shell.classList.remove('mtprev-radial-dragging');
+      if (shell.hasPointerCapture(event.pointerId)) shell.releasePointerCapture(event.pointerId);
       api.save(shell);
     }
-    center.addEventListener('pointerup', finish); center.addEventListener('pointercancel', finish); center.addEventListener('lostpointercapture', finish);
+    shell.addEventListener('pointerup', finish); shell.addEventListener('pointercancel', finish); shell.addEventListener('lostpointercapture', finish);
     window.addEventListener('resize', () => { if (expanded) layout(); else clamp(); });
     window.addEventListener('mtprev-process-watch-closed', () => {
       if (!shell.classList.contains('mtprev-radial-external')) return;
@@ -259,5 +342,29 @@
     new MutationObserver(extras).observe(nav, { childList: true }); extras();
     ring.inert = true; back.hidden = true;
     shell.classList.add('mtprev-radial-compact'); layout(); clamp();
+    // Keep the same navigation view within this browser tab after a site navigation.
+    async function restoreView() {
+      let saved;
+      try { saved = JSON.parse(sessionStorage.getItem(viewKey) || 'null'); } catch (_) {}
+      if (!saved || saved.mode === 'compact') return;
+      restoringView = true;
+      try {
+        if (saved.mode === 'watch') {
+          await entries()[0].run();
+          return;
+        }
+        const selected = api.modules.find(item => item.key === saved.module);
+        if (selected) {
+          if (!await select(selected)) return;
+          page = Math.max(0, Number(saved.page) || 0);
+          if (saved.mode === 'panel') {
+            const option = options().find(item => item.title === saved.option);
+            if (option) { option.run(); return; }
+          }
+          paint(entries());
+        } else open();
+      } finally { restoringView = false; rememberView(); }
+    }
+    setTimeout(restoreView, 0);
   };
 })();

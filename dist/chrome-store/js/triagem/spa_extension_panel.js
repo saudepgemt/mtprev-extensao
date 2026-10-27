@@ -459,6 +459,13 @@
 
   function readProcedureHeaderValue(labelText) {
     const wanted = normalizeProcedureLabel(labelText);
+    const workspace = document.querySelector('.workspace-preview__document');
+    if (workspace) {
+      const field = Array.from(workspace.querySelectorAll('.workspace-preview__field')).find((element) =>
+        normalizeProcedureLabel(element.querySelector('small')?.textContent || '') === wanted
+      );
+      if (field) return String(field.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || field.querySelector('strong')?.textContent || '').trim();
+    }
     const items = Array.from(document.querySelectorAll(".procedure-header .copyElement, .copyElement"));
 
     for (const item of items) {
@@ -481,6 +488,8 @@
   }
 
   function readMainProcedureId() {
+    const workspaceId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+    if (/^\d+$/.test(workspaceId)) return workspaceId;
     const input = document.querySelector("#main_procedure_id, input[name='main_procedure_id']");
     if (input && String(input.value || "").trim()) return String(input.value || "").trim();
 
@@ -504,6 +513,8 @@
   }
 
   function readCurrentProcedureProcessNumber() {
+    const workspaceValue = readProcedureHeaderValue('Número do processo');
+    if (workspaceValue) return workspaceValue;
     const headerValue = readProcedureHeaderValue("N\u00famero do Processo");
     if (headerValue) return headerValue;
 
@@ -548,6 +559,9 @@
   }
 
   function isProcedureDetailPage() {
+    if (document.querySelector('.workspace-preview__document[data-procedure-id] #workspace-preview-overview')) {
+      return Boolean(readMainProcedureId() && readCurrentProcedureProcessNumber());
+    }
     if (isProcedureCollectionPage()) return false;
     return isPotentialProcedureWorkspacePage() && Boolean(readCurrentProcedureProcessNumber());
   }
@@ -645,7 +659,23 @@
     const tribunal = readProcedureHeaderValue("Tribunal");
     const processDigits = String(processNumber || "").replace(/\D+/g, "");
 
+    const workspaceTimeline = document.querySelector('.workspace-preview__document [data-workspace-preview-panel="timeline"][data-timeline-url]');
+    const relativeTimeline = workspaceTimeline?.getAttribute('data-timeline-url') || '';
+    let spaTimelineUrl = '';
+    try {
+      const timeline = new URL(relativeTimeline, window.location.origin);
+      if (timeline.origin === window.location.origin && /^\/workspace\/processes\/\d+\/timeline\/?$/.test(timeline.pathname)) {
+        spaTimelineUrl = timeline.href;
+      }
+    } catch (_) { /* Aguarda o SPA disponibilizar o endereço dos andamentos. */ }
     return {
+      spaTimeline: {
+        key: 'spaTimeline', label: 'Andamentos e PDFs · SPA2', shortLabel: 'Andamentos SPA',
+        buttonLabel: 'Abrir andamentos no SPA', loadingText: 'Carregando andamentos do SPA2...',
+        emptyText: 'Nenhum PDF foi identificado nos andamentos retornados pelo SPA2.',
+        errorText: 'Não foi possível ler os andamentos do SPA2. Confira a aba Andamentos.',
+        foundSuffix: 'registro(s) de andamento, com links de PDF quando disponíveis.', url: spaTimelineUrl, openable: false
+      },
       autos: {
         key: "autos",
         label: "Autos do processo",
@@ -690,10 +720,14 @@
       sources.autos && sources.autos.url ? sources.autos.url : "",
       sources.folder && sources.folder.url ? sources.folder.url : "",
       sources.movements && sources.movements.url ? sources.movements.url : "",
+      sources.spaTimeline && sources.spaTimeline.url ? sources.spaTimeline.url : "",
     ].join("|");
   }
 
   function findExternalDocumentsHost() {
+    // SPA2: colocar o painel antes das duas colunas da visão geral, sem espremer os autos.
+    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
+    if (overview && overview.querySelector('.workspace-preview__overview-grid')) return overview;
     const header =
       document.querySelector(".procedure-header .card-body") ||
       document.querySelector(".procedure-header") ||
@@ -711,12 +745,52 @@
     return columns[1] || header;
   }
 
+  function placeExternalDocumentsPanel(panel, host) {
+    if (!panel || !host) return;
+    const grid = host.matches && host.matches('#workspace-preview-overview')
+      ? host.querySelector(':scope > .workspace-preview__overview-grid')
+      : null;
+    if (grid) {
+      // Também reposiciona painéis criados em versões anteriores da extensão.
+      if (panel.parentElement !== host || panel.nextElementSibling !== grid) {
+        host.insertBefore(panel, grid);
+      }
+      return;
+    }
+    if (panel.parentElement !== host) host.appendChild(panel);
+  }
+
   function injectExternalDocumentsStyles() {
     if (document.querySelector("#spa-cdsp-external-docs-style")) return;
 
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
+      /* SPA2: painel de autos em toda a largura, antes de Situação atual e Dados. */
+      .workspace-preview__document #workspace-preview-overview > #spa-cdsp-external-docs-panel {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+        margin: 0 0 18px;
+        box-sizing: border-box;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(610px, 100%);
+      }
+      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      }
+      @media (max-width: 760px) {
+        .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
       #spa-cdsp-external-docs-panel {
         margin: 14px 0 0 0;
         border: 1px solid rgba(33, 150, 243, 0.35);
@@ -2549,7 +2623,61 @@
     return items;
   }
 
+  function parseSpaTimelinePdfLinks(doc) {
+    const selectors = [
+      'a[href$=".pdf"]', 'a[href*=".pdf?"]', 'a[href*="/pdfjs/web/viewer.html"]',
+      'a[href*="/coresigner/"]', 'a[href*="/documents/"][href*="pdf"]',
+      'a[data-document-url]'
+    ];
+    const result = [];
+    const seen = new Set();
+    for (const link of doc.querySelectorAll(selectors.join(','))) {
+      const raw = link.getAttribute('data-document-url') || link.getAttribute('href') || '';
+      if (!raw || /^(javascript:|data:|blob:)/i.test(raw)) continue;
+      let url;
+      try { url = new URL(raw, window.location.origin); } catch (_error) { continue; }
+      // Links autenticados pertencem à instância SPA atual; sem requisições a terceiros.
+      if (url.origin !== window.location.origin || !/^https?:$/.test(url.protocol)) continue;
+      if (seen.has(url.href)) continue;
+      seen.add(url.href);
+      const ancestor = link.closest('article,li,tr,.timeline-item,.timeline__item,.progress-item') || link.parentElement;
+      const context = normalizeText(ancestor?.textContent || link.textContent || '');
+      const matchDate = context.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
+      const matchTime = context.match(/\b\d{2}:\d{2}\b/);
+      const title = normalizeText(link.getAttribute('title') || link.getAttribute('aria-label') || link.textContent || 'Documento do andamento');
+      result.push(createExternalDocumentItem({
+        id: link.getAttribute('data-document-id') || '', type: title || 'PDF do andamento',
+        description: context.slice(0, 300) || title, date: matchDate?.[0] || '', time: matchTime?.[0] || '',
+        url: url.href, viewerUrl: url.href, source: 'spaTimeline', sourceLabel: 'Andamentos SPA2'
+      }));
+    }
+    // Andamentos sem anexos também podem ser mostrados no resumo.
+    const movements = doc.querySelectorAll('[data-workspace-preview-filter-item]');
+    for (const node of Array.from(movements).slice(0, 300)) {
+      const description = normalizeText(node.textContent || '').slice(0, 350);
+      if (description.length < 10) continue;
+      const hasPdf = Array.from(node.querySelectorAll('a[href]')).some((link) => {
+        try { return seen.has(new URL(link.getAttribute('href') || '', window.location.origin).href); }
+        catch (_error) { return false; }
+      });
+      if (hasPdf) continue;
+      const key = 'movement:' + description;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const item = createExternalDocumentItem({
+        type: 'Andamento do SPA2', description,
+        date: (description.match(/\b\d{2}\/\d{2}\/\d{4}\b/) || [])[0] || '',
+        time: (description.match(/\b\d{2}:\d{2}\b/) || [])[0] || '',
+        source: 'spaTimeline', sourceLabel: 'Andamentos SPA2'
+      });
+      item.noOpen = true;
+      result.push(item);
+    }
+    return result;
+  }
+
   function parseExternalDocumentLinks(doc, sourceKey) {
+    if (sourceKey === 'spaTimeline') return parseSpaTimelinePdfLinks(doc);
     if (sourceKey === "folder") return parseProcedureFolderLinks(doc);
     return parseExternalAutosLinks(doc);
   }
@@ -2564,7 +2692,16 @@
       throw new Error("SPA retornou HTTP " + response.status + " ao carregar " + (sourceKey === "folder" ? "a pasta" : "os autos") + ".");
     }
 
-    const html = await response.text();
+    const raw = await response.text();
+    let html = raw;
+    if (sourceKey === 'spaTimeline') {
+      let data;
+      try { data = JSON.parse(raw); } catch (_error) { /* fallback for HTML */ }
+      if (data) {
+        if (typeof data.html !== 'string') throw new Error('Resposta do andamento não contém HTML.');
+        html = data.html;
+      }
+    }
     const doc = new DOMParser().parseFromString(html, "text/html");
     return parseExternalDocumentLinks(doc, sourceKey);
   }
@@ -4445,12 +4582,14 @@
   }
 
   function createExternalDocumentsPanel(sources, processNumber) {
+    // No SPA2, a aba inicial é o andamento do MNI/PJe quando o CNJ é válido.
+    // Se não houver numeração consultável, use a linha do tempo interna do SPA2.
+    const isSpa2Process = Boolean(document.querySelector('.workspace-preview__document #workspace-preview-overview'));
     const defaultSourceKey =
-      sources && sources.autos && sources.autos.url
-        ? "autos"
-        : sources && sources.folder && sources.folder.url
-        ? "folder"
-        : "movements";
+      isSpa2Process && sources?.movements?.url ? "movements" :
+      sources?.spaTimeline?.url ? "spaTimeline" :
+      sources?.autos?.url ? "autos" :
+      sources?.folder?.url ? "folder" : "movements";
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
@@ -4557,7 +4696,7 @@
     sourceSwitcher.className = "spa-cdsp-external-docs-source";
 
     const sourceInputs = {};
-    ["autos", "folder", "movements"].forEach((key) => {
+    (sources.spaTimeline?.url ? ["autos", "folder", "spaTimeline", "movements"] : ["autos", "folder", "movements"]).forEach((key) => {
       const source = sources[key];
       const option = document.createElement("label");
       option.className = "spa-cdsp-external-docs-source-option";
@@ -5475,7 +5614,9 @@
       const box = document.createElement("div");
       box.className = "spa-cdsp-external-docs-placeholder";
       box.textContent =
-        source.key === "movements"
+        source.key === 'spaTimeline'
+          ? 'Clique em Atualizar para consultar os documentos vinculados aos andamentos do SPA2. A aba Andamentos do SPA permanece disponível.'
+        : source.key === "movements"
           ? "O andamento processual ficará aqui em formato de linha do tempo."
           : source.key === "folder"
           ? "O resumo da pasta do processo ficará aqui. Pastas e documentos serão listados em uma visão rápida."
@@ -5788,6 +5929,7 @@
 
       try {
         const items = await loadExternalSourceIntoCache(source, options);
+        if (!panel.isConnected || getActiveSource().key !== source.key) return;
         renderExternalSourceFromCache(
           source,
           cache,
@@ -5799,6 +5941,7 @@
       } catch (error) {
         cache.loaded = false;
         cache.items = [];
+        if (!panel.isConnected || getActiveSource().key !== source.key) return;
         panel.dataset.loaded = "0";
         viewer.textContent = "";
         const errorBox = document.createElement("div");
@@ -5816,6 +5959,7 @@
         setContentOpenAllButtonsDisabled(false);
         latestDecisionButton.disabled = false;
         loadButton.textContent = "Atualizar";
+        if (panel.isConnected && getActiveSource().key !== source.key) loadActiveExternalSource();
       }
     }
 
@@ -5911,7 +6055,13 @@
     });
 
     resetExternalDocumentSourceView();
-    setTimeout(() => loadAllExternalSources({ force: false }), 0);
+    // SPA2: abrir expandido com os andamentos PJe da numeração atual.
+    // Não buscar PDFs nem as outras fontes automaticamente; permanecem sob demanda.
+    setTimeout(() => {
+      if (!panel.isConnected) return;
+      if (isSpa2Process) loadActiveExternalSource({ force: false });
+      else loadAllExternalSources({ force: false });
+    }, 0);
 
     filterButton.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -5960,7 +6110,8 @@
     });
 
     loadButton.addEventListener("click", () => {
-      loadAllExternalSources({ force: true });
+      if (isSpa2Process) loadActiveExternalSource({ force: true });
+      else loadAllExternalSources({ force: true });
     });
 
     initialPetitionButton.addEventListener("click", (event) => {
@@ -6311,7 +6462,9 @@
       toggleButton.textContent = collapsed ? "Expandir" : "Recolher";
     }
 
-    setExternalDocumentsCollapsed(storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    // No SPA2 o painel inicia aberto; o usuário pode recolher manualmente.
+    setExternalDocumentsCollapsed(isSpa2Process ? false : storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    if (isSpa2Process) minimizedMemory.style.display = "none";
 
     minimizedMemoryInput.addEventListener("change", () => {
       storageSetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, minimizedMemoryInput.checked);
@@ -6351,11 +6504,14 @@
       return;
     }
 
-    if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) return;
+    if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) {
+      placeExternalDocumentsPanel(existingPanel, host);
+      return;
+    }
     if (existingPanel) existingPanel.remove();
 
     injectExternalDocumentsStyles();
-    host.appendChild(createExternalDocumentsPanel(sources, processNumber));
+    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources, processNumber), host);
   }
 
   function setupExternalDocumentsPanel() {
@@ -6401,7 +6557,7 @@
       debounceId = setTimeout(refreshExternalDocumentsPanel, 350);
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-procedure-id', 'data-timeline-url', 'data-copy-value'] });
   }
 
   async function waitProcessingDone(timeoutMs) {
@@ -7981,9 +8137,9 @@
 
   function taskClosureLink() {
     const expected = normalizeText(CONFIG.encerramentoText).toLowerCase();
-    return Array.from(document.querySelectorAll("a[href*='/new_progress/']")).find((link) => {
+    return Array.from(document.querySelectorAll("a[href*='/new_progress/'], a[data-workspace-step-url*='/new_progress/']")).find((link) => {
       const text = normalizeText([link.getAttribute("data-title"), link.getAttribute("title"), link.textContent].join(" ")).toLowerCase();
-      const href = String(link.getAttribute("href") || "");
+      const href = String(link.getAttribute("href") || link.getAttribute("data-workspace-step-url") || "");
       return text.indexOf(expected) >= 0 || href.indexOf("/new_progress/" + CONFIG.encerramentoStepId) >= 0;
     }) || null;
   }
@@ -8029,7 +8185,12 @@
 
     setStatus("Abrindo sugestao de encerramento");
     log("Abrindo Sugerir encerramento de tarefa.");
-    const href = resolveUrl(link.getAttribute("href"));
+    const rawHref = String(link.getAttribute("href") || "");
+    const stepHref = String(link.getAttribute("data-workspace-step-url") || "");
+    // SPA2 sheet actions can have href="#". A navigation fallback is valid
+    // only for a real /new_progress/ URL, not for an action placeholder.
+    const destination = /\/new_progress\/\d+/.test(rawHref) ? rawHref : stepHref;
+    const href = /\/new_progress\/\d+/.test(destination) ? resolveUrl(destination) : "";
     link.click();
     setTimeout(() => {
       if (href && window.location.href !== href && window.location.pathname.indexOf("/new_progress/") < 0) {
@@ -8039,6 +8200,7 @@
     return prepared;
   }
 
+  const spa2ClosureLazyAttempts = new Set();
   async function continuePendingTriageTaskClosure() {
     const action = triageClosureAction();
     if (!action || !action.createdAt || Date.now() - action.createdAt > 5 * 60 * 1000) return;
@@ -8051,7 +8213,22 @@
       if (link) {
         await beginTriageTaskClosure(action);
       } else if (Date.now() - action.createdAt < 10000) {
+        // No SPA2 the next-step menu is lazy. Trigger it only once and then
+        // retry finding the exact closure step, never select another action.
+        const lazy = document.querySelector(
+          '.workspace-preview__next-step-button[data-url], .workspace-process-action--lazy[data-url*="next_steps"]'
+        );
+        const lazyKey = String(action.operationId || action.procedureId);
+        if (lazy && !spa2ClosureLazyAttempts.has(lazyKey)) {
+          spa2ClosureLazyAttempts.add(lazyKey);
+          try { lazy.click(); } catch (_error) { /* user can open manually */ }
+        }
         setTimeout(continuePendingTriageTaskClosure, 600);
+      } else {
+        // Never leave a shared action around for another tab to consume later.
+        clearTriageClosureAction(action.operationId);
+        setStatus('Sugestão não iniciada');
+        log('Não foi possível localizar o passo de encerramento no SPA2. Confira manualmente a aba aberta; nenhum salvamento automático foi confirmado.', 'error');
       }
       return;
     }
@@ -10544,7 +10721,22 @@
     let failure = '';
     try {
       const scope = workspaceDuplicateCacheScope();
-      if (scope && !options.forceRefresh) {
+      const onWorkspaceProgress = ({count,total}) => {
+        if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
+        setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
+      };
+      let preloaded = null;
+      if (scope && window.SpaAdapter?.getWorkspacePreload) {
+        setDuplicateLoading(true, 'Aguardando os lotes carregados ao abrir a mesa…');
+        try { preloaded = await window.SpaAdapter.getWorkspacePreload({onProgress:onWorkspaceProgress}); }
+        catch (error) {
+          if (state.stopped || error?.name === 'AbortError') throw error;
+          log('Leitura inicial indisponível: ' + error.message, 'error');
+        }
+        if (workspaceDuplicateCacheScope() !== scope) throw new Error('Os filtros da mesa mudaram. Gere o relatório novamente.');
+        if (preloaded?.reason !== 'complete') preloaded = null;
+      }
+      if (scope && !options.forceRefresh && !preloaded) {
         const cached = await readWorkspaceDuplicateCache(scope);
         if (cached && workspaceDuplicateCacheScope() === scope) {
           showDuplicateReport(cached);
@@ -10564,10 +10756,9 @@
         if (!detectedCards.length) {
           throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
         }
-        const collection = await window.SpaAdapter.collectWorkspaceRecords({ onProgress: ({count,total}) => {
-          if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
-          setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
-        }});
+        const collection = preloaded || await window.SpaAdapter.collectWorkspaceRecords({
+          batchSize:100, allowScroll:false, onProgress:onWorkspaceProgress
+        });
         const grouped = new Map(); let skippedSes=0;
         // No workspace, analisar todos os cards recuperados na visão filtrada.
         // Não excluir candidatos pelo assunto/último andamento nesta comparação.
@@ -10732,7 +10923,16 @@
           operationId: "triage-closure-" + Date.now() + "-" + Math.random().toString(36).slice(2)
         })
       : await beginTriageTaskClosure(data);
-    if (/^\/workspace\/?$/.test(window.location.pathname)) saveTriageClosureAction(action);
+    // Workspace is the orchestrator, not the destination tab. A sessionStorage
+    // copy here remains stale even after the opened tab processes the action.
+    // Keep only one shared pending action for strictly sequential hand-off.
+    if (/^\/workspace\/?$/.test(window.location.pathname)) {
+      const alreadyPending = storageGet(TRIAGE_CLOSURE_ACTION_KEY, "");
+      if (alreadyPending) {
+        throw new Error("Ha outra sugestao de encerramento pendente. Confira a aba aberta antes de iniciar outra.");
+      }
+      storageSet(TRIAGE_CLOSURE_ACTION_KEY, JSON.stringify(action));
+    }
     if (!(await openUrlInBackground(record.pendencyUrl))) {
       clearTriageClosureAction(action.operationId);
       throw new Error("A extensao nao conseguiu abrir a pendencia em segundo plano.");
@@ -11040,7 +11240,9 @@
     const subtitle=el('div','', 'Grupos por número do processo · partes ativas · distribuição · conferência de expedientes');
     subtitle.style.cssText='font-size:11px;color:#c1d0e0;margin-top:4px;';
     title.append(titleName,subtitle);header.appendChild(title);
-    const openAll=button('Abrir candidatos','md-muted-btn');
+    const bulkClosure=button('Sugestões em lote (0)','md-amber');
+    bulkClosure.disabled=true;
+    bulkClosure.title='Selecione manualmente os expedientes a revisar. A fila é preparada um por vez, nunca faz gravações paralelas.';
     const refresh=button('Atualizar');
     refresh.addEventListener('click', async () => {
       refresh.disabled=true;
@@ -11050,7 +11252,7 @@
     });
     const close=button('Fechar','md-muted-btn');
     close.addEventListener('click',()=>overlay.remove());
-    header.append(openAll,refresh,close);sheet.appendChild(header);
+    header.append(bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
     const complete=coverage.reason==='complete';
@@ -11074,14 +11276,12 @@
     const entries=(report.groups || []).map(group=>({...group,evidence:workspaceDuplicateEvidence(group)}))
       .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
     const totalCandidateTabs=workspaceDuplicateCandidateUrls(entries).length;
-    openAll.textContent=`Abrir candidatos (${totalCandidateTabs})`;
-    openAll.disabled=!totalCandidateTabs;
     let tabsOpening=false;
     const openCandidates=async (groups,scope)=>{
       if(tabsOpening)return;
       const count=workspaceDuplicateCandidateUrls(groups).length;
       if(!count){tabStatus.textContent='Nenhum link individual de expediente encontrado.';return;}
-      tabsOpening=true;openAll.disabled=true;
+      tabsOpening=true;
       tabStatus.textContent=`Abrindo ${count} expediente(s) em abas separadas...`;
       try {
         const result=await openWorkspaceDuplicateCandidates(groups,({opened,total})=>{
@@ -11091,9 +11291,8 @@
           ? `${result.opened} de ${result.total} abas abertas. Confira as permissões de abertura.`
           : `${result.opened} aba(s) abertas em segundo plano (${scope}).`;
       } catch(error){if(overlay.isConnected)tabStatus.textContent=`Não foi possível abrir as abas: ${error.message}`;}
-      finally{tabsOpening=false;if(overlay.isConnected)openAll.disabled=!totalCandidateTabs;}
+      finally{tabsOpening=false;}
     };
-    openAll.addEventListener('click',()=>{void openCandidates(entries,'ação manual');});
 
     const scores=entries.map(group=>group.evidence.score);
     const allRecords=entries.reduce((sum,group)=>sum+group.records.length,0);
@@ -11122,6 +11321,17 @@
     const resultLine=el('div','md-notice');main.appendChild(resultLine);
     const list=el('div');main.appendChild(list);
     const expandedGroups=new Set();
+    // A seleção vale pelo ID interno do expediente + ID do processo SPA, nunca
+    // pelo número CNJ; a mesma numeração pode ter várias tarefas legítimas.
+    const selectedForClosure=new Map();
+    const keyForClosure=record=>{
+      const internal=procedureIdFromUrl(record?.pendencyUrl || '');
+      return internal && String(record?.expedienteId || '').trim() ? `${internal}:${String(record.expedienteId)}` : '';
+    };
+    const syncBulkClosure=()=>{
+      bulkClosure.textContent=`Sugestões em lote (${selectedForClosure.size})`;
+      bulkClosure.disabled=!selectedForClosure.size;
+    };
     const normalized=value=>String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const render=()=>{
       list.replaceChildren();
@@ -11161,7 +11371,22 @@
         group.records.forEach((record,index)=>{
           const row=el('section','md-record');
           const rowTitle=el('div','md-record-title');
-          rowTitle.append(el('strong','',`Expediente ${index+1}`),el('span','md-notice',record.status || 'Candidato à conferência'));
+          const recordKey=keyForClosure(record);
+          const selectLabel=el('label');
+          selectLabel.style.cssText='display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:750;';
+          const selectCheck=el('input');
+          selectCheck.type='checkbox';
+          selectCheck.checked=Boolean(recordKey && selectedForClosure.has(recordKey));
+          selectCheck.disabled=!recordKey;
+          selectCheck.title=recordKey?'Selecionar expediente para a fila assistida de encerramento':'Não foi possível identificar o ID interno do expediente.';
+          selectCheck.addEventListener('change',()=>{
+            if(!recordKey)return;
+            if(selectCheck.checked)selectedForClosure.set(recordKey,{record,groupNumber:group.processNumber || '',score});
+            else selectedForClosure.delete(recordKey);
+            syncBulkClosure();
+          });
+          selectLabel.append(selectCheck,el('span','',`Expediente ${index+1}`));
+          rowTitle.append(selectLabel,el('span','md-notice',record.status || 'Candidato à conferência'));
           row.appendChild(rowTitle);
           const fields=el('div','md-fields');
           [
@@ -11187,6 +11412,45 @@
           singleOpen.disabled=!workspaceDuplicateCandidateUrls([{records:[record]}]).length;
           singleOpen.addEventListener('click',()=>{void openCandidates([{records:[record]}],'expediente individual');});
           actions.appendChild(singleOpen);
+          const detailsButton=button('Dados do SPA2','md-muted-btn');
+          const detailsUrl=(function(){
+            try {const u=new URL(record.pendencyUrl || '',location.origin);
+              return u.origin===location.origin && /^\/procedures\/\d+\/?$/.test(u.pathname) ? u.href : '';
+            } catch(_error){ return ''; }
+          })();
+          detailsButton.disabled=!detailsUrl;
+          detailsButton.title=detailsUrl?'Carregar campos da página deste expediente somente quando solicitado.':'Link interno não disponível para consulta.';
+          detailsButton.addEventListener('click',async()=>{
+            if(!detailsUrl || detailsButton.disabled) return;
+            detailsButton.disabled=true;
+            detailsButton.textContent='Consultando…';
+            let box=row.querySelector('.md-spa2-more');
+            if(!box){box=el('div','md-spa2-more');box.style.cssText='margin:10px 0;padding:11px;background:#f0f5fa;border:1px solid #d5e1eb;border-radius:7px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;';row.appendChild(box);}
+            box.replaceChildren();
+            try {
+              const response=await fetch(detailsUrl,{credentials:'same-origin',cache:'no-store'});
+              if(!response.ok)throw new Error('HTTP '+response.status);
+              const doc=new DOMParser().parseFromString(await response.text(),'text/html');
+              const fields=Array.from(doc.querySelectorAll('.workspace-preview__field'));
+              if(!fields.length)throw new Error('Campos da visão geral não encontrados nesta resposta.');
+              const value=(label)=>{
+                const node=fields.find(field=>normalizeText(field.querySelector('small')?.textContent||'').toLowerCase()===label.toLowerCase());
+                return normalizeText(node?.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || node?.querySelector('strong')?.textContent || '');
+              };
+              const cnj=value('Número do processo');
+              if(cnj && cnj.replace(/\D/g,'') !== String(record.processNumber||'').replace(/\D/g,''))
+                throw new Error('O processo retornado não corresponde ao candidato. Nenhum dado incorporado.');
+              for(const label of ['Número do processo','Parte(s) ativa(s)','Data da distribuição','ID do expediente','Tipo de expediente','Manifestação sugerida','Assessor(a)','Assunto Principal','Classe','Observação']){
+                const content=value(label);
+                if(!content)continue;
+                const field=el('div','md-field');field.append(el('small','',label),el('span','',content));box.appendChild(field);
+              }
+              if(!box.childElementCount)box.textContent='Nenhum campo adicional disponível.';
+              detailsButton.textContent='Dados carregados';
+            } catch(error){box.textContent='Não foi possível consultar os dados deste expediente: '+(error?.message||error);detailsButton.textContent='Tentar novamente';}
+            finally{detailsButton.disabled=false;}
+          });
+          actions.appendChild(detailsButton);
           const closure=button('Sugerir encerramento','md-amber');
           const procedureId=record.pendencyUrl?procedureIdFromUrl(record.pendencyUrl):'';
           if(procedureId){
@@ -11208,6 +11472,76 @@
         details.appendChild(recordsWrap);list.appendChild(details);
       });
     };
+    bulkClosure.addEventListener('click',()=>{
+      const items=Array.from(selectedForClosure.values());
+      if(!items.length)return;
+      // No arbitrary record is selected by default, even at 100/100 score.
+      // The user must explicitly select which real expedientes are candidates.
+      const backdrop=el('div');
+      backdrop.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,10,19,.75);display:grid;place-items:center;padding:18px;';
+      const dialog=el('section');
+      dialog.setAttribute('role','dialog');
+      dialog.setAttribute('aria-modal','true');
+      dialog.setAttribute('aria-label','Fila assistida de sugestões de encerramento');
+      dialog.style.cssText='width:min(660px,100%);max-height:90vh;overflow:auto;background:#142536;color:#e7f0fa;border:1px solid #58728d;border-radius:12px;box-shadow:0 20px 60px #0007;padding:18px;display:grid;gap:12px;';
+      dialog.appendChild(el('strong','',`Fila assistida · ${items.length} expediente(s)`));
+      dialog.appendChild(el('p','', 'Revise os processos selecionados. Cada clique poderá preencher e SALVAR a sugestão no SPA para UM expediente, caso o formulário correto esteja disponível. A abertura da aba NÃO comprova que o andamento foi salvo: confira o resultado antes de avançar. Fechar a fila não cancela ações já iniciadas.'));
+      const listSelected=el('div');
+      listSelected.style.cssText='max-height:180px;overflow:auto;padding:8px 12px;border:1px solid #47637b;border-radius:7px;font-size:12px;line-height:1.8;';
+      items.forEach(({record,groupNumber,score},i)=>{
+        listSelected.appendChild(el('div','',`${i+1}. ${groupNumber} · ID ${record.expedienteId || 'não informado'} · ${score}/100`));
+      });
+      dialog.appendChild(listSelected);
+      const choice=createSearchableClosureChoice('Motivo da sugestão',
+        TRIAGE_CLOSURE_REASONS.map(label=>({label,value:label})), 'Duplicidade de tarefa.');
+      dialog.appendChild(choice.wrapper);
+      const observationLabel=el('label','','Observação (opcional)');
+      observationLabel.style.cssText='display:grid;gap:6px;font-size:12px;font-weight:750;';
+      const observation=el('textarea');
+      observation.rows=3;
+      observation.placeholder='Observação comum às sugestões selecionadas';
+      observation.style.cssText='padding:9px;background:#0e1b28;color:#fff;border:1px solid #577089;border-radius:6px;resize:vertical;';
+      observationLabel.appendChild(observation);dialog.appendChild(observationLabel);
+      const progress=el('div','','Nenhuma sugestão iniciada.');
+      progress.setAttribute('role','status');
+      progress.style.cssText='padding:9px;background:#20364b;border-radius:6px;font-size:12px;';
+      dialog.appendChild(progress);
+      const actions=el('div');actions.style.cssText='display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;';
+      const cancelButton=button('Encerrar revisão','md-muted-btn');
+      cancelButton.addEventListener('click',()=>backdrop.remove());
+      const nextButton=button('Confirmar e iniciar 1ª sugestão','md-amber');
+      let cursor=0,busy=false;
+      nextButton.addEventListener('click',async()=>{
+        if(busy||cursor>=items.length)return;
+        const current=items[cursor];
+        const reason=choice.value().trim();
+        if(!reason){progress.textContent='Selecione um motivo antes de continuar.';return;}
+        // The current SPA2 hand-off uses a single pending action key. Never
+        // overwrite it or send several server-side writes simultaneously.
+        if(storageGet(TRIAGE_CLOSURE_ACTION_KEY,'')){
+          progress.textContent='Há uma sugestão anterior pendente. Verifique a aba e conclua/cancele essa ação antes de continuar.';
+          return;
+        }
+        busy=true;nextButton.disabled=true;
+        progress.textContent=`Preparando ${cursor+1} de ${items.length}: expediente ${current.record.expedienteId || 'sem ID'}...`;
+        try{
+          await runDuplicateReportTaskClosure(()=>beginDuplicateReportTaskClosure(current.record,{
+            reason, observation:observation.value || ''
+          }));
+          cursor+=1;
+          progress.textContent=`${cursor} de ${items.length} envio(s) iniciado(s). Confira na aba aberta se o andamento foi efetivamente registrado antes de iniciar o próximo.`;
+          nextButton.textContent=cursor===items.length?'Fila iniciada':`Confirmar e iniciar próximo (${cursor+1}/${items.length})`;
+          nextButton.disabled=cursor===items.length;
+          if(cursor===items.length){
+            selectedForClosure.clear();syncBulkClosure();render();
+          }
+        }catch(error){
+          progress.textContent='Falha: '+(error?.message||String(error))+' · Nenhum próximo item foi iniciado.';
+        }finally{busy=false;if(cursor<items.length)nextButton.disabled=false;}
+      });
+      actions.append(cancelButton,nextButton);dialog.appendChild(actions);
+      backdrop.appendChild(dialog);document.body.appendChild(backdrop);
+    });
     search.addEventListener('input',render);threshold.addEventListener('change',render);render();
     main.appendChild(el('div','md-notice',
       'A mesma numeração pode constar de várias tarefas sem que haja duplicidade. A pontuação compara campos disponíveis, não PDFs. '+
@@ -11215,11 +11549,11 @@
     sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
     // A abertura automatica acontece apenas após coleta completa nova.
     if(report.fromCache){
-      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use “Abrir candidatos” se desejar.';
+      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use os controles de cada grupo ou expediente para abrir os links.';
     } else if(!complete){
-      tabStatus.textContent='Coleta parcial: abertura automática desativada. Ainda é possível abrir candidatos manualmente.';
+      tabStatus.textContent='Coleta parcial: abertura automática desativada. Use os controles de cada grupo ou expediente para abrir os links.';
     } else if(totalCandidateTabs>60){
-      tabStatus.textContent=`${totalCandidateTabs} links encontrados: por segurança, clique em “Abrir candidatos” para abrir todas as abas.`;
+      tabStatus.textContent=`${totalCandidateTabs} links encontrados: abertura automática desativada para este volume. Use os controles de cada grupo ou expediente para abrir os links.`;
     } else if(totalCandidateTabs){
       void openCandidates(entries,'automático após a análise');
     } else {
@@ -13179,13 +13513,13 @@
     passwordInput.placeholder = "Senha para protocolar";
     passwordInput.style.cssText =
       "height:30px;border:0;border-radius:4px;padding:0 8px;font-size:12px;background:#fff;color:#10202c;";
-    passwordHint.textContent = "Usada pelos passos de protocolo durante esta sessão. Informe novamente ao reiniciar o navegador.";
+    passwordHint.textContent = "Usada pelos passos de protocolo e mantida salva nesta extensão.";
     passwordHint.style.cssText = "font-size:10px;color:#9fb3c8;line-height:1.3;";
     passwordInput.addEventListener("input", () => {
       protocolPasswordSessionSet = false;
       passwordHint.textContent = passwordInput.value
         ? "Senha pronta para ser usada no protocolo."
-        : "Usada pelos passos de protocolo durante esta sessão. Informe novamente ao reiniciar o navegador.";
+        : "Usada pelos passos de protocolo e mantida salva nesta extensão.";
     });
     passwordInput.addEventListener("change", () => {
       if (passwordInput.value) return;
@@ -13295,7 +13629,7 @@
       const response = await requestExtensionMessage("SPA_CDSP_SCHEDULE_PASSWORD_SET", { password: value }, 6000);
       if (response && response.ok) {
         protocolPasswordSessionSet = Boolean(response.hasPassword);
-        passwordHint.textContent = "Senha disponível nesta sessão do navegador.";
+        passwordHint.textContent = "Senha salva para uso nas próximas execuções.";
         return true;
       }
 
@@ -13337,7 +13671,7 @@
       if (response && response.ok && response.config) {
         protocolPasswordSessionSet = Boolean(response.protocolPasswordSet);
         if (protocolPasswordSessionSet) {
-          passwordHint.textContent = "Senha disponível nesta sessão do navegador.";
+          passwordHint.textContent = "Senha ja salva nesta extensão.";
         }
         applyRoutineConfig(response.config);
       } else {
@@ -13730,10 +14064,6 @@
     duplicateLoading.setAttribute('role', 'status');
     duplicadosPage.appendChild(duplicateLoading);
     const duplicadosButtons = createButtonGrid();
-    appendFullWidthButton(
-      duplicadosButtons,
-      createButton("Abrir Duplicados", () => openDuplicateTabsAllPages(currentActionLimit()), "amber")
-    );
     appendFullWidthButton(
       duplicadosButtons,
       createButton("Relatorio Duplicados", () => buildDuplicateReport(false), "info")

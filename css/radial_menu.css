@@ -65,7 +65,7 @@
 
 @media(prefers-reduced-motion:reduce){#cdsp-general-shell .mtprev-orbit,#cdsp-general-shell .mtprev-orbit__item,#cdsp-general-shell .mtprev-orbit__disc{transition:none!important}}
 
-/* Navigation is an invisible positioning surface. Only the circles receive input. */
+/* Navigation is an invisible positioning surface. */
 
 #cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational){background:transparent;border:0;box-shadow:none;border-radius:0;overflow:visible;pointer-events:none}
 
@@ -74,6 +74,13 @@
 #cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational) .mtprev-orbit{background:transparent;height:var(--orbit-height,366px)!important;transition:none;pointer-events:none}
 
 #cdsp-general-shell .mtprev-orbit__center{pointer-events:auto}
+
+/* The open menu can be dragged from icons, captions and the spaces between them. */
+#cdsp-general-shell.mtprev-radial-draggable:not(.mtprev-radial-operational) .mtprev-orbit,
+#cdsp-general-shell.mtprev-radial-draggable:not(.mtprev-radial-operational) .mtprev-orbit__context{pointer-events:auto}
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational),
+#cdsp-general-shell.mtprev-radial-shell:not(.mtprev-radial-operational) :is(.mtprev-orbit,.mtprev-orbit__item,.mtprev-orbit__context,.mtprev-orbit__tools button){touch-action:none;user-select:none;cursor:grab}
+#cdsp-general-shell.mtprev-radial-dragging:not(.mtprev-radial-operational) *{cursor:grabbing!important}
 
 #cdsp-general-shell .mtprev-orbit__label{padding:3px 4px;background:#17212b;border-radius:5px;font-weight:600}
 
@@ -430,3 +437,18 @@
   background: #173b48;
   border-color: #3d7783;
 }
+
+#cdsp-general-shell.mtprev-radial-draggable:not(.mtprev-radial-operational) .mtprev-orbit__context{pointer-events:auto}
+
+/* Workspace preload status sits below the shared module caption. */
+#cdsp-general-shell .mtprev-orbit__loading {
+  position:absolute;left:50%;top:calc(50% + var(--orbit-radius,120px) + 82px);
+  transform:translateX(-50%);width:min(300px,calc(100% - 24px));box-sizing:border-box;
+  padding:8px 10px;border:1px solid var(--mtprev-border,#40596d);border-radius:8px;
+  background:var(--mtprev-surface,#192939);color:var(--mtprev-text,#edf4fa);
+  font:600 11px/1.4 'Segoe UI',sans-serif;pointer-events:auto;touch-action:none;user-select:none;
+}
+#cdsp-general-shell .mtprev-orbit__loading progress {display:block;width:100%;height:8px;margin-top:6px;accent-color:#65cfc0}
+#cdsp-general-shell.mtprev-radial-compact .mtprev-orbit__loading {top:calc(50% + 50px)}
+#cdsp-general-shell .mtprev-orbit__loading[hidden],
+#cdsp-general-shell.mtprev-radial-operational .mtprev-orbit__loading {display:none!important}

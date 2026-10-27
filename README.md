@@ -122,6 +122,20 @@ A instalação temporária precisa ser refeita após reiniciar o Firefox. A dist
 
 Alguns recursos, especialmente a consulta de andamentos do PJe/TJMT, dependem da configuração e autorização de um serviço externo nas **opções da extensão**. Os demais recursos continuam sujeitos às permissões da conta utilizada no SPA ou SIGADOC.
 
+### Levar a versão do GitHub para outro computador, com MCP
+
+Os pacotes atualizados ficam versionados em **`dist/chrome-store`** (Chrome/Edge) e **`dist/firefox`**. Você pode carregá-los diretamente após clonar ou baixar o repositório, sem instalar dependências ou executar um build.
+
+O Git não leva a configuração salva no navegador nem o arquivo privado `.local/test-credentials.json`. Por isso, apenas copiar o código não ativa o MCP no outro computador.
+
+1. **Neste computador:** nas opções da extensão que funciona, clique em **Exportar configuração MCP**. Se a configuração vem de `.local/test-credentials.json`, execute `node scripts/export-mcp-settings.js`; o arquivo será criado em `.local/mtprev-mcp-settings.json`.
+2. Leve **`mtprev-mcp-settings.json` separadamente**, por exemplo por pendrive. Ele contém a credencial do MCP e deve ficar fora do GitHub. A exportação inclui somente a configuração do MCP; senhas do SIGADOC e dados de processos não são exportados.
+3. **No outro computador:** clone/baixe o repositório e carregue `dist/chrome-store` no Chrome/Edge ou `dist/firefox/manifest.json` no Firefox, conforme as instruções acima.
+4. Abra as **Opções** da extensão → **Importar configuração MCP** → selecione o arquivo. Marque a autorização e clique em **Salvar e autorizar**.
+5. Clique em **Testar conexão salva**. O teste confirma a ferramenta de consulta ao TJMT sem consultar processos. Depois, recarregue as abas do SPA.
+
+Se o serviço responder HTTP 401/403, confira a credencial; HTTP 404 indica que é preciso conferir o endereço completo. Os builds `dist/local-test` e `dist/firefox-local-test` contêm configurações privadas e não fazem parte da distribuição para GitHub.
+
 ## Cuidados importantes
 
 O MTPrev foi criado para **ajudar a conferir e organizar**, não para tomar decisões processuais de forma autônoma. Antes de marcar uma tarefa como conferida, sugerir encerramento, assinar um documento ou iniciar qualquer tramitação, confira as informações no sistema oficial.
@@ -154,6 +168,14 @@ Para executar a suíte automatizada:
 ```bash
 node --test tests/*.test.cjs
 ```
+
+Depois de alterar o código, gere novamente os dois pacotes versionados (Node.js 18 ou superior; funciona também no Windows, sem `npm install` ou `zip`):
+
+```bash
+node scripts/build-github.js
+```
+
+Inclua as alterações de `dist/chrome-store` e `dist/firefox` no mesmo commit dos fontes, para que o outro computador receba o mesmo código. Veja também [as instruções dos pacotes](dist/README.md).
 
 Para gerar o pacote de publicação do Chrome:
 

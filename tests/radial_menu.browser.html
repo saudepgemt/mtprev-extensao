@@ -11,7 +11,7 @@
 </section>
 <script>
 window.watchFixtureRecords={'00000000020268110001':{number:'00000000020268110001',initialized:true,unread:false,history:[],latest:[]}};
-window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>message.action==='list'?{ok:true,records:window.watchFixtureRecords}:{ok:false,error:'Ato não autorizado no teste'}},storage:{onChanged:{addListener(){}}}};
+window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>message.action==='list'?{ok:true,records:window.watchFixtureRecords}:{ok:false,error:'Ato não autorizado no teste'}},storage:{local:{get:async()=>({})},onChanged:{addListener(){}}}};
 </script>
 <script src="../js/process_watch_panel.js"></script>
 <script src="../js/radial_menu.js"></script>
@@ -40,10 +40,10 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   clamp: (node,left,top) => ({left:Math.min(Math.max(8,left),Math.max(8,innerWidth-node.offsetWidth-8)),top:Math.min(Math.max(8,top),Math.max(8,innerHeight-node.offsetHeight-8))}),
   save: node => { const r=node.getBoundingClientRect();saved={left:r.left,top:r.top};localStorage.setItem('CDSP_GENERAL_SHELL_POSITION',JSON.stringify(saved)); }
  };
- MTPrevRadialMenu(shell,api);
+ const initialMarkup=shell.innerHTML; MTPrevRadialMenu(shell,api);
  const center=shell.querySelector('.mtprev-orbit__center'), ring=shell.querySelector('.mtprev-orbit__ring');
  // Synthetic pointer events cannot acquire native capture; shim only capture in this fixture.
- center.setPointerCapture=()=>{};center.hasPointerCapture=()=>false;
+ shell.setPointerCapture=()=>{};shell.hasPointerCapture=()=>false;
  const pointer=(type,x,y)=>center.dispatchEvent(new PointerEvent(type,{pointerId:1,button:0,clientX:x,clientY:y,bubbles:true}));
  try {
   assert(getComputedStyle(shell).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(shell).boxShadow==='none'&&getComputedStyle(shell).borderTopWidth==='0px','wrapper sem fundo, sombra ou borda');
@@ -71,6 +71,16 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   assert(saved && saved.top>=before.top,'5. soltar mantém posição');
   assert(JSON.parse(localStorage.getItem('CDSP_GENERAL_SHELL_POSITION')).top===saved.top,'10. posição usa armazenamento persistente');
   center.click();await wait();
+  assert(getComputedStyle(shell.querySelector('.mtprev-orbit')).pointerEvents==='auto','espaços do menu aberto permitem arraste');
+  assert(getComputedStyle(shell.querySelector('.mtprev-orbit__context')).pointerEvents==='auto','legenda permite arraste');
+  for(const target of [ring.children[1],shell.querySelector('.mtprev-orbit'),shell.querySelector('.mtprev-orbit__context')]) {
+   const start=shell.getBoundingClientRect();
+   const endY=start.top>18?90:110;
+   for(const [type,y] of [['pointerdown',100],['pointermove',endY],['pointerup',endY]]) target.dispatchEvent(new PointerEvent(type,{pointerId:2,button:0,clientX:100,clientY:y,bubbles:true}));
+   target.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}));
+   assert(Math.abs(shell.getBoundingClientRect().top-start.top)>1,'arraste pelo item, espaço ou legenda move menu');
+   assert(ring.children.length===5&&center.getAttribute('aria-expanded')==='true','arrastar não aciona opção');
+  }
   const itemBefore=ring.children[0].getBoundingClientRect(), centerBefore=center.getBoundingClientRect();
   pointer('pointerdown',100,100);pointer('pointermove',100,80);pointer('pointerup',100,80);
   const itemAfter=ring.children[0].getBoundingClientRect(), centerAfter=center.getBoundingClientRect();
@@ -93,6 +103,8 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   assert(rects.every((a,i)=>rects.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top)),'círculos não se sobrepõem');
   if(params.has('preview')&&!params.has('operation')){output.textContent=results.join('\n')+'\nALL PASS preview';return;}
   ring.children[1].click();await wait();
+  const savedPanelView=sessionStorage.getItem('MTPREV_RADIAL_VIEW_V1');
+  assert(JSON.parse(savedPanelView).option==='Duplicados','persiste a opção aberta nesta aba');
   assert(selected==='Duplicados'&&shell.classList.contains('mtprev-radial-operational'),'8. handler original abre painel correto');
   assert(getComputedStyle(shell.querySelector('.mtprev-orbit')).display==='none','opção final oculta toda a navegação radial');
   assert(getComputedStyle(shell.querySelector('.cdsp-general-shell__header')).display!=='none','painel operacional preserva cabeçalho');
@@ -122,6 +134,12 @@ window.chrome={runtime:{getURL:path=>'../'+path,sendMessage:async(message)=>mess
   assert(getComputedStyle(ring,'::before').pointerEvents==='none','anel decorativo não captura cliques');
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) assert(getComputedStyle(ring,'::before').transitionDuration==='0s','anel respeita movimento reduzido');
   if(params.has('preview')&&center.getAttribute('aria-expanded')!=='true'){center.click();await wait();}
+  sessionStorage.setItem('MTPREV_RADIAL_VIEW_V1',savedPanelView);
+  const restoredShell=document.createElement('section');restoredShell.id=shell.id;restoredShell.innerHTML=initialMarkup;
+  shell.remove();document.body.append(restoredShell);
+  MTPrevRadialMenu(restoredShell,{...api,load:key=>restoredShell.querySelectorAll('[data-cdsp-module-pane]').forEach(p=>p.hidden=p.dataset.cdspModulePane!==key)});
+  await wait();await wait();
+  assert(restoredShell.classList.contains('mtprev-radial-operational')&&restoredShell.querySelector('.mtprev-panel-theme').textContent==='Duplicados','recriar extensão restaura a mesma página operacional');
   output.textContent=results.join('\n')+'\nALL PASS '+innerWidth+'x'+innerHeight;
   output.dataset.result='pass';
  } catch(error){output.textContent=results.join('\n')+'\nFAIL '+error.message;output.dataset.result='fail';}

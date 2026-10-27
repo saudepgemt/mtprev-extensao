@@ -6,6 +6,7 @@
   <title>Configurações — MTPrev</title>
   <link rel="icon" href="images/icon-mtprev48.png">
   <link rel="stylesheet" href="css/options.css">
+  <script src="js/shared/mcp_settings.js" defer></script>
   <script src="js/options.js" defer></script>
 </head>
 <body>
@@ -23,6 +24,13 @@
         <label class="check"><input id="consent" type="checkbox" required><span>Autorizo o envio dos números dos processos consultados e da instância a esse serviço para obter andamentos, inclusive nas verificações de acompanhamento que eu ativar.</span></label>
         <div class="actions"><button type="submit">Salvar e autorizar</button><button id="test-service" type="button" class="secondary">Testar conexão salva</button><button id="disable-service" type="button" class="secondary">Desativar e apagar endereço</button></div>
       </form>
+      <h3>Usar em outro computador</h3>
+      <p class="help">Exporte a configuração salva e leve o arquivo ao outro computador. Depois de importar, marque a autorização e clique em <strong>Salvar e autorizar</strong>. O arquivo contém o acesso ao MCP; guarde-o separadamente do GitHub.</p>
+      <div class="actions">
+        <button id="export-service" type="button" class="secondary">Exportar configuração MCP</button>
+        <button id="import-service" type="button" class="secondary">Importar configuração MCP</button>
+      </div>
+      <input id="import-service-file" type="file" accept=".json,application/json" hidden>
       <p id="status" role="status" aria-live="polite"></p>
     </section>
     <section><h2>Senhas de assinatura</h2><p>Informe sua senha no painel da rotina correspondente. A senha de protocolo fica na sessão do navegador; após reiniciá-lo, informe-a novamente antes de uma rotina programada. No SIGADOC, a senha fica na sessão da aba e pode ser apagada limpando o campo no menu.</p></section>

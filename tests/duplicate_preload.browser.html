@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><pre id="results">Executando</pre>
+<script>
+(async()=>{
+const output=document.getElementById('results'),results=[];
+const assert=(ok,text)=>{if(!ok)throw Error(text);results.push('PASS '+text)};
+try{
+ const xhr=new XMLHttpRequest();xhr.open('GET','../js/triagem/spa_extension_panel.js',false);xhr.send();
+ const code=xhr.responseText.match(/^  async function buildDuplicateReport\(.*?^  }/ms)[0];
+ let saved=0,oldReads=0,collections=0,shown=null,error='',scope='mesa-atual',resolve;
+ const state={stopped:false,running:false};
+ const record={processNumber:'0000001-00.2026.8.00.0000',distributionDate:'01/01/2026'};
+ const collection={reason:'complete',total:2,records:[{...record,rowKey:'1'},{...record,rowKey:'2'}]};
+ const adapter={getWorkspacePreload:()=>new Promise(r=>resolve=r),collectWorkspaceRecords:async()=>{collections++;return collection},locate:()=>({nodes:[{}]})};
+ const deps={window:{location:{pathname:'/workspace'},SpaAdapter:adapter},state,
+  guardStart(){state.running=true},workspaceDuplicateCacheScope:()=>scope,
+  readWorkspaceDuplicateCache:async()=>{oldReads++;return {old:true}},
+  saveWorkspaceDuplicateCache:async(s,report)=>{assert(s==='mesa-atual'&&report.groups.length===1,'salva duplicados no escopo atual');saved++;return true},
+  setDuplicateLoading(loading,message,isError){if(isError)error=message},setStatus(){},log(){},normalizeDateOnly:v=>v,
+  showDuplicateReport:report=>shown=report};
+ const build=new Function(...Object.keys(deps),code+';return buildDuplicateReport;')(...Object.values(deps));
+ const pending=build(false);await Promise.resolve();
+ assert(!shown&&saved===0,'aguarda o carregamento inicial terminar');
+ resolve(collection);await pending;
+ assert(!error&&collections===0&&oldReads===0,'prioriza os lotes atuais sem nova coleta nem cache antigo');
+ assert(saved===1&&shown?.savedToChrome===true&&shown.coverage.records.length===2,'relatório atualizado é salvo e exibido');
+ shown=null;const changed=build(false);scope='outra-mesa';resolve(collection);await changed;
+ assert(saved===1&&!shown&&error.includes('filtros'),'mudança de mesa impede salvar dados no escopo errado');
+ output.dataset.result='pass';output.textContent=results.join('\n');
+}catch(e){output.dataset.result='fail';output.textContent=results.join('\n')+'\nFAIL '+e.message}
+})();
+</script>

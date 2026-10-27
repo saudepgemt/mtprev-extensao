@@ -1,0 +1,40 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Workspace anônimo</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css"><link rel="stylesheet" href="../css/drawer.css">
+<pre id="results">Executando</pre>
+<main class="workspace-main"><form class="workspace-search" data-partial-url="https://pge.mt.spa.coreplan.com.br/workspace/list"><input name="q" value=""><input name="user_id" value="fixture"></form><div class="workspace-process-list"></div><div class="workspace-infinite-scroll" data-loaded-count="1" data-total-count="3"><button class="workspace-infinite-scroll__button">Carregar mais</button></div></main>
+<script>
+window.chrome={storage:{local:{get:async()=>({})},onChanged:{addListener(){}}},runtime:{getURL:p=>new URL('../'+p,location.href).href,onMessage:{addListener(){}},sendMessage:(message,reply)=>reply?.({ok:true})}};
+window.SPA_CDSP_TRIAGEM_CONFIG={version:'fixture',headerImageUrl:chrome.runtime.getURL('images/logo-mtprev.png')};
+window.fetch=async()=>{throw Error('Rede desabilitada')};
+window.fixtureErrors=[];addEventListener('error',e=>fixtureErrors.push(e.message));addEventListener('unhandledrejection',e=>fixtureErrors.push(String(e.reason)));
+function card(id,process,expediente){const node=document.createElement('article');node.className='workspace-process-card';node.dataset.procedureId=id;
+node.innerHTML='<a class="workspace-process-card__main" href="/procedures/'+id+'"></a>'+[['Número do processo',process],['ID do expediente',expediente],['Classe','Classe anônima'],['Data da distribuição','01/01/2026']].map(([label,value])=>'<span class="workspace-process-card__field"><small data-full-label="'+label+'">'+label+'</small><span class="workspace-process-card__field-value"><strong data-full-value="'+value+'">'+value+'</strong></span></span>').join('');return node;}
+const list=document.querySelector('.workspace-process-list'),pager=document.querySelector('.workspace-infinite-scroll');list.append(card('101','0000001-00.2026.8.00.0000','exp-a'));
+let clicks=0;document.querySelector('.workspace-infinite-scroll__button').onclick=()=>{clicks++;const button=document.querySelector('.workspace-infinite-scroll__button');button.disabled=true;setTimeout(()=>{list.append(clicks===1?card('102','0000001-00.2026.8.00.0000','exp-b'):card('103','0000002-00.2026.8.00.0000','exp-c'));pager.dataset.loadedCount=String(list.children.length);button.disabled=false;if(list.children.length===3)button.remove();},50)};
+</script><script src="../js/shared/spa_selectors.js"></script><script>
+const adapterSource=new XMLHttpRequest();adapterSource.open('GET','../js/shared/spa_adapter.js',false);adapterSource.send();
+new Function('location',adapterSource.responseText)({href:'https://pge.mt.spa.coreplan.com.br/workspace',origin:'https://pge.mt.spa.coreplan.com.br'});
+window.fixtureApiRequests=[];
+window.fetch=async raw=>{
+ const url=new URL(raw);fixtureApiRequests.push(url.searchParams.get('per_page'));
+ const cards=[card('101','0000001-00.2026.8.00.0000','exp-a'),card('102','0000001-00.2026.8.00.0000','exp-b'),card('103','0000002-00.2026.8.00.0000','exp-c')];
+ return {ok:true,json:async()=>({results_html:cards.map(c=>c.outerHTML).join('')+'<div class="workspace-infinite-scroll" data-total-count="3"></div>'})};
+};
+</script><script src="../js/drawer.js"></script><script src="../js/radial_menu.js"></script><script>window.SpaAdapter={...SpaAdapter,isWorkspace:()=>true};</script><script src="../js/content_bridge.js"></script>
+<script>
+addEventListener('DOMContentLoaded',async()=>{
+const output=document.getElementById('results'),results=[],wait=ms=>new Promise(r=>setTimeout(r,ms));const assert=(condition,text)=>{if(!condition)throw Error(text);results.push('PASS '+text)};
+try{
+await wait(1200);
+assert(clicks===0&&fixtureApiRequests.join(',')==='100','carregamento inicia sem abrir módulo ou relatório');
+const status=document.querySelector('.mtprev-orbit__loading');
+assert(status&&!status.hidden&&status.textContent.includes('3 de 3')&&status.textContent.includes('Lote: 3 processos'),'progresso informa total e tamanho do lote');
+assert(status.textContent.includes('Tempo total:')&&status.textContent.includes('Última requisição:'),'indicador mostra tempos para comparar lotes');
+assert(status.querySelector('progress').value===3,'barra conclui ao carregar toda a mesa');
+const beforeClicks=clicks,beforeRequests=fixtureApiRequests.length;
+await SpaAdapter.collectWorkspaceRecords();
+assert(clicks===beforeClicks&&fixtureApiRequests.length===beforeRequests,'leitura após carregamento não solicita novas páginas');
+assert(!fixtureErrors.length,'sem erros de execução');
+output.textContent=results.join('\n')+'\nALL PASS';output.dataset.result='pass';
+}catch(e){output.textContent=results.join('\n')+'\nFAIL '+e.message;output.dataset.result='fail'}
+});</script></html>

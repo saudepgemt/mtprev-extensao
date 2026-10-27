@@ -14,13 +14,18 @@
   };
   // Movement IDs may be positional in the source: use content to avoid false alerts.
   const snapshot = (result) => [
-    ...result.movements.map((m) => ({ key: JSON.stringify(["m", m.date, m.code, m.description, m.linkedDocumentIds]), text: `${m.date || ""} — ${m.description}` })),
-    ...result.expedientes.map((e) => ({ key: JSON.stringify(["e", e.id, e.documentId, e.createdAt, e.awareAt, e.deadlineAt, e.closed, e.manuallyClosedAt, e.responseId]), text: `Expediente ${e.id || ""}: prazo ${e.deadlineAt || "não informado"}; ${e.closed || e.manuallyClosedAt ? "encerrado" : "em aberto"}` }))
+    ...(result.movements || []).map((m) => ({ key: JSON.stringify(["m", m.date, m.code, m.description, m.linkedDocumentIds]), text: `${m.date || ""} — ${m.description}` })),
+    ...(result.expedientes || []).map((e) => ({ key: JSON.stringify(["e", e.id, e.documentId, e.createdAt, e.awareAt, e.deadlineAt, e.closed, e.manuallyClosedAt, e.responseId]), text: `Expediente ${e.id || ""}: prazo ${e.deadlineAt || "não informado"}; ${e.closed || e.manuallyClosedAt ? "encerrado" : "em aberto"}` }))
   ];
   async function check(records, number) {
     const record = records[number];
     record.attemptedAt = new Date().toISOString();
-    const result = await fetchMniProcedureMovements({ processNumber: number, tribunal: record.tribunal });
+    let result;
+    try {
+      result = await fetchMniProcedureMovements({ processNumber: number, tribunal: record.tribunal });
+    } catch (_) {
+      result = { ok: false, error: "Não foi possível conectar ao PJe. Confira a configuração da consulta e tente novamente." };
+    }
     if (!result.ok) { record.error = result.error || "Consulta indisponível"; await save(records); return; }
     const current = snapshot(result);
     const seen = new Set(record.seen || []);
@@ -67,7 +72,9 @@
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (message?.type !== "CDSP_PROCESS_WATCH") return false;
     if (!normalizeAllowedUrl(sender.tab?.url)) { reply({ ok: false, error: "Origem não permitida." }); return false; }
-    serial(() => handle(message)).then(reply, (error) => reply({ ok: false, error: error.message }));
+    // A lista usa o último estado salvo, sem esperar consultas de rede pendentes.
+    const operation = message.action === "list" ? handle(message) : serial(() => handle(message));
+    operation.then(reply, (error) => reply({ ok: false, error: error.message }));
     return true;
   });
   chrome.alarms.onAlarm.addListener((alarm) => {

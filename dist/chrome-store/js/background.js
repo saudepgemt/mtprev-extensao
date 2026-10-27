@@ -34,6 +34,8 @@ const PDF_RENDER_TEXT_TIMEOUT_MS = 9000;
 const PDF_RENDER_TEXT_POLL_MS = 600;
 const MNI_MOVEMENTS_TIMEOUT_MS = 60000;
 const MNI_SERVICE_SETTINGS_KEY = "MTPREV_SERVICE_SETTINGS";
+// Recurso privado disponível somente no checkout local. O build da loja desativa este caminho.
+const LOCAL_MNI_SETTINGS_PATH = "";
 const MNI_MCP_CONSULT_PROCESS_TOOL = "tjmt_mni_consultar_processo";
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const AUTOS_SEARCH_CACHE_MAX = 250;
@@ -317,7 +319,20 @@ async function getProtocolPassword() {
 
 async function getMniServiceEndpoint() {
   const data = await chrome.storage.local.get(MNI_SERVICE_SETTINGS_KEY);
-  const settings = data[MNI_SERVICE_SETTINGS_KEY];
+  let settings = data[MNI_SERVICE_SETTINGS_KEY];
+  let restoredLocally = false;
+  if (!settings && typeof LOCAL_MNI_SETTINGS_PATH !== "undefined" && LOCAL_MNI_SETTINGS_PATH && chrome.runtime?.getURL) {
+    try {
+      const response = await fetch(chrome.runtime.getURL(LOCAL_MNI_SETTINGS_PATH), { cache: "no-store" });
+      if (response.ok) {
+        const local = await response.json();
+        if (typeof local.mniEndpoint === "string" && local.mniEndpoint) {
+          settings = { endpoint: local.mniEndpoint, consent: true, consentVersion: 1, source: "local-test", authorizedAt: new Date().toISOString() };
+          restoredLocally = true;
+        }
+      }
+    } catch (_) { /* O arquivo privado não existe nas instalações públicas. */ }
+  }
   if (settings?.consent !== true || !settings.endpoint) {
     throw new Error('Configure e autorize o serviço de andamentos nas opções da extensão antes de consultar o PJe.');
   }
@@ -325,7 +340,50 @@ async function getMniServiceEndpoint() {
   if (url.protocol !== 'https:' || url.hostname !== 'pje-mcp-worker-tjmt.joaooliveira.workers.dev' || url.port || url.username || url.password) {
     throw new Error('Endereço do serviço de andamentos não autorizado. Confira as opções da extensão.');
   }
+  if (restoredLocally) await chrome.storage.local.set({ [MNI_SERVICE_SETTINGS_KEY]: settings });
   return url.href;
+}
+
+function parseMcpResponse(text, requestId) {
+  try { return JSON.parse(text); } catch (_) { /* Alguns serviços MCP respondem por SSE. */ }
+  const messages = String(text).replace(/\r\n/g, "\n").split(/\n\n+/);
+  for (const event of messages) {
+    const data = event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+    if (!data) continue;
+    try {
+      const message = JSON.parse(data);
+      if (message.id === requestId && (message.result || message.error)) return message;
+    } catch (_) { /* Ignorar keep-alive e eventos incompletos. */ }
+  }
+  throw new Error("O serviço de consulta não retornou uma resposta MCP válida.");
+}
+
+function mniHttpError(status) {
+  if (status === 401 || status === 403) return "O serviço PJe recusou o acesso (HTTP " + status + "). Confira a credencial nas opções da extensão e a liberação com o administrador do serviço.";
+  if (status === 404) return "Endereço do serviço PJe não encontrado (HTTP 404). Confira o endereço completo nas opções da extensão.";
+  if (status === 429) return "Limite de consultas do serviço PJe atingido. Aguarde antes de tentar novamente.";
+  return "Serviço PJe indisponível (HTTP " + status + "). Tente novamente mais tarde.";
+}
+
+async function testMniServiceConnection() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const endpoint = await getMniServiceEndpoint();
+    const id = "mtprev-connection-test";
+    const response = await fetch(endpoint, {
+      method: "POST", signal: controller.signal,
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/list", params: {} })
+    });
+    if (!response.ok) return { ok: false, error: mniHttpError(response.status) };
+    const message = parseMcpResponse(await response.text(), id);
+    if (message.error) return { ok: false, error: "O serviço respondeu, mas não foi possível confirmar a ferramenta de consulta. Confira a configuração com o administrador." };
+    if (!message.result?.tools?.some(tool => tool.name === MNI_MCP_CONSULT_PROCESS_TOOL)) return { ok: false, error: "O serviço respondeu, mas não disponibilizou a ferramenta de consulta ao TJMT." };
+    return { ok: true, message: "Conexão confirmada. A ferramenta de consulta ao TJMT está disponível." };
+  } catch (error) {
+    return { ok: false, error: error.name === "AbortError" ? "O serviço não respondeu ao teste em 20 segundos." : error instanceof TypeError ? "Não foi possível conectar ao serviço PJe. Confira a conexão e tente novamente." : error.message };
+  } finally { clearTimeout(timer); }
 }
 
 function isProtocolScheduleStep(step) {
@@ -682,7 +740,7 @@ async function fetchMniProcedureMovements(message) {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json"
+        Accept: "application/json, text/event-stream"
       },
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -705,24 +763,19 @@ async function fetchMniProcedureMovements(message) {
     const bodyText = await response.text();
     let rpcPayload = null;
 
-    try {
-      rpcPayload = bodyText ? JSON.parse(bodyText) : null;
-    } catch (_error) {
-      rpcPayload = { error: { message: bodyText.slice(0, 500) || "Resposta MCP nao era JSON." } };
-    }
-
     if (!response.ok) {
       return {
         ok: false,
         status: response.status,
-        error: "Worker MCP retornou HTTP " + response.status + ".",
-        details: bodyText.slice(0, 300),
+        error: mniHttpError(response.status),
         movements: [],
         expedientes: [],
         processNumber,
         sourceLabel: instance.label + " via MCP"
       };
     }
+
+    rpcPayload = parseMcpResponse(bodyText, requestId);
 
     const toolPayload = parseMcpToolPayload(rpcPayload);
     const processResult = firstMcpProcessResult(toolPayload);
@@ -5195,6 +5248,20 @@ async function handleDuplicateCacheMessage(message, sender) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
+
+  if (["MTPREV_SERVICE_STATUS", "MTPREV_SERVICE_TEST", "MTPREV_OPEN_OPTIONS"].includes(message.type)) {
+    const ownOptions = _sender.url === chrome.runtime.getURL("options.html");
+    if (!ownOptions && !(message.type === "MTPREV_OPEN_OPTIONS" && normalizeAllowedUrl(_sender.tab?.url))) {
+      sendResponse({ ok: false, error: "Origem não permitida." });
+      return false;
+    }
+    const action = message.type === "MTPREV_OPEN_OPTIONS"
+      ? chrome.runtime.openOptionsPage().then(() => ({ ok: true }))
+      : message.type === "MTPREV_SERVICE_TEST" ? testMniServiceConnection()
+      : getMniServiceEndpoint().then(() => ({ ok: true }));
+    action.then(sendResponse, error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
 
   if (message.type === 'SPA_CDSP_DUP_CACHE_GET' || message.type === 'SPA_CDSP_DUP_CACHE_SAVE') {
     handleDuplicateCacheMessage(message, _sender).then(sendResponse).catch(error => {
