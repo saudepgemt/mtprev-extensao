@@ -200,6 +200,30 @@
     .mtprev-triage-progress span{display:block;height:100%;width:0;background:#197fbd;transition:width .18s ease;}
     .mtprev-triage-error{border:1px solid #d4a6a3;color:#863a35;background:#fff0ee;padding:12px;border-radius:9px;}
     .mtprev-triage-empty{border:1px solid #c6dae8;background:white;padding:20px;text-align:center;border-radius:10px;color:#5b7386;}
+
+    /* Janela tipo iframe com navegação própria; sem iframe real / novo login no SPA. */
+    .mtprev-triage-dialog{width:min(1450px,100%);max-height:calc(100dvh - 22px);}
+    .mtprev-triage-workspace{display:flex;flex:1;min-height:0;background:#eff5fa;}
+    .mtprev-triage-sidebar{flex:0 0 218px;min-width:190px;overflow:auto;background:#173a50;color:#eaf5fc;padding:20px 12px;border-right:1px solid #478299;}
+    .mtprev-triage-side-title{display:block;font-size:11px;letter-spacing:.12em;margin:0 10px 7px;color:#86cee5;}
+    .mtprev-triage-side-hint{font-size:12px;line-height:1.45;color:#c9dde7;margin:0 10px 16px;}
+    .mtprev-triage-side-button{display:flex!important;flex-direction:column;align-items:flex-start;text-align:left!important;width:100%;border-radius:9px!important;padding:11px 12px!important;margin:5px 0;border:1px solid transparent!important;background:#224d65!important;color:#e8f3f9!important;gap:3px;}
+    .mtprev-triage-side-button small{font-size:10px;opacity:.8;font-weight:400;}
+    .mtprev-triage-side-button:hover{background:#346f89!important;}
+    .mtprev-triage-side-button[aria-current=page]{background:#eaf7fc!important;color:#17405a!important;border-color:#9dcbdc!important;box-shadow:inset 4px 0 #2ba5c7;}
+    .mtprev-triage-side-divider{font-size:10px;font-weight:850;letter-spacing:.08em;margin:19px 10px 7px;color:#a1d4e5;}
+    .mtprev-triage-side-note{padding:10px;font-size:11px;color:#c4dce7;border-radius:9px;border:1px solid #416b7e;background:#1d465b;line-height:1.45;margin-top:14px;}
+    .mtprev-triage-main{flex:1;min-width:0;min-height:0;overflow:auto;padding:18px 20px;overscroll-behavior:contain;}
+    .mtprev-assessor-avatar{width:29px;height:29px;flex:none;position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #aacbd9;color:#2c637d;background:#e1eff5;font-size:10px;font-weight:850;overflow:hidden;}
+    .mtprev-assessor-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#e1eff5;}
+    .mtprev-assessor-label{display:inline-flex;align-items:center;gap:8px;min-width:0;vertical-align:middle;}
+    .mtprev-assessor-label>span:last-child{min-width:0;overflow-wrap:anywhere;}
+    .mtprev-triage-owner-line{display:flex!important;flex-wrap:wrap;align-items:center;gap:7px;}
+    .mtprev-triage-group{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(90deg,#d8eaf4,#edf7fb);border:1px solid #c6e0ec;}
+    .mtprev-triage-row{box-shadow:0 1px 3px rgba(25,57,78,.06);transition:box-shadow .18s ease,border-color .18s ease;}
+    .mtprev-triage-row:hover{box-shadow:0 5px 17px rgba(31,78,110,.13);border-color:#85b7cf;}
+    .mtprev-triage-head{background:linear-gradient(110deg,#183a53,#205c78 60%,#287f9b);}
+    @media(max-width:850px){.mtprev-triage-workspace{flex-direction:column;}.mtprev-triage-sidebar{flex:0 0 auto;min-width:0;max-height:210px;}.mtprev-triage-main{padding:11px;}}
     @media(max-width:900px){.mtprev-triage-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mtprev-triage-detail-grid{grid-template-columns:1fr}.mtprev-triage-head{gap:7px;padding:9px}.mtprev-triage-brand{min-width:50px}.mtprev-triage-main{padding:9px}}
     `;
     document.head.appendChild(style);
@@ -230,6 +254,57 @@
       return {record,diagnosis,distribution,candidates,people,kind,key:reportKey(record)};
     });
   }
+
+  // Fotografias são reutilizadas somente quando já estão disponíveis no SPA.
+  // Não faz requisições a endpoints de perfis nem infere a identidade pela foto.
+  function assessorPhotoUrl(personName, records = []) {
+    const clean = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    const name = clean(personName);
+    if (!name || name.startsWith('sem assessor') || name.startsWith('revisao necessaria')) return '';
+    const safe = raw => {
+      try {
+        const url = new URL(raw, location.href);
+        if (url.protocol !== 'https:' || url.origin !== location.origin) return '';
+        return url.href;
+      } catch (_) { return ''; }
+    };
+    const record = records.find(item => clean(item?.assessor || item?.name) === name && (item.assessorPhotoUrl || item.avatarUrl || item.photoUrl));
+    const supplied = safe(record?.assessorPhotoUrl || record?.avatarUrl || record?.photoUrl);
+    if (supplied) return supplied;
+    const images = [...document.querySelectorAll('img[src]')].filter(img =>
+      !img.closest('.mtprev-triage-modal,#spa-cdsp-management-report-modal,#mtprev-management-launcher'));
+    for (const img of images.slice(0, 250)) {
+      const caption = clean([img.alt,img.title,img.dataset?.name,img.dataset?.assessor].filter(Boolean).join(' '));
+      const holder = img.closest('[data-user-name],[data-assessor-name],.user-card,.person-card,.team-member,li,article');
+      const context = clean(holder?.getAttribute('data-user-name') || holder?.getAttribute('data-assessor-name') || holder?.textContent?.slice(0,220));
+      if (caption !== name && !(context && context.includes(name) && context.length <= name.length + 90)) continue;
+      const url = safe(img.currentSrc || img.getAttribute('src'));
+      if (url) return url;
+    }
+    return '';
+  }
+
+  function assessorAvatar(personName, extraRecords = []) {
+    const node = document.createElement('span');
+    node.className = 'mtprev-assessor-avatar';
+    node.setAttribute('aria-hidden','true');
+    const tokens = String(personName || '?').trim().split(/\s+/).filter(Boolean);
+    const initials = tokens.length > 1 ? (tokens[0][0]+tokens[tokens.length-1][0]).toUpperCase() : (tokens[0]?.slice(0,2) || '?').toUpperCase();
+    node.textContent = initials;
+    const url = assessorPhotoUrl(personName, extraRecords);
+    if (url) {
+      const img = document.createElement('img');img.alt='';img.loading='lazy';img.src=url;
+      img.addEventListener('error',()=>img.remove(),{once:true});node.appendChild(img);
+    }
+    return node;
+  }
+  function assessorLabel(personName, records = []) {
+    const wrap = document.createElement('span');wrap.className='mtprev-assessor-label';
+    wrap.append(assessorAvatar(personName,records));
+    const name = document.createElement('span');name.textContent=personName || 'Não identificado';name.title=personName || '';
+    wrap.append(name);return wrap;
+  }
+
   function createModernReport(api) {
     installReportStyle();
     const root = reportNode('section','mtprev-triage-entry');
@@ -270,11 +345,15 @@
       const close=reportNode('button','','Fechar');close.type='button';
       close.addEventListener('click',()=>{if(currentController)currentController.abort();overlay.remove();modal=null;});
       header.append(close);
+      const area=reportNode('div','mtprev-triage-workspace');
+      const aside=reportNode('aside','mtprev-triage-sidebar');aside.setAttribute('aria-label','Navegação dos relatórios de triagem');
       const main=reportNode('div','mtprev-triage-main');
-      shell.append(header,main);overlay.append(shell);
+      area.append(aside,main);shell.append(header,area);overlay.append(shell);
       document.body.append(overlay);
       overlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close.click();}});
       modal=overlay;
+      aside.append(reportNode('strong','mtprev-triage-side-title','RELATÓRIOS'));
+      aside.append(reportNode('p','mtprev-triage-side-hint','A mesma leitura permite várias maneiras de revisar os expedientes.'));
       return main;
     }
     function showLoad(main) {
@@ -395,7 +474,11 @@
         const targetNames=x.people.map(p=>p.name).join(' ou ');
         const owners=[...new Set(x.people.map(p=>p.procuradores).filter(Boolean))].join(' · ');
         const dest=reportNode('div','mtprev-triage-target');
-        dest.append(reportNode('strong','',targetNames||'Responsável não identificado'));
+        const ownersLine=reportNode('strong','mtprev-triage-owner-line');
+        if(x.people.length){
+          x.people.forEach((person,index)=>{if(index)ownersLine.append(document.createTextNode(' ou '));ownersLine.append(assessorLabel(person.name));});
+        } else ownersLine.textContent='Responsável não identificado';
+        dest.append(ownersLine);
         dest.append(reportNode('small','',owners?`Procurador: ${owners}`:'Conferir matéria e tipo de peça'));
         strip.append(dest);
         const badgeLabel=x.kind==='matched'?'✓ Sugestão encontrada':x.kind==='review'?'◇ Escolha necessária':'? Sem classificação';
@@ -438,7 +521,9 @@
           const groups=new Map();
           for(const x of shown){const assessor=x.kind==='matched'?x.people[0].name:'Revisão necessária / sem responsável único';if(!groups.has(assessor))groups.set(assessor,[]);groups.get(assessor).push(x);}
           for(const [assessor,items] of [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))){
-            list.append(reportNode('div','mtprev-triage-group',`${assessor} · ${items.length} processo(s) exibido(s)`));
+            const group=reportNode('div','mtprev-triage-group');
+            const title=assessor!=='Revisão necessária / sem responsável único' ? assessorLabel(assessor) : reportNode('span','',assessor);
+            group.append(title,reportNode('span','',`${items.length} processo(s) exibido(s)`));list.append(group);
             items.forEach(x=>addRow(list,x));
           }
         }
@@ -457,7 +542,45 @@
         const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
         const a=reportNode('a');a.href=url;a.download='mtprev-triagem-revisao.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
       });
-      render();
+      const sidebar=modal?.querySelector('.mtprev-triage-sidebar');
+      const makeSideButton=(label,description,fn,active)=>{
+        const button=reportNode('button','mtprev-triage-side-button');button.type='button';
+        button.append(reportNode('span','',label));
+        if(description)button.append(reportNode('small','',description));
+        button.setAttribute('aria-current',active?'page':'false');
+        button.addEventListener('click',fn);return button;
+      };
+      function redrawSide(){
+        if(!sidebar)return;
+        sidebar.replaceChildren();
+        sidebar.append(reportNode('strong','mtprev-triage-side-title','RELATÓRIOS'));
+        sidebar.append(reportNode('p','mtprev-triage-side-hint','Todas as visualizações usam os mesmos dados coletados.'));
+        sidebar.append(makeSideButton('Por processo','Lista e critérios',()=>{view='process';render();},view==='process'));
+        sidebar.append(makeSideButton('Por assessor','Sugestões agrupadas',()=>{view='assessor';render();},view==='assessor'));
+        const divider=reportNode('div','mtprev-triage-side-divider','FILTRAR POR SITUAÇÃO');sidebar.append(divider);
+        for(const [key,label,description] of [
+          ['all','Todos os processos','Sem filtro de situação'],
+          ['matched','Sugestões encontradas','Um responsável indicado'],
+          ['review','Escolha necessária','Mais de uma opção'],
+          ['unknown','Sem classificação','Conferência manual']
+        ]) sidebar.append(makeSideButton(label,description,()=>{select.value=key;pageSize=40;render();},select.value===key));
+        if(window.SPA_CDSP_MANAGEMENT_REPORT_PANEL_INITIALIZED){
+          sidebar.append(reportNode('div','mtprev-triage-side-divider','OUTROS RELATÓRIOS'));
+          sidebar.append(makeSideButton('Painel Gerencial','Dashboards da mesa',()=>{
+            modal?.querySelector('.mtprev-triage-head button')?.click();
+            document.dispatchEvent(new Event('mtprev:management:open'));
+          },false));
+        }
+        sidebar.append(reportNode('div','mtprev-triage-side-note','Nenhuma seleção altera expedientes ou distribui tarefas no SPA.'));
+      }
+      // Atualiza a navegação quando a pesquisa ou o tipo de visualização muda.
+      const syncSide=()=>redrawSide();
+      search.addEventListener('input',syncSide);
+      select.addEventListener('change',syncSide);
+      byProcess.addEventListener('click',syncSide);
+      byPerson.addEventListener('click',syncSide);
+      sidebar?.addEventListener('click',event=>{if(event.target.closest('button'))queueMicrotask(redrawSide);});
+      render();redrawSide();
     }
     generate.addEventListener('click',generateReport);
     reopen.addEventListener('click',()=>{if(last)renderReport(makeModal(),last);});

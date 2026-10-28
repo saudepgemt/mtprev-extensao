@@ -13,7 +13,7 @@
       criticalScreenLimit: 150,
       panelId: "spa-cdsp-management-panel",
       modalId: "spa-cdsp-management-report-modal",
-      headerImageUrl: "",
+      headerImageUrl: (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL ? chrome.runtime.getURL("images/logo-mtprev.png") : ""),
       iconImageUrl: "",
       teamDatabase: {
         file: "data/equipe.xlsx",
@@ -1863,7 +1863,8 @@
         throw new Error('Leitor do SPA2 nao carregado. Recarregue o SPA e a extensao para habilitar o adaptador de workspace.');
       }
       const reportDate = startOfToday();
-      const onProgress = ({count, total}) => {
+      const onProgress = ({count, total, rounds, pages, concurrency, batchSize, lastCompletedPage, lastCompletedMs}) => {
+        document.getElementById('mtprev-management-launcher')?.mtprevProgress?.update({count,total,rounds,pages,concurrency,batchSize,lastCompletedPage,lastCompletedMs},state.collectionStartedAt || Date.now());
         if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
         setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`);
       };
@@ -1907,6 +1908,7 @@
         if (state.stopped) break;
         if (page > 0) await setDataTablePage(dt, page);
         setStatus("Lendo pagina " + (page + 1) + "/" + pages + "... " + collected.length + " processo(s) coletado(s)");
+        document.getElementById('mtprev-management-launcher')?.mtprevProgress?.update({count:page+1,total:pages,units:'páginas'},state.collectionStartedAt || Date.now());
 
         const rows = currentRows();
         rows.forEach((row) => {
@@ -2162,7 +2164,7 @@
     style.textContent = `
       #${CONFIG.modalId}.mtprev-mgmt-overlay {position:fixed;inset:0;z-index:2147483630;display:flex;align-items:center;justify-content:center;background:rgba(13,28,48,.68);padding:12px;box-sizing:border-box;font:13px/1.45 system-ui,'Segoe UI',Arial,sans-serif;color:#223d5b;}
       #${CONFIG.modalId} .mtprev-mgmt-dialog {width:min(1600px,100%);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;background:#f7faff;border-radius:15px;border:1px solid #9eb7cf;box-shadow:0 24px 80px rgba(8,27,47,.4);}
-      #${CONFIG.modalId} .mtprev-mgmt-head {position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(110deg,#14334c,#1b5373);color:#fff;padding:17px 20px;border-bottom:3px solid #2a8ba4;}
+      #${CONFIG.modalId} .mtprev-mgmt-head {position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(110deg,#18364b 0%,#20536e 58%,#247d9b 100%);color:#fff;padding:17px 20px;border-bottom:3px solid #2a8ba4;}
       #${CONFIG.modalId} .mtprev-mgmt-brand {display:flex;align-items:center;justify-content:center;width:154px;min-height:52px;padding:6px 10px;box-sizing:border-box;background:#112d43;border:1px solid #3d7790;border-radius:11px;}
       #${CONFIG.modalId} .mtprev-mgmt-brand img {max-width:100%;max-height:46px;object-fit:contain;}
       #${CONFIG.modalId} .mtprev-mgmt-headline {flex:1;min-width:230px;}
@@ -2228,11 +2230,47 @@
       #${CONFIG.modalId} button:focus-visible,#${CONFIG.modalId} input:focus-visible,#${CONFIG.modalId} summary:focus-visible {outline:3px solid #43a8e0!important;outline-offset:2px;}
       #mtprev-management-launcher {position:fixed;inset:0;z-index:2147483630;background:rgba(12,27,46,.68);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font:13px system-ui,Arial,sans-serif;}
       #mtprev-management-launcher .mtprev-launch-dialog {width:min(480px,100%);background:#fff;border-radius:15px;box-shadow:0 20px 70px #061a345c;overflow:hidden;}
-      #mtprev-management-launcher .mtprev-launch-head {background:linear-gradient(110deg,#14334c,#1c5876);color:white;padding:18px 21px;font-size:17px;font-weight:800;}
+      #mtprev-management-launcher .mtprev-launch-head {background:linear-gradient(110deg,#18364b 0%,#20536e 58%,#247d9b 100%);color:white;padding:18px 21px;font-size:17px;font-weight:800;}
+      #mtprev-management-launcher .mtprev-launch-head {display:flex;align-items:center;gap:12px;}
+      #mtprev-management-launcher .mtprev-launch-head img {width:46px;height:46px;object-fit:contain;background:#ffffffed;padding:5px;border-radius:12px;box-sizing:border-box;}
+      #mtprev-management-launcher .mtprev-launch-progress {margin:14px 0 2px;padding:12px;border:1px solid #d4e3ec;border-radius:10px;background:#f2f7fa;}
+      #mtprev-management-launcher .mtprev-launch-progress-track {height:10px;border-radius:10px;background:#d8e6ed;overflow:hidden;margin:8px 0;}
+      #mtprev-management-launcher .mtprev-launch-progress-fill {height:100%;width:0;background:linear-gradient(90deg,#1784a1,#29b4c2);transition:width .25s ease;}
+      #mtprev-management-launcher .mtprev-launch-progress-label {font-weight:750;color:#23465c;}
+      #mtprev-management-launcher .mtprev-launch-progress-meta{font-size:11px;color:#526f85;line-height:1.6;}
+      #mtprev-management-launcher .mtprev-launch-progress-track{height:12px;border:1px solid #a8ccda;}
+      #mtprev-management-launcher .mtprev-launch-progress-fill{background:linear-gradient(90deg,#15759f,#31b1bf);}
       #mtprev-management-launcher .mtprev-launch-body {padding:18px 21px;line-height:1.5;color:#46617b;}
       #mtprev-management-launcher .mtprev-launch-actions {display:flex;justify-content:flex-end;gap:9px;margin-top:17px;}
       #mtprev-management-launcher button {padding:10px 13px;border:1px solid #c8d8e6;border-radius:8px;background:#eef4fa;color:#284962;font-weight:750;cursor:pointer;}
       #mtprev-management-launcher .mtprev-launch-primary {background:#126fae;color:white;border-color:#126fae;}
+
+      /* Moldura em duas colunas, sem iframe real: mantém o contexto autenticado SPA. */
+      #${CONFIG.modalId} .mtprev-mgmt-dialog{display:flex;flex-direction:column;overflow:hidden!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-head{position:relative;flex-shrink:0;background:linear-gradient(110deg,#173c54 0%,#205d78 60%,#247e9b 100%)!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-body{display:flex;flex:1;min-height:0;overflow:hidden;padding:0!important;background:#f1f6fb;}
+      #${CONFIG.modalId} .mtprev-mgmt-sidebar{flex:0 0 222px;min-width:190px;background:#16364b;color:#eaf5fb;padding:19px 12px;overflow:auto;border-right:1px solid #39768c;}
+      #${CONFIG.modalId} .mtprev-mgmt-side-eyebrow{margin:0 9px 6px;font-weight:850;letter-spacing:.12em;font-size:11px;color:#7fcee5;}
+      #${CONFIG.modalId} .mtprev-mgmt-side-desc{margin:0 9px 15px;font-size:12px;color:#c1d6e3;line-height:1.5;}
+      #${CONFIG.modalId} .mtprev-mgmt-side-hint{margin:14px 9px;padding:10px;border:1px solid #365d72;border-radius:8px;background:#1b425a;font-size:11px;color:#b7d3e0;line-height:1.5;}
+      #${CONFIG.modalId} .mtprev-mgmt-side-link{width:100%;padding:11px 12px;border:1px solid #416c82;background:#24526b;color:#e6f5fc;border-radius:9px;cursor:pointer;text-align:left;font-weight:750;}
+      #${CONFIG.modalId} .mtprev-mgmt-side-link:hover{background:#326c84;}
+      #${CONFIG.modalId} .mtprev-mgmt-content{flex:1;min-width:0;overflow:auto;padding:17px 18px 24px;overscroll-behavior:contain;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs{display:flex!important;flex-direction:column!important;gap:6px!important;margin:0!important;border:0!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs button{border:1px solid transparent!important;border-radius:9px!important;background:#234a63!important;color:#deedf5!important;text-align:left!important;padding:12px!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs button:hover{background:#31647e!important;}
+      #${CONFIG.modalId} .mtprev-mgmt-tabs button[aria-selected="true"]{background:#e9f6fc!important;color:#173a51!important;border-color:#94cbdc!important;box-shadow:inset 4px 0 #2ca4c5!important;}
+      #${CONFIG.modalId} .mtprev-assessor-avatar{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border-radius:50%;background:#d7e9f3;color:#255575;font-size:10px;font-weight:850;border:1px solid #aecbdb;}
+      #${CONFIG.modalId} .mtprev-assessor-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#edf5fb;}
+      #${CONFIG.modalId} .mtprev-assessor-label{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-width:0;vertical-align:middle;}
+      #${CONFIG.modalId} .mtprev-assessor-label>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+      #${CONFIG.modalId} .mtprev-mgmt-barrow{grid-template-columns:minmax(125px,41%) 1fr 40px;}
+      #${CONFIG.modalId} .mtprev-mgmt-barlabel{display:flex;align-items:center;gap:6px;min-width:0;}
+      #${CONFIG.modalId} .mtprev-mgmt-barlabel .mtprev-assessor-avatar{height:22px;width:22px;font-size:9px;}
+      #${CONFIG.modalId} .mtprev-mgmt-barlabel .mtprev-assessor-label{max-width:100%;min-width:0;}
+      #${CONFIG.modalId} .mtprev-mgmt-barlabel .mtprev-assessor-label>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      @media(max-width:820px){#${CONFIG.modalId} .mtprev-mgmt-body{flex-direction:column!important;}#${CONFIG.modalId} .mtprev-mgmt-sidebar{flex:0 0 auto;min-width:0;max-height:none;padding:8px 12px;}#${CONFIG.modalId} .mtprev-mgmt-side-desc,#${CONFIG.modalId} .mtprev-mgmt-side-hint{display:none;}#${CONFIG.modalId} .mtprev-mgmt-tabs{flex-direction:row!important;overflow:auto;}#${CONFIG.modalId} .mtprev-mgmt-tabs button{white-space:nowrap;}#${CONFIG.modalId} .mtprev-mgmt-content{padding:12px;}}
+      @media print{#${CONFIG.modalId} .mtprev-mgmt-sidebar{display:none!important;}#${CONFIG.modalId} .mtprev-mgmt-body{overflow:visible!important;}#${CONFIG.modalId} .mtprev-mgmt-content{overflow:visible!important;}}
       @media(max-width:1200px) {#${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:repeat(3,minmax(170px,1fr));} #${CONFIG.modalId} .mtprev-mgmt-charts {grid-template-columns:repeat(2,minmax(0,1fr));}}
       @media(max-width:800px) {#${CONFIG.modalId} .mtprev-mgmt-dialog {max-height:calc(100dvh - 12px);} #${CONFIG.modalId} .mtprev-mgmt-overlay {padding:5px;} #${CONFIG.modalId} .mtprev-mgmt-charts {grid-template-columns:1fr;} #${CONFIG.modalId} .mtprev-mgmt-kpis {grid-template-columns:repeat(2,minmax(0,1fr));} #${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:repeat(2,minmax(0,1fr));} #${CONFIG.modalId} .mtprev-mgmt-head {position:relative;} }
       @media(max-width:480px) {#${CONFIG.modalId} .mtprev-mgmt-kpis,#${CONFIG.modalId} .mtprev-mgmt-filtergrid {grid-template-columns:1fr;} }
@@ -2966,6 +3004,57 @@
     controls.appendChild(grid);container.appendChild(controls);
   }
 
+
+  // Fotografias são reutilizadas somente quando já estão disponíveis no SPA.
+  // Não faz requisições a endpoints de perfis nem infere a identidade pela foto.
+  function assessorPhotoUrl(personName, records = []) {
+    const clean = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    const name = clean(personName);
+    if (!name || name.startsWith('sem assessor') || name.startsWith('revisao necessaria')) return '';
+    const safe = raw => {
+      try {
+        const url = new URL(raw, location.href);
+        if (url.protocol !== 'https:' || url.origin !== location.origin) return '';
+        return url.href;
+      } catch (_) { return ''; }
+    };
+    const record = records.find(item => clean(item?.assessor || item?.name) === name && (item.assessorPhotoUrl || item.avatarUrl || item.photoUrl));
+    const supplied = safe(record?.assessorPhotoUrl || record?.avatarUrl || record?.photoUrl);
+    if (supplied) return supplied;
+    const images = [...document.querySelectorAll('img[src]')].filter(img =>
+      !img.closest('.mtprev-triage-modal,#spa-cdsp-management-report-modal,#mtprev-management-launcher'));
+    for (const img of images.slice(0, 250)) {
+      const caption = clean([img.alt,img.title,img.dataset?.name,img.dataset?.assessor].filter(Boolean).join(' '));
+      const holder = img.closest('[data-user-name],[data-assessor-name],.user-card,.person-card,.team-member,li,article');
+      const context = clean(holder?.getAttribute('data-user-name') || holder?.getAttribute('data-assessor-name') || holder?.textContent?.slice(0,220));
+      if (caption !== name && !(context && context.includes(name) && context.length <= name.length + 90)) continue;
+      const url = safe(img.currentSrc || img.getAttribute('src'));
+      if (url) return url;
+    }
+    return '';
+  }
+
+  function assessorAvatar(personName, extraRecords = []) {
+    const node = document.createElement('span');
+    node.className = 'mtprev-assessor-avatar';
+    node.setAttribute('aria-hidden','true');
+    const tokens = String(personName || '?').trim().split(/\s+/).filter(Boolean);
+    const initials = tokens.length > 1 ? (tokens[0][0]+tokens[tokens.length-1][0]).toUpperCase() : (tokens[0]?.slice(0,2) || '?').toUpperCase();
+    node.textContent = initials;
+    const url = assessorPhotoUrl(personName, extraRecords);
+    if (url) {
+      const img = document.createElement('img');img.alt='';img.loading='lazy';img.src=url;
+      img.addEventListener('error',()=>img.remove(),{once:true});node.appendChild(img);
+    }
+    return node;
+  }
+  function assessorLabel(personName, records = []) {
+    const wrap = document.createElement('span');wrap.className='mtprev-assessor-label';
+    wrap.append(assessorAvatar(personName,records));
+    const name = document.createElement('span');name.textContent=personName || 'Não identificado';name.title=personName || '';
+    wrap.append(name);return wrap;
+  }
+
   function renderTabs(container, rerender) {
     const tabs = [
       { key: "visao", label: "Visao Geral" },
@@ -2973,7 +3062,8 @@
       { key: "criticos", label: "Processos Criticos" },
       { key: "detalhe", label: "Detalhamento" }
     ];
-    const nav = createElement("div", "", "display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid #d2dae8;margin-bottom:12px;");
+    const nav = createElement("nav", "");
+    nav.setAttribute("aria-label", "Tipos de relatório gerencial");
     nav.className='mtprev-mgmt-tabs';
     tabs.forEach((tab) => {
       const active = state.modal.activeTab === tab.key;
@@ -2987,7 +3077,10 @@
           (active ? "#fff" : "#192452") +
           ";"
       );
-      button.type = "button";button.setAttribute("aria-selected",String(active));
+      button.type = 'button';button.setAttribute('aria-selected',String(active));
+      button.setAttribute('aria-current',active?'page':'false');
+      const symbol={visao:'▦',assessores:'♙',criticos:'!',detalhe:'≡'}[tab.key] || '•';
+      button.prepend(document.createTextNode(symbol+'  '));
       button.addEventListener("click", () => {
         state.modal.activeTab = tab.key;
         rerender();
@@ -3240,7 +3333,8 @@
   }
   function dashBarRow(box,label,value,max,color,display) {
     const row=createElement('div','');row.className='mtprev-mgmt-barrow';
-    const name=createElement('span',label);name.className='mtprev-mgmt-barlabel';name.title=label;
+    const name=createElement('span','');name.className='mtprev-mgmt-barlabel';name.title=label;
+    name.appendChild((state.lastRecords||[]).some(item=>item.assessor===label) ? assessorLabel(label,state.lastRecords) : document.createTextNode(label));
     const track=createElement('div','');track.className='mtprev-mgmt-bartrack';
     const fill=createElement('div','');fill.className='mtprev-mgmt-barfill';fill.style.background=color;
     fill.style.width=(max ? Math.max(0,(value/max)*100):0)+'%';track.appendChild(fill);
@@ -3249,7 +3343,8 @@
   }
   function dashStackedRow(box,label,values,max,display) {
     const row=createElement('div','');row.className='mtprev-mgmt-barrow';
-    const name=createElement('span',label);name.className='mtprev-mgmt-barlabel';name.title=label;
+    const name=createElement('span','');name.className='mtprev-mgmt-barlabel';name.title=label;
+    name.appendChild((state.lastRecords||[]).some(item=>item.assessor===label) ? assessorLabel(label,state.lastRecords) : document.createTextNode(label));
     const track=createElement('div','');track.className='mtprev-mgmt-bartrack';
     values.forEach(([count,color])=>{
       const part=createElement('div','');part.style.height='100%';part.style.flex='0 0 '+(max ? Math.max(0,count/max*100) : 0)+'%';part.style.background=color;track.appendChild(part);
@@ -3310,7 +3405,8 @@
             const badge=createElement('span',String(value));badge.className='mtprev-mgmt-badge';
             badge.style.setProperty('--badge-bg',index===3?'#ffebec':index===4?'#fff0d7':'#e0edf9');
             badge.style.setProperty('--badge-color',index===3?'#ae2931':index===4?'#a26d1b':'#276b99');cell.appendChild(badge);
-          }else{cell.textContent=String(value);}if(index>=2&&index<=5) cell.classList.add('mtprev-mgmt-num');row.appendChild(cell);
+          }else if(index===0){cell.appendChild(assessorLabel(String(value),state.lastRecords||[]));}
+          else{cell.textContent=String(value);}if(index>=2&&index<=5) cell.classList.add('mtprev-mgmt-num');row.appendChild(cell);
         });
         row.title='Clique duas vezes para abrir o detalhamento deste assessor';
         row.addEventListener('dblclick',()=>{
@@ -3641,7 +3737,8 @@
     summaries.forEach((summary, index) => {
       const row = document.createElement("tr");
       row.style.cssText = index % 2 ? "background:#fff;" : "background:#f7f9fc;";
-      appendCell(row, summary.assessor, "text-align:left;font-weight:800;color:#192452;");
+      const assessorCell=appendCell(row, '', 'text-align:left;font-weight:800;color:#192452;');
+      assessorCell.appendChild(assessorLabel(summary.assessor,records));
       appendCell(row, summary.sector || "Setor nao identificado", "text-align:left;");
       appendCell(row, String(summary.total));
       appendCell(row, String(summary.recursos));
@@ -3743,7 +3840,8 @@
     items.forEach((record, index) => {
       const row = document.createElement("tr");
       row.style.cssText = index % 2 ? "background:#fff;" : "background:#f7f9fc;";
-      appendCell(row, record.assessor, "text-align:left;font-weight:800;color:#192452;");
+      const assessorCell=appendCell(row, '', 'text-align:left;font-weight:800;color:#192452;');
+      assessorCell.appendChild(assessorLabel(record.assessor,state.lastRecords||[]));
       appendCell(row, record.sector || "Setor nao identificado", "text-align:left;");
       appendCell(row, record.inboxTypeLabel || INBOX_TYPES.campo_vazio.label, "text-align:left;");
       appendCell(row, record.lastMovement || "-", "text-align:left;min-width:190px;");
@@ -3812,8 +3910,21 @@
     const reportDate = state.lastReportDate || startOfToday();
 
     const filtered = filteredRecords(records);
+    const sidebar=document.querySelector('#mtprev-mgmt-report-sidebar');
+    if (sidebar) {
+      sidebar.replaceChildren();
+      const eyebrow=createElement('p','RELATÓRIOS');eyebrow.className='mtprev-mgmt-side-eyebrow';sidebar.appendChild(eyebrow);
+      const intro=createElement('p','Visualizações da mesa selecionada');intro.className='mtprev-mgmt-side-desc';sidebar.appendChild(intro);
+      renderTabs(sidebar,renderModalContent);
+      const triagemButton=document.querySelector('.mtprev-triage-entry .mtprev-triage-primary');
+      if(triagemButton){
+        const group=createElement('p','OUTROS RELATÓRIOS');group.className='mtprev-mgmt-side-eyebrow';group.style.marginTop='20px';sidebar.appendChild(group);
+        const openTriage=createElement('button','▤  Triagem e distribuição');openTriage.type='button';openTriage.className='mtprev-mgmt-side-link';
+        openTriage.addEventListener('click',()=>{closeModal();triagemButton.click();});sidebar.appendChild(openTriage);
+      }
+      const hint=createElement('div','As seções usam a mesma leitura da mesa; trocar de relatório não faz novas consultas.');hint.className='mtprev-mgmt-side-hint';sidebar.appendChild(hint);
+    }
     renderControls(content, records, renderModalContent);
-    renderTabs(content, renderModalContent);
 
     if (state.modal.activeTab === "visao") renderOverview(content, filtered, reportDate);
     else if (state.modal.activeTab === "assessores") renderAssessorTable(content, filtered, reportDate);
@@ -3851,7 +3962,7 @@
     heading.appendChild(createElement('h2','Painel Gerencial de Processos - CDSP'));
     const metrics=generalMetrics(records,reportDate);
     heading.appendChild(createElement('small',
-      `Gerado em ${formatDateTime(new Date())} · ${metrics.total} processos · ${metrics.assessors} assessores · ${metrics.critical} críticos · ${metrics.attention} em atenção`));
+      `Gerado em ${formatDateTime(new Date())} · ${metrics.total} processos · ${metrics.assessors} assessores · ${metrics.critical} críticos · ${metrics.attention} em atenção${state.lastReadingDurationMs?` · Leitura em ${Math.round(state.lastReadingDurationMs/1000)}s`:''}`));
     header.appendChild(heading);
     const actions=createElement('div','');actions.className='mtprev-mgmt-actions';
     const billing=createElement('div','');billing.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
@@ -3875,8 +3986,9 @@
     closeButton.addEventListener('click',closeModal);actions.appendChild(closeButton);
     header.appendChild(actions);dialog.appendChild(header);
     const body=createElement('div','');body.className='mtprev-mgmt-body';
-    const content=createElement('div','');content.id='spa-cdsp-management-modal-content';
-    body.appendChild(content);dialog.appendChild(body);overlay.appendChild(dialog);document.body.appendChild(overlay);
+    const sidebar=createElement('aside','');sidebar.className='mtprev-mgmt-sidebar';sidebar.id='mtprev-mgmt-report-sidebar';
+    const content=createElement('div','');content.id='spa-cdsp-management-modal-content';content.className='mtprev-mgmt-content';
+    body.append(sidebar,content);dialog.appendChild(body);overlay.appendChild(dialog);document.body.appendChild(overlay);
     overlay.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();closeModal();}});
     renderModalContent();
     closeButton.focus({preventScroll:true});
@@ -3891,26 +4003,61 @@
     overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
     overlay.setAttribute('aria-label','Gerar painel gerencial');
     const dialog=createElement('div','');dialog.className='mtprev-launch-dialog';
-    const head=createElement('div','Painel Gerencial · MTPrev');head.className='mtprev-launch-head';dialog.appendChild(head);
+    const head=createElement('div','');head.className='mtprev-launch-head';
+    if(CONFIG.headerImageUrl){const logo=document.createElement('img');logo.src=CONFIG.headerImageUrl;logo.alt='Logo MTPrev';logo.onerror=()=>logo.remove();head.appendChild(logo);}
+    head.appendChild(createElement('span','Painel Gerencial · MTPrev'));dialog.appendChild(head);
     const body=createElement('div','');body.className='mtprev-launch-body';
     body.appendChild(createElement('div','Gerar os indicadores e gráficos usando os processos da visão atual do SPA. A coleta considera os filtros da mesa e pode levar alguns segundos.'));
     const hint=createElement('p','O relatório não altera expedientes. A exportação Excel continua disponível após gerar.');
     hint.style.cssText='font-size:12px;color:#67809a;margin:11px 0 0;';body.appendChild(hint);
     const status=createElement('p','');status.style.cssText='color:#315c7b;font-size:12px;min-height:18px;';
     body.appendChild(status);
+    const progress=createElement('div','');progress.className='mtprev-launch-progress';progress.hidden=true;
+    const progressLabel=createElement('div','Preparando coleta…');progressLabel.className='mtprev-launch-progress-label';
+    const track=createElement('div','');track.className='mtprev-launch-progress-track';track.setAttribute('role','progressbar');track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax','100');
+    const fill=createElement('div','');fill.className='mtprev-launch-progress-fill';track.appendChild(fill);
+    const elapsed=createElement('div','Tempo decorrido: 0s');elapsed.className='mtprev-launch-progress-meta';
+    const lots=createElement('div','Lotes da mesa: aguardando total…');lots.className='mtprev-launch-progress-meta';
+    const eta=createElement('div','Estimativa: aguardando a primeira resposta…');eta.className='mtprev-launch-progress-meta';
+    progress.append(progressLabel,track,lots,elapsed,eta);body.appendChild(progress);
+    let timer=null, latest={count:0,total:0};
+    const duration=(ms)=>{const seconds=Math.max(0,Math.floor(ms/1000));return seconds<60?`${seconds}s`:`${Math.floor(seconds/60)}min ${String(seconds%60).padStart(2,'0')}s`;};
+    const updateClock=()=>{
+      const start=state.collectionStartedAt||Date.now(),ms=Math.max(0,Date.now()-start);
+      elapsed.textContent=`Tempo decorrido: ${duration(ms)}`;
+      eta.textContent=latest.count>0&&latest.total>latest.count
+        ?`Tempo restante estimado: ${duration(ms/latest.count*(latest.total-latest.count))} (aproximado)`
+        :latest.total>0&&latest.count>=latest.total?'Leitura concluída · preparando indicadores…':'Estimativa: aguardando as primeiras páginas…';
+    };
+    overlay.mtprevProgress={
+      start(){progress.hidden=false; if(timer===null)timer=setInterval(updateClock,1000);updateClock();},
+      stop(){if(timer!==null){clearInterval(timer);timer=null;}updateClock();},
+      update(meta,started){
+        const m=typeof meta==='object'?meta:{count:meta,total:0};latest={count:Number(m.count)||0,total:Number(m.total)||0};
+        this.start();const valid=latest.total>0;const percent=valid?Math.max(0,Math.min(100,Math.round(latest.count/latest.total*100))):0;
+        fill.style.width=percent+'%';track.setAttribute('aria-valuenow',String(percent));
+        progressLabel.textContent=valid?`Lendo workspace: ${latest.count} de ${latest.total} ${m.units||'processos'} · ${percent}%`:`Lendo workspace: ${latest.count} processos`;
+        const batches=Number.isFinite(Number(m.pages))&&Number(m.pages)>0
+          ?`${m.rounds||0} de ${m.pages} lotes concluídos · até ${m.batchSize||100} processos/lote`
+          :valid?`Até ${Math.ceil(latest.total/100)} lotes de 100 processos`:'Aguardando total de processos';
+        lots.textContent=batches+(m.lastCompletedPage?` · última página concluída: ${m.lastCompletedPage}`:'');updateClock();
+      },
+      phase(message){this.start();progressLabel.textContent=message;updateClock();}
+    };
+    overlay.addEventListener('mtprev:launcher-cleanup',()=>overlay.mtprevProgress.stop());
     const actions=createElement('div','');actions.className='mtprev-launch-actions';
-    const cancel=createElement('button','Cancelar');cancel.type='button';cancel.addEventListener('click',()=>overlay.remove());actions.appendChild(cancel);
+    const cancel=createElement('button','Cancelar');cancel.type='button';cancel.addEventListener('click',()=>{if(state.running){state.stopped=true;status.textContent='Interrompendo leitura…';cancel.disabled=true;}else{overlay.mtprevProgress.stop();overlay.remove();}});actions.appendChild(cancel);
     if(Array.isArray(state.lastRecords)&&state.lastRecords.length){
       const reuse=createElement('button','Reabrir último');reuse.type='button';
-      reuse.addEventListener('click',()=>{overlay.remove();openManagementReport(state.lastRecords,state.lastReportDate||startOfToday());});actions.appendChild(reuse);
+      reuse.addEventListener('click',()=>{overlay.mtprevProgress.stop();overlay.remove();openManagementReport(state.lastRecords,state.lastReportDate||startOfToday());});actions.appendChild(reuse);
     }
     const generate=createElement('button','Gerar painel gerencial');generate.type='button';generate.className='mtprev-launch-primary';
     generate.addEventListener('click',async()=>{
       if(state.running) return;
-      generate.disabled=true;generate.textContent='Lendo mesa de trabalho…';cancel.disabled=true;
-      status.textContent='Consultando os processos e preparando os indicadores…';
+      generate.disabled=true;generate.textContent='Lendo mesa de trabalho…';cancel.textContent='Interromper';cancel.disabled=false;
+      status.textContent='Consultando os processos e preparando os indicadores…';progress.hidden=false;progressLabel.textContent='Iniciando leitura…';overlay.mtprevProgress.start();
       try { await generateManagementReport(); }
-      finally {if(overlay.isConnected){generate.disabled=false;cancel.disabled=false;generate.textContent='Gerar painel gerencial';status.textContent='Consulta encerrada. Se houve erro, confira o aviso da extensão.';}}
+      finally {overlay.mtprevProgress.stop();if(overlay.isConnected){generate.disabled=false;cancel.disabled=false;cancel.textContent='Cancelar';generate.textContent='Gerar painel gerencial';status.textContent=state.stopped?'Leitura interrompida. Nenhum painel parcial foi gerado.':'Consulta encerrada. Se houve erro, confira o aviso da extensão.';}}
     });actions.appendChild(generate);body.appendChild(actions);dialog.appendChild(body);overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     overlay.addEventListener('keydown',event=>{if(event.key==='Escape'&&!state.running){overlay.remove();}});
@@ -4123,6 +4270,7 @@
     if (state.running) return;
     state.running = true;
     state.stopped = false;
+    state.collectionStartedAt=Date.now();
     setStatus("Lendo caixa gerencial...");
     log("Iniciando leitura da caixa atual do SPA.");
 
@@ -4134,6 +4282,7 @@
         return;
       }
       setStatus("Carregando base de setores...");
+      document.getElementById('mtprev-management-launcher')?.mtprevProgress?.phase('Leitura concluída · carregando setores…',state.collectionStartedAt);
       const teamDatabase = await loadTeamDatabase();
       const records = applyTeamData(result.records, teamDatabase);
       const unmatched = records.filter(isTeamUnmatched).length;
@@ -4141,15 +4290,19 @@
         log(unmatched + " assessor(es)/processo(s) sem setor identificado automaticamente.", "error");
       }
       setStatus("Gerando painel...");
-      document.getElementById('mtprev-management-launcher')?.remove();
+      document.getElementById('mtprev-management-launcher')?.mtprevProgress?.phase('Preparando gráficos e indicadores…',state.collectionStartedAt);
+      const launcher=document.getElementById('mtprev-management-launcher');
+      launcher?.mtprevProgress?.stop();launcher?.remove();
+      state.lastReadingDurationMs=Date.now()-state.collectionStartedAt;
       openManagementReport(records, result.reportDate);
       window.SpaAdapter?.showCollectionSummary(document.querySelector("#" + CONFIG.modalId + " > div"), result.coverage);
       setStatus("Painel gerado");
       log("Painel gerencial gerado com " + records.length + " processo(s).", "ok");
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
-      setStatus("Erro");
-      log(message, "error");
+      setStatus(state.stopped?'Interrompido':'Erro');
+      document.getElementById('mtprev-management-launcher')?.mtprevProgress?.stop();
+      log(message, 'error');
       window.alert("Nao foi possivel gerar o painel gerencial: " + message);
     } finally {
       state.running = false;
@@ -4441,7 +4594,7 @@
           "font-size:13px;font-weight:900;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.08);"
     );
     button.type = "button";
-    button.addEventListener("click", generateManagementReport);
+    button.addEventListener("click", openManagementLauncher);
     body.dataset.mtprevRadialOption = "Gerar painel gerencial";
     body.appendChild(button);
     body.appendChild(
