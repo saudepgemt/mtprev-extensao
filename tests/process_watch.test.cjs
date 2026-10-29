@@ -27,11 +27,14 @@ test('acompanhamento preserva referencia, detecta alteracoes e conserva dados em
   vm.runInNewContext(validation + '\n' + fs.readFileSync(path.join(__dirname, '../js/process_watch_background.js'), 'utf8'), {
     URL,
     chrome, fetchMniProcedureMovements: async () => response,
-    inferMniPjeEndpoint: () => ({ id: 'pje1' })
+    inferMniPjeEndpoint: () => ({ id: 'pje1' }),
+    MTPrevWatchMail: {parseEmails: values => [...new Set(values.map(v => String(v).trim().toLowerCase()))],
+      preview: async record => ({ok:true,recipients:record.mail.extra}),
+      test: async record => ({ok:true,recipients:record.mail.extra})}
   });
   const number = '00000000020268110001';
-  const send = (action, url = 'https://spa.pge.mt.gov.br/procedures/123') => new Promise((resolve) => {
-    listener({ type: 'CDSP_PROCESS_WATCH', action, processNumber: number }, { tab: { url } }, resolve);
+  const send = (action, url = 'https://spa.pge.mt.gov.br/procedures/123', more = {}) => new Promise((resolve) => {
+    listener({ type: 'CDSP_PROCESS_WATCH', action, processNumber: number, ...more }, { tab: { url } }, resolve);
   });
   let result = await send('add');
   assert.equal(result.records[number].initialized, true);
@@ -56,6 +59,10 @@ test('acompanhamento preserva referencia, detecta alteracoes e conserva dados em
   response.expedientes[0].closed = true;
   await send('check');
   assert.equal(notifications, 3);
+  const savedMail = await send('saveMail', undefined, {mail:{enabled:true,extra:['extra@org.gov.br'],excluded:['padrao@org.gov.br']}});
+  assert.equal(savedMail.ok,true);
+  assert.equal(savedMail.records[number].mail.extra[0],'extra@org.gov.br');
+  assert.equal((await send('mailPreview')).recipients[0],'extra@org.gov.br');
   assert.equal((await send('remove', 'https://example.org/')).ok, false);
   result = await send('remove');
   assert.equal(Object.keys(result.records).length, 0);

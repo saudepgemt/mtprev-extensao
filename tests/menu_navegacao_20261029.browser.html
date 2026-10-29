@@ -1,0 +1,79 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>MTPrev — regressão da árvore e do menu</title>
+<link rel="stylesheet" href="../css/menu.css"><link rel="stylesheet" href="../css/radial_menu.css">
+</head><body>
+<pre id="result">Executando...</pre>
+<section id="cdsp-general-shell">
+ <div class="cdsp-general-shell__header"><div class="cdsp-general-shell__title">MTPrev</div><span class="cdsp-general-shell__status">Pronto</span></div>
+ <div class="cdsp-general-shell__modules"></div>
+ <div class="cdsp-general-shell__body">
+  <div data-cdsp-module-pane="triagem"><div class="mtprev-context-nav"></div><p>Conteúdo preservado</p></div>
+  <div data-cdsp-module-pane="gestao" hidden><div data-mtprev-radial-option="Gerencial">Gerencial</div></div>
+  <div data-cdsp-module-pane="prazos" hidden><div data-mtprev-radial-option="Fluxo de Correção">Prazos</div></div>
+  <div data-cdsp-module-pane="oficios" hidden><div data-mtprev-radial-option="Ofícios">Ofícios</div></div>
+ </div>
+</section>
+<script>
+window.chrome={runtime:{getURL:p=>'../'+p,openOptionsPage:async()=>{}},storage:{local:{get:async()=>({})},onChanged:{addListener(){}}}};
+const pane=document.querySelector('.mtprev-context-nav');
+for(const label of ['Triagem','Duplicados','Peças','Filtros','Programada','Registro']) {
+ const btn=document.createElement('button');btn.textContent=label;
+ btn.addEventListener('click',()=>{window.selectedOption=label;});pane.appendChild(btn);
+}
+</script>
+<script src="../js/radial_menu.js"></script>
+<script>
+(async()=>{
+ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+ const shell=document.querySelector('#cdsp-general-shell');
+ const modules=[{key:'triagem',title:'Triagem e Protocolo'},{key:'prazos',title:'Prazos'},{key:'gestao',title:'Gerencial'},{key:'oficios',title:'Ofícios'}];
+ window.MTPrevRadialMenu(shell,{modules,url:p=>'../'+p,expand(){},load:key=>{
+    shell.querySelectorAll('[data-cdsp-module-pane]').forEach(n=>n.hidden=n.dataset.cdspModulePane!==key);
+ },clamp:(node,left,top)=>({left:Math.max(0,left),top:Math.max(0,top)}),save(){}});
+ const qs=selector=>shell.querySelector(selector);
+ const texts=()=>[...shell.querySelectorAll('.mtprev-grid-open .mtprev-menu-tile .mtprev-orbit__label')].map(n=>n.textContent);
+ const breadcrumb=()=>qs('.mtprev-grid-breadcrumbs').textContent.trim();
+ let assertions=0;
+ const assert=(condition,description)=>{if(!condition)throw Error(description);assertions++};
+ const clickTile=title=>{const tile=[...shell.querySelectorAll('.mtprev-menu-tile')].find(n=>n.getAttribute('aria-label')===title);if(!tile)throw Error('Atalho ausente: '+title);tile.click();};
+ const doubleClick=(node)=>node.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,detail:2}));
+ try {
+   doubleClick(qs('.mtprev-grid-head'));await sleep(90);
+   assert(shell.classList.contains('mtprev-grid-open'),'duplo clique abre o lançador');
+   assert(texts().length===9,'nove atalhos na raiz');
+   assert(qs('.mtprev-grid-back').hidden,'sem voltar na raiz');
+   clickTile('Triagem');await sleep(650);
+   assert(texts().includes('Triagem') && texts().includes('Filtros'),'Triagem tem opções próprias');
+   assert(!texts().includes('Duplicados') && !texts().includes('Peças'),'sem duplicação de atalhos no submenu');
+   assert(!texts().includes('Voltar'),'Voltar não ocupa um card');
+   assert(!qs('.mtprev-grid-back').hidden,'botão de voltar no cabeçalho');
+   assert(breadcrumb()==='Menu›Triagem','breadcrumb do submenu');
+   qs('.mtprev-grid-back').click();await sleep(510);
+   assert(texts().length===9,'retorno para raiz');
+   clickTile('Duplicados');await sleep(650);
+   assert(window.selectedOption==='Duplicados','atalho de duplicados usa ação real');
+   assert(shell.classList.contains('mtprev-radial-operational'),'abre o módulo');
+   assert(qs('.mtprev-panel-breadcrumbs').textContent.trim()==='Menu›Duplicados','duplicados tem caminho de primeiro nível');
+   doubleClick(qs('.cdsp-general-shell__header'));await sleep(430);
+   assert(shell.classList.contains('mtprev-radial-compact'),'duplo clique no cabeçalho fecha');
+   doubleClick(qs('.mtprev-grid-head'));await sleep(160);
+   assert(shell.classList.contains('mtprev-radial-operational'),'duplo clique restaura a tela anterior');
+   assert(qs('.mtprev-panel-breadcrumbs').textContent.trim()==='Menu›Duplicados','caminho preservado após minimizar');
+   qs('.mtprev-panel-home').click();await sleep(100);
+   assert(shell.classList.contains('mtprev-grid-open') && breadcrumb()==='Menu','logo volta ao menu inicial');
+   clickTile('Peças');await sleep(650);
+   assert(qs('.mtprev-panel-breadcrumbs').textContent.trim()==='Menu›Peças','peças é atalho independente');
+   qs('.cdsp-general-shell__header > .mtprev-orbit__back').click();await sleep(110);
+   assert(shell.classList.contains('mtprev-grid-open') && breadcrumb()==='Menu','Voltar de atalho raiz retorna diretamente à raiz');
+   const iconStyle=getComputedStyle(qs('.mtprev-menu-tile .mtprev-orbit__disc'));
+   assert(iconStyle.backgroundColor==='rgba(0, 0, 0, 0)','ícone não tem fundo independente');
+   assert(getComputedStyle(qs('.mtprev-menu-tile .mtprev-orbit__label')).backgroundColor==='rgba(0, 0, 0, 0)','legenda não tem fundo independente');
+   doubleClick(qs('.mtprev-grid-head'));await sleep(460);
+   assert(shell.classList.contains('mtprev-radial-compact'),'duplo clique fecha a grade');
+   qs('#unused');
+   document.getElementById('result').textContent=`PASS — ${assertions} verificações de navegação, estado e visual`;
+   document.getElementById('result').dataset.status='pass';
+ } catch(error){document.getElementById('result').textContent='FAIL — '+error.message+'\n'+error.stack;document.getElementById('result').dataset.status='fail';}
+})()
+</script>
+</body></html>

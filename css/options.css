@@ -4,3 +4,4 @@
 
 #watch-mail-form input[type="text"],#watch-mail-form input[type="email"]{width:100%;font:inherit;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 14px;}
 #watch-mail-status{min-height:26px;font-weight:600;}#watch-mail-status[data-error=true]{color:#cc4152;}
+#watch-mail-form textarea {width:100%;min-height:115px;resize:vertical;box-sizing:border-box;font:inherit;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 14px;}

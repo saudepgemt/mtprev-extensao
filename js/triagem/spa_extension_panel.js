@@ -760,12 +760,81 @@
     if (panel.parentElement!==host) host.appendChild(panel);
   }
 
+  // Transfere a roda do mouse apenas quando a lista chega ao seu limite.
+  // Primeiro rola o documento do próprio iframe; só depois o SPA que o contém.
+  function chainExternalAutosWheelAtBoundary(event, viewer) {
+    if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return;
+    const scroller = event.target instanceof Element
+      ? event.target.closest(".spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline") : null;
+    if (!scroller || !viewer.contains(scroller)) return;
+
+    const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(window.innerHeight, 400) : 1;
+    const delta = event.deltaY * multiplier;
+    const down = delta > 0;
+    const hasRoom = (node) => down
+      ? node.scrollTop + node.clientHeight < node.scrollHeight - 2
+      : node.scrollTop > 2;
+    if (hasRoom(scroller)) return; // A lista continua com seu rolamento normal.
+
+    const tryAncestors = (start) => {
+      for (let node = start; node; node = node.parentElement) {
+        const computed = node.ownerDocument.defaultView.getComputedStyle(node);
+        if (!/(auto|scroll|overlay)/.test(computed.overflowY) ||
+            node.scrollHeight <= node.clientHeight + 2 || !hasRoom(node)) continue;
+        node.scrollBy({ top: delta, behavior: "auto" });
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    };
+    const tryDocument = (doc) => {
+      const root = doc.scrollingElement;
+      if (!root || root === scroller || !hasRoom(root)) return false;
+      const overflow = doc.defaultView.getComputedStyle(root).overflowY;
+      if (/(hidden|clip)/.test(overflow)) return false;
+      root.scrollBy({ top: delta, behavior: "auto" });
+      event.preventDefault();
+      return true;
+    };
+
+    try {
+      // Nunca saltar diretamente para a página externa se o iframe ainda pode rolar.
+      if (tryAncestors(scroller.parentElement) || tryDocument(document)) return;
+      const frame = window.frameElement; // Null ou SecurityError se não for same-origin.
+      if (!frame) return; // Navegador mantém a rolagem nativa.
+      if (tryAncestors(frame.parentElement)) return;
+      tryDocument(frame.ownerDocument);
+    } catch (_) {
+      // Origem cruzada/iframe isolado: deixa o navegador cuidar da rolagem.
+    }
+  }
+
   function injectExternalDocumentsStyles() {
+    // Apenas o iframe recebe o ajuste; o SPA principal mantém seu CSS atual.
+    if (window.parent !== window) document.documentElement.classList.add("mtprev-autos-in-iframe");
     if (document.querySelector("#spa-cdsp-external-docs-style")) return;
 
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
+      /* No iframe, o conteúdo do leitor não deve ser cortado pelo limite antigo. */
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel {
+        max-height: none !important;
+        overscroll-behavior-y: auto;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        max-height: none !important;
+        overflow: visible !important;
+        min-height: 0;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel :is(.spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline) {
+        max-height: min(72dvh, 900px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: auto;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
+      }
       .workspace-preview__document > #spa-cdsp-external-docs-panel {
         display:block !important;position:relative !important;
         box-sizing:border-box !important;width:calc(100% - 32px) !important;
@@ -1883,6 +1952,401 @@
         #spa-cdsp-external-docs-panel .spa-cdsp-movement-deadline-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+      }
+
+      /* MTPrev UI 2026 — visual da linha do tempo. Apenas apresentação. */
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        container-type: inline-size;
+        border-radius: 16px;
+        border: 1px solid #315e7e;
+        background: #0c2136;
+        box-shadow: 0 14px 35px rgba(7, 20, 38, .22);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+        line-height: 1.45;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-header {
+        padding: 16px 18px;
+        gap: 18px;
+        border-bottom: 1px solid #335f7e;
+        background: linear-gradient(110deg, #0e2b49 0%, #143e68 55%, #102c4a 100%);
+        flex-wrap: wrap;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-title {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: 12px;
+        align-items: center;
+        flex: 1 1 260px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        display: grid;
+        grid-column: 1;
+        grid-row: 1 / 3;
+        place-items: center;
+        align-self: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: linear-gradient(140deg, #237bcc, #14436d);
+        border: 1px solid #4d91c5;
+        box-shadow: 0 8px 20px rgba(0,0,0,.15);
+        color: #fff;
+        font-size: 26px;
+        line-height: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        grid-column: 2;
+        grid-row: 1;
+        color: #fff;
+        font-size: clamp(14px, 1.5vw, 20px);
+        font-weight: 800;
+        line-height: 1.22;
+        overflow-wrap: anywhere;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        grid-column: 2;
+        grid-row: 2;
+        color: #c4dbea;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        gap: 7px;
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-memory {
+        min-height: 36px;
+        box-sizing: border-box;
+        border-radius: 9px;
+        padding: 8px 11px;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.2;
+        transition: background-color .15s ease, border-color .15s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete {
+        background: #24486b;
+        border-color: #507391;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button:hover,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete:hover {
+        background: #33628d;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg, #0e2941, #112b44);
+        padding: 13px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 10px;
+        padding: 0 0 9px;
+        gap: 7px;
+        border: 0;
+        border-bottom: 1px solid #315a76;
+        border-radius: 0;
+        background: transparent;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {flex: 1 1 120px; max-width: 220px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 7px;
+        min-height: 37px;
+        padding: 9px 12px;
+        border: 1px solid #3a6081;
+        border-radius: 10px;
+        background: #0b243b;
+        color: #d1e3f4;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:focus-visible + span {
+        outline: 3px solid #74c5ff;
+        outline-offset: 2px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span::before {
+        content: "▤";
+        font-size: 17px;
+        line-height: 1;
+        color: #9fcff4;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="folder"]) span::before {content: "▱";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="spaTimeline"]) span::before {content: "☷";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="movements"]) span::before {content: "⛓";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:checked + span {
+        color: #fff;
+        background: linear-gradient(135deg, #1676d3, #2361c1);
+        border-color: #61b6fc;
+        box-shadow: inset 0 -3px 0 #5cc1ff;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-status {
+        color: #c5d7e7;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row {
+        grid-template-columns: minmax(0,1fr);
+        gap: 8px;
+        margin-bottom: 0;
+        padding: 11px;
+        border: 1px solid #315a79;
+        border-radius: 12px 12px 0 0;
+        background: #193a58;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-input {
+        flex: 1 1 240px;
+        min-width: 0;
+        min-height: 38px;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid #9bbad1;
+        background: #f8fbff;
+        color: #15334e;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > *,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > .spa-cdsp-external-docs-process-wrap {
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        border-radius: 9px;
+        min-height: 38px;
+        background: #12304c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button {
+        background: #e7f2fc;
+        color: #193b5b;
+        border-color: #c9d9e8;
+        min-height: 37px;
+        box-shadow: 0 2px 6px rgba(0,0,0,.1);
+        white-space: normal;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button:hover {
+        background: #d1e7fa;
+        color: #133a5c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
+        margin: 0 0 11px;
+        padding: 10px 11px;
+        border: 1px solid #315a79;
+        border-top: 0;
+        border-radius: 0 0 12px 12px;
+        background: #173550;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 8px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row > .spa-cdsp-external-docs-process-wrap {
+        align-self: stretch;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-option {
+        margin: 9px 14px 0 0;
+        vertical-align: middle;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        border-radius: 13px;
+        max-height: min(66vh, 770px);
+        background: #edf5fc;
+        border: 1px solid #456a86;
+        overflow: hidden;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {
+        position: relative;
+        max-height: min(64vh, 750px);
+        overflow: auto;
+        padding: 14px 14px 14px 31px;
+        background: linear-gradient(110deg, #f1f7fe, #eaf4fc);
+        color: #162f49;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 24px;
+        bottom: 20px;
+        width: 2px;
+        background: #bad7f5;
+        pointer-events: none;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day {
+        position: relative;
+        margin-bottom: 12px;
+        padding-left: 4px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {
+        content: "";
+        position: absolute;
+        top: 11px;
+        left: -19px;
+        width: 13px;
+        height: 13px;
+        border: 3px solid #f4faff;
+        border-radius: 50%;
+        background: #1c71c9;
+        box-shadow: 0 0 0 2px #b5d5f1;
+        z-index: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid #c9def2;
+        margin: 0 0 7px;
+        padding: 7px 13px;
+        border-radius: 999px;
+        background: #dcebf9;
+        color: #12529a;
+        font: 800 12px/1.3 Inter, system-ui, sans-serif;
+        text-align: left;
+        cursor: pointer;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {
+        content: "⌃";
+        flex: 0 0 auto;
+        color: #1a66ad;
+        font-size: 20px;
+        line-height: 1;
+        transition: transform .16s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-title::after {
+        transform: rotate(180deg);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-items {display: none;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-items {display: grid;gap: 7px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {
+        grid-template-columns: 26px minmax(0,1fr) auto;
+        gap: 12px;
+        min-width: 0;
+        padding: 13px;
+        border: 1px solid #cbdff1;
+        border-radius: 12px;
+        background: #fff;
+        color: #122c47;
+        box-shadow: 0 2px 7px rgba(31, 67, 102, .045);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item + .spa-cdsp-external-docs-item {margin-top: 0;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {
+        min-width: 0;
+        position: relative;
+        padding-left: 52px;
+        min-height: 42px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {
+        content: "▤";
+        position: absolute;
+        top: 1px;
+        left: 0;
+        display: grid;
+        place-items: center;
+        height: 40px;
+        width: 40px;
+        color: #1766b8;
+        background: #e8f3fe;
+        border-radius: 13px;
+        font-size: 24px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-title {
+        color: #122e4d;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.28;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-description {
+        color: #455c75;
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-chip {
+        border-radius: 999px;
+        background: #e7f1fb;
+        color: #225c9b;
+        padding: 4px 8px;
+        font-size: 10.5px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 35px;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #087754;
+        color: #fff;
+        white-space: nowrap;
+        box-shadow: 0 4px 10px rgba(8, 119, 84, .16);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open::before {content: "↗";font-size: 14px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open:hover {background: #0a8e65;}
+      #spa-cdsp-external-docs-panel button:focus-visible,
+      #spa-cdsp-external-docs-panel a:focus-visible {outline: 3px solid #6dbcfb;outline-offset: 2px;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg,#0e2941,#112b44) !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-list {
+        background: #eef5fc !important;
+        color: #162f49 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item {
+        background: #fff !important;
+        border-color: #cbdff1 !important;
+        color: #122c47 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-title {color:#122e4d !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-description {color:#455c75 !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-chip {background:#e7f1fb !important;color:#225c9b !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-search,
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-content-input {
+        background:#f8fbff !important;color:#15334e !important;border-color:#9bbad1 !important;
+      }
+      @container (max-width: 760px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {padding:12px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {width:100%;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {max-width:none;flex:1 1 130px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {grid-template-columns: 24px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-actions {grid-column:2;justify-content:flex-start;}
+      }
+      @container (max-width: 460px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title {grid-template-columns:36px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {height:36px;width:36px;font-size:21px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {padding:8px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {padding-left:0;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {display:none;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {padding:9px 9px 9px 27px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {left:15px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {left:-18px;}
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {transition:none;}
       }
     `;
     document.head.appendChild(style);
@@ -3998,10 +4462,20 @@
       const day = document.createElement("section");
       day.className = "spa-cdsp-external-docs-day";
 
-      const dayTitle = document.createElement("div");
+      // Agrupar por data em seções recolhíveis, sem alterar documentos ou requisições.
+      const dayTitle = document.createElement("button");
+      dayTitle.type = "button";
       dayTitle.className = "spa-cdsp-external-docs-day-title";
       dayTitle.textContent = date + " · " + groupItems.length + " " + unitLabel;
-      day.appendChild(dayTitle);
+      dayTitle.setAttribute("aria-expanded", "true");
+      dayTitle.title = "Recolher ou expandir os registros desta data";
+      const dayItems = document.createElement("div");
+      dayItems.className = "spa-cdsp-external-docs-day-items";
+      dayTitle.addEventListener("click", () => {
+        const collapsed = day.classList.toggle("spa-cdsp-external-docs-day-collapsed");
+        dayTitle.setAttribute("aria-expanded", String(!collapsed));
+      });
+      day.append(dayTitle, dayItems);
 
       for (const item of groupItems) {
         const row = document.createElement("article");
@@ -4056,7 +4530,7 @@
           actions.appendChild(open);
         }
         if (actions.childElementCount) row.appendChild(actions);
-        day.appendChild(row);
+        dayItems.appendChild(row);
       }
 
       list.appendChild(day);
@@ -4584,6 +5058,7 @@
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
+    panel.classList.add("spa-cdsp-external-docs-modern");
     panel.dataset.processNumber = processNumber;
     panel.dataset.source = defaultSourceKey;
     panel.dataset.url = sources[defaultSourceKey] ? sources[defaultSourceKey].url : "";
@@ -4600,13 +5075,17 @@
     title.className = "spa-cdsp-external-docs-title";
 
     const titleText = document.createElement("strong");
-    titleText.textContent = "Documentos do processo";
+    titleText.textContent = location.hostname === "pge.mt.spa.coreplan.com.br"
+      ? "Andamentos e PDFs · SPA2" : "Autos e documentos do processo";
 
     const subtitle = document.createElement("span");
     subtitle.textContent = processNumber || "Processo identificado na pendência";
 
-    title.appendChild(titleText);
-    title.appendChild(subtitle);
+    const titleBadge = document.createElement("span");
+    titleBadge.className = "spa-cdsp-external-docs-title-icon";
+    titleBadge.setAttribute("aria-hidden", "true");
+    titleBadge.textContent = "▤";
+    title.append(titleBadge, titleText, subtitle);
 
     const actions = document.createElement("div");
     actions.className = "spa-cdsp-external-docs-actions";
@@ -4769,8 +5248,8 @@
     ];
     const movementPgeStateFilterDefinition = {
       id: "pge_state_inline",
-      label: "PGE/Estado",
-      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO",
+      label: "Estado / MTPrev",
+      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO;FUNDAÇÃO MATO GROSSO PREVIDÊNCIA;MATO GROSSO PREVIDÊNCIA;MTPREV",
     };
     const selectedQuickFilters = new Set();
     const quickFilterInputs = {};
@@ -4822,11 +5301,11 @@
     const pgeStateOption = document.createElement("label");
     pgeStateOption.className = "spa-cdsp-external-docs-exact-option";
     pgeStateOption.style.display = "none";
-    pgeStateOption.title = "Filtrar o Andamento PJE por Estado/PGE.";
+    pgeStateOption.title = "Filtrar o Andamento PJe por Estado de Mato Grosso ou Fundação Mato Grosso Previdência (MTPrev).";
     const pgeStateInput = document.createElement("input");
     pgeStateInput.type = "checkbox";
     const pgeStateText = document.createElement("span");
-    pgeStateText.textContent = "PGE/Estado";
+    pgeStateText.textContent = "Estado / MTPrev";
     pgeStateOption.appendChild(pgeStateInput);
     pgeStateOption.appendChild(pgeStateText);
     searchTools.appendChild(pgeStateOption);
@@ -5132,6 +5611,9 @@
 
     const viewer = document.createElement("div");
     viewer.className = "spa-cdsp-external-docs-viewer";
+    if (window.parent !== window) {
+      viewer.addEventListener("wheel", (event) => chainExternalAutosWheelAtBoundary(event, viewer), { passive: false });
+    }
 
     const placeholder = document.createElement("div");
     placeholder.className = "spa-cdsp-external-docs-placeholder";
@@ -10779,22 +11261,7 @@
     let failure = '';
     try {
       const scope = workspaceDuplicateCacheScope();
-      const onWorkspaceProgress = ({count,total}) => {
-        if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
-        setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
-      };
-      let preloaded = null;
-      if (scope && window.SpaAdapter?.getWorkspacePreload) {
-        setDuplicateLoading(true, 'Aguardando os lotes carregados ao abrir a mesa…');
-        try { preloaded = await window.SpaAdapter.getWorkspacePreload({onProgress:onWorkspaceProgress}); }
-        catch (error) {
-          if (state.stopped || error?.name === 'AbortError') throw error;
-          log('Leitura inicial indisponível: ' + error.message, 'error');
-        }
-        if (workspaceDuplicateCacheScope() !== scope) throw new Error('Os filtros da mesa mudaram. Gere o relatório novamente.');
-        if (preloaded?.reason !== 'complete') preloaded = null;
-      }
-      if (scope && !options.forceRefresh && !preloaded) {
+      if (scope && !options.forceRefresh) {
         const cached = await readWorkspaceDuplicateCache(scope);
         if (cached && cached.includeValidated === Boolean(includeValidated) &&
             workspaceDuplicateCacheScope() === scope) {
@@ -10815,9 +11282,23 @@
         if (!detectedCards.length) {
           throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
         }
-        const collection = preloaded || await window.SpaAdapter.collectWorkspaceRecords({
-          batchSize:100, allowScroll:false, onProgress:onWorkspaceProgress
-        });
+        const collectionController=new AbortController();
+        state.duplicateAbortController=collectionController;
+        let collection;
+        try {
+          collection=await window.SpaAdapter.collectWorkspaceRecords({
+            signal:collectionController.signal,
+            onProgress: ({count,total,rounds,pages,concurrency,batchSize,lastCompletedPage,lastCompletedMs,stage}) => {
+              if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
+              setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`, false, {
+                current: count,total,rounds,pages,concurrency,batchSize,
+                lastCompletedPage,lastCompletedMs,stage
+              });
+            }
+          });
+        } finally {
+          if(state.duplicateAbortController===collectionController)state.duplicateAbortController=null;
+        }
         const grouped = new Map(); let skippedSes=0;
         // No workspace, analisar todos os cards recuperados na visão filtrada.
         // Não excluir candidatos pelo assunto/último andamento nesta comparação.
@@ -11262,7 +11743,7 @@
       #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+4) .md-stat__icon{background:#fff2df}
       #spa-cdsp-duplicate-report-overlay .md-summary-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#577088;font-size:12px;line-height:1.45}
       #spa-cdsp-duplicate-report-overlay .md-summary-line .md-note-dot{color:#86a1b5}
-      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:62px;height:50px;object-fit:contain;flex-shrink:0;border:1px solid rgba(116,203,232,.45);border-radius:12px;padding:5px;background:#102c42;box-sizing:border-box}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:53px;height:42px;object-fit:contain;flex-shrink:0}
       #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback{font-size:16px;font-weight:900;color:#60bfd1;flex-shrink:0}
       #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback[hidden]{display:none}
       #spa-cdsp-duplicate-report-overlay .md-group{border-radius:10px;border-color:#cbdce9;box-shadow:0 1px 3px rgba(31,54,83,.05)}
@@ -11406,7 +11887,10 @@
       }
     });
     const close=button('Fechar','md-muted-btn');
-    close.addEventListener('click',()=>overlay.remove());
+    close.addEventListener('click',()=>{
+      try {sessionStorage.removeItem('mtprev.duplicate.report.open.v1');} catch (_error) {}
+      overlay.remove();
+    });
     header.append(bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
@@ -11439,12 +11923,12 @@
     const tabStatus=el('div','md-notice');tabStatus.setAttribute('role','status');main.appendChild(tabStatus);
     const entries=(report.groups || []).map(group=>({...group,evidence:workspaceDuplicateEvidence(group)}))
       .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
-    const totalCandidateTabs=workspaceDuplicateCandidateUrls(entries).length;
     let tabsOpening=false;
     const openCandidates=async (groups,scope)=>{
       if(tabsOpening)return;
       const count=workspaceDuplicateCandidateUrls(groups).length;
       if(!count){tabStatus.textContent='Nenhum link individual de expediente encontrado.';return;}
+      if(count>5){tabStatus.textContent='Por segurança, este grupo tem mais de 5 abas. Abra os expedientes individualmente.';return;}
       tabsOpening=true;
       tabStatus.textContent=`Abrindo ${count} expediente(s) em abas separadas...`;
       try {
@@ -11455,7 +11939,6 @@
           ? `${result.opened} de ${result.total} abas abertas. Confira as permissões de abertura.`
           : `${result.opened} aba(s) abertas em segundo plano (${scope}).`;
       } catch(error){if(overlay.isConnected)tabStatus.textContent=`Não foi possível abrir as abas: ${error.message}`;}
-      finally{tabsOpening=false;}
       finally{tabsOpening=false;}
     };
 
@@ -11787,18 +12270,7 @@
       'A mesma numeração pode constar de várias tarefas sem que haja duplicidade. A pontuação compara campos disponíveis, não PDFs. '+
       'A seleção em grupo prioriza o último expediente, mas não comprova qual deve ser encerrado. “Sugerir encerramento” exige seleção de motivo e confirmação. Não há encerramento automático pela análise.'));
     sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
-    // A abertura automatica acontece apenas após coleta completa nova.
-    if(report.fromCache){
-      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use os controles de cada grupo ou expediente para abrir os links.';
-    } else if(!complete){
-      tabStatus.textContent='Coleta parcial: abertura automática desativada. Use os controles de cada grupo ou expediente para abrir os links.';
-    } else if(totalCandidateTabs>60){
-      tabStatus.textContent=`${totalCandidateTabs} links encontrados: abertura automática desativada para este volume. Use os controles de cada grupo ou expediente para abrir os links.`;
-    } else if(totalCandidateTabs){
-      void openCandidates(entries,'automático após a análise');
-    } else {
-      tabStatus.textContent='Análise concluída: nenhum candidato possui link para abertura.';
-    }
+    tabStatus.textContent='Abertura em massa desativada para evitar sobrecarregar o navegador. Use Abrir em um expediente específico, ou selecione candidatos para revisão.';
   }
 
   function showDuplicateReport(report) {
@@ -14285,6 +14757,15 @@
 
     const triagemPage = document.createElement("div");
     triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
+    // Ações operacionais permanecem disponíveis, separadas do relatório consultivo.
+    const triagemAdvanced = document.createElement('details');
+    triagemAdvanced.className = 'mtprev-triagem-advanced';
+    triagemAdvanced.style.cssText = 'margin:12px 0;border:1px solid #49647a;border-radius:10px;padding:10px;background:#1e3446;color:#e9f2f8';
+    const triagemAdvancedSummary = document.createElement('summary');
+    triagemAdvancedSummary.textContent = 'Ferramentas avançadas · ciência, classificação e abertura de processos';
+    triagemAdvancedSummary.style.cssText = 'font-weight:750;cursor:pointer;font-size:12px;line-height:1.5';
+    triagemAdvanced.appendChild(triagemAdvancedSummary);
+    triagemPage.appendChild(triagemAdvanced);
     const triagemButtons = createButtonGrid();
     triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
@@ -14292,9 +14773,9 @@
       triagemButtons,
       createButton("Abrir Abas", () => openTabsAllPages(currentActionLimit()), "purple")
     );
-    triagemPage.appendChild(createTriageClassificationFlow());
-    triagemPage.appendChild(createExpedienteContentControls());
-    triagemPage.appendChild(triagemButtons);
+    triagemAdvanced.appendChild(createTriageClassificationFlow());
+    triagemAdvanced.appendChild(createExpedienteContentControls());
+    triagemAdvanced.appendChild(triagemButtons);
 
     const duplicadosPage = document.createElement("div");
     duplicadosPage.className = 'mtprev-duplicates-page';
@@ -14316,7 +14797,7 @@
     const duplicadosButtons = createButtonGrid();
     appendFullWidthButton(
       duplicadosButtons,
-      createButton("Relatorio Duplicados", () => buildDuplicateReport(false), "info")
+      createButton("Gerar Relatório", () => buildDuplicateReport(false), "info")
     );
     const cancelDuplicateCollection = createButton('Interromper leitura', () => {
       state.stopped = true;
@@ -14397,7 +14878,9 @@
 
     header.appendChild(title);
     header.appendChild(status);
-    header.appendChild(quickStopButton);
+    // No módulo embutido, não exibir a ação solta "Encerrar".
+    // No painel independente, mantém o controle de interrupção de automação.
+    if (!embedded) header.appendChild(quickStopButton);
     header.appendChild(toggleButton);
     panel.appendChild(header);
     content.appendChild(createHealthLogo());
@@ -14405,7 +14888,7 @@
     if (window.MTPrevTriageWorkspace) {
       triageWorkspace?.dispose();
       triageWorkspace = window.MTPrevTriageWorkspace.create({ getRecords: mtprevPopRecords });
-      content.appendChild(triageWorkspace.root);
+      triagemAdvanced.appendChild(triageWorkspace.root);
     }
     content.appendChild(moduleTabs.pages);
     panel.appendChild(content);

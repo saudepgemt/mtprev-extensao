@@ -242,3 +242,46 @@
     outline-offset: 3px !important;
   }
 }
+
+
+/* MTPrev SPA2 | Grade do menu sem fundos nos icones/legendas (29/10/2026)
+   Os controles globais acima usam @layer mtprev-controls + !important.
+   Sobrescrever somente radial_menu.css (fora da layer) nao prevalece na cascata.
+   Esta excecao fica na MESMA layer e atua apenas na grade aberta do menu. */
+@layer mtprev-controls {
+  /* O destaque pertence ao card inteiro, nao a seus elementos internos. */
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile {
+    --mt-control-bg: #263f53;
+    --mt-control-hover: #31576e;
+    --mt-control-border: #466579;
+    --mt-control-text: #f1faff;
+    background: #263f53 !important;
+    border-color: #466579 !important;
+    color: #f1faff !important;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile:is(:hover, :focus-visible) {
+    background: #31576e !important;
+    border-color: #74acc3 !important;
+  }
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile:active {
+    background: #31576e !important;
+  }
+  /* Inclui Acompanhar (especial), hover e clique, que antes reintroduziam
+     um bloco azul/verde atras do icone por meio do tema compartilhado. */
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile .mtprev-orbit__disc,
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile:is(:hover, :focus-visible, :active) .mtprev-orbit__disc,
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile .mtprev-orbit__label {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  #cdsp-general-shell.mtprev-grid-nav.mtprev-grid-open .mtprev-orbit__ring .mtprev-menu-tile .mtprev-orbit__label {
+    color: #f1f9ff !important;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}

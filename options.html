@@ -35,28 +35,27 @@
       <p id="status" role="status" aria-live="polite"></p>
     </section>
     <section aria-labelledby="watch-mail-title">
-      <h2 id="watch-mail-title">Alertas de movimentações por e-mail (Microsoft 365)</h2>
-      <p>Integração opcional por OAuth 2.0. O MTPrev envia um aviso apenas para novas movimentações detectadas após a primeira consulta. O envio ocorre pela conta Microsoft autorizada, sem armazenar senha.</p>
-      <p>Seu administrador Microsoft Entra precisa registrar um aplicativo público com permissão delegada <code>Mail.Send</code> e redirecionamento do tipo <strong>SPA</strong>. Adicione a URL abaixo aos redirecionamentos do aplicativo:</p>
-      <p class="host" id="watch-mail-redirect">Carregando URL da extensão…</p>
+      <h2 id="watch-mail-title">Notificações de movimentações — Gmail institucional</h2>
+      <p>Somente a conta remetente autoriza o Google. Os destinatários não precisam entrar no Gmail nem conceder permissões. O envio usa <code>gmail.send</code> e <code>userinfo.email</code>, sem acessar a caixa de entrada.</p>
+      <p>Google Cloud → Clientes → <strong>Extensão do Chrome</strong>. ID desta instalação: <code>hlmpphdngoibhfhlgheobekbkhabcgpj</code>. Copie o <strong>Client ID OAuth</strong> recebido para <code>manifest.json → oauth2.client_id</code>, substituindo o valor de exemplo. Ative a Gmail API e inclua a conta remetente nos usuários de teste do projeto.</p>
+      <p class="host" id="watch-mail-client-id-state">Verificando configuração do cliente OAuth…</p>
       <form id="watch-mail-form">
-        <label for="watch-mail-client">ID do aplicativo (Client ID)</label>
-        <input id="watch-mail-client" type="text" placeholder="UUID do aplicativo" spellcheck="false" autocomplete="off" required>
-        <label for="watch-mail-tenant">ID do diretório (Tenant ID)</label>
-        <input id="watch-mail-tenant" type="text" placeholder="UUID do diretório" spellcheck="false" autocomplete="off" required>
-        <label for="watch-mail-recipient">E-mail que receberá as notificações</label>
-        <input id="watch-mail-recipient" type="email" placeholder="destinatario@orgao.mt.gov.br" autocomplete="email" required>
-        <label class="check"><input id="watch-mail-consent" type="checkbox"><span>Autorizo que CNJs e descrições das movimentações detectadas sejam enviados para a Microsoft e para o destinatário configurado.</span></label>
-        <label class="check"><input id="watch-mail-enabled" type="checkbox"><span>Ativar envio automático de alertas de movimentações novas (a primeira consulta não envia aviso).</span></label>
+        <label for="watch-mail-sender">Gmail institucional que enviará as mensagens</label>
+        <input id="watch-mail-sender" type="email" placeholder="notificacoes@instituicao.gov.br" autocomplete="email" required>
+        <label for="watch-mail-defaults">Destinatários padrão (um por linha, separados por vírgulas ou ponto e vírgula)</label>
+        <textarea id="watch-mail-defaults" rows="5" placeholder="servidor1@instituicao.gov.br&#10;servidor2@gmail.com"></textarea>
+        <p class="help">Esses endereços entram em todos os processos, mas você pode excluí-los individualmente ou acrescentar novos em cada acompanhamento. Até 40 destinatários por envio.</p>
+        <label class="check"><input id="watch-mail-consent" type="checkbox"><span>Autorizo o compartilhamento dos CNJs e movimentações processuais com o Google e os destinatários habilitados. Verifique as regras institucionais e o sigilo antes de ativar.</span></label>
+        <label class="check"><input id="watch-mail-enabled" type="checkbox"><span>Ativar alertas automáticos quando o Acompanhamento Especial detectar novas movimentações (a primeira leitura só cria a referência).</span></label>
         <div class="actions">
-          <button type="submit">Salvar opções</button>
-          <button id="watch-mail-connect" type="button">Conectar Microsoft 365</button>
-          <button id="watch-mail-test" type="button" class="secondary">Enviar e-mail de teste</button>
-          <button id="watch-mail-check" type="button" class="secondary">Verificar sessão</button>
-          <button id="watch-mail-disconnect" type="button" class="secondary">Desconectar</button>
+          <button type="submit">Salvar preferências</button>
+          <button id="watch-mail-connect" type="button">Conectar Gmail</button>
+          <button id="watch-mail-test" type="button" class="secondary">Enviar teste aos padrões</button>
+          <button id="watch-mail-check" type="button" class="secondary">Verificar configuração</button>
+          <button id="watch-mail-disconnect" type="button" class="secondary">Desconectar Gmail</button>
         </div>
       </form>
-      <p class="help">A sessão OAuth expira e pode exigir nova autorização após reiniciar o navegador. Um HTTP 202 do Graph indica mensagem aceita para envio, não entrega comprovada. O servidor da instituição pode exigir consentimento administrativo.</p>
+      <p class="help">Com o Chrome aberto, a instalação autenticada realiza uma verificação automática por intervalo mínimo de 24 horas; a primeira consulta de cada processo é uma referência. Com navegador fechado não há consultas e o próximo acesso recupera a verificação pendente. O Chrome armazena e renova tokens de acesso; nenhum token ou senha é incluído no ZIP. Em Google OAuth Externo/Testando, a autorização pode precisar ser renovada periodicamente.</p>
       <p id="watch-mail-status" role="status" aria-live="polite"></p>
     </section>
     <section><h2>Senhas de assinatura</h2><p>Informe sua senha no painel da rotina correspondente. A senha de protocolo fica na sessão do navegador; após reiniciá-lo, informe-a novamente antes de uma rotina programada. No SIGADOC, a senha fica na sessão da aba e pode ser apagada limpando o campo no menu.</p></section>

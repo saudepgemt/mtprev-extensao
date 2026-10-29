@@ -40,6 +40,47 @@
     } catch (_) { /* Contexto da extensao pode ter sido recarregado. */ }
   });
 
+  // Atalho do menu principal para um expediente aberto em iframe do mesmo SPA.
+  // A injecao continua sendo solicitada PELO iframe, de modo que o background
+  // injete apenas no frame correto (e nunca em todas as sub-janelas).
+  if (window !== window.top) window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || !['https://spa.pge.mt.gov.br','https://pge.mt.spa.coreplan.com.br'].includes(event.origin)) return;
+    const parentOrigin = event.origin;
+    const data = event.data;
+    if (data?.source !== 'MTPREV_AUTOS_MENU' || data.type !== 'MTPREV_OPEN_AUTOS_REQUEST' ||
+        typeof data.requestId !== 'string' || !/^autos-\d+$/.test(data.requestId)) return;
+    const reply = (ok, error = '') => {
+      try {
+        window.parent.postMessage({
+          source:'MTPREV_IFRAME_AUTOS',type:'MTPREV_OPEN_AUTOS_RESULT',
+          requestId:data.requestId,ok,error
+        },parentOrigin);
+      } catch (_) { /* A pagina mudou durante a solicitacao. */ }
+    };
+    if (!hasProcess()) {
+      reply(false, 'O iframe ainda nao carregou um expediente.');
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({type:'MTPREV_INJECT_AUTOS_IFRAME'}, result => {
+        const failure = chrome.runtime.lastError;
+        if (failure || !result?.ok) {
+          reply(false, failure?.message || result?.error || 'Falha ao inicializar o leitor no iframe.');
+          return;
+        }
+        const panel = document.getElementById('spa-cdsp-external-docs-panel');
+        if (panel) {
+          if (panel.classList.contains('spa-cdsp-external-docs-collapsed')) {
+            [...panel.querySelectorAll('button')].find(btn => /expandir/i.test(btn.textContent || ''))?.click();
+          }
+          panel.scrollIntoView({block:'start',behavior:'smooth'});
+          panel.setAttribute('tabindex','-1'); panel.focus({preventScroll:true});
+        }
+        reply(Boolean(panel), panel ? '' : 'O SPA ainda nao disponibilizou os documentos do processo.');
+      });
+    } catch (error) { reply(false,error?.message || String(error)); }
+  });
+
   // Reforça o visual da mesa sem substituir o JS radial ou os estilos do SPA.
   function applyWorkspaceAppearance() {
     if (window !== window.top || !/^\/workspace\/?$/.test(location.pathname)) return;
