@@ -1,185 +1,198 @@
 <p align="center">
-  <img src="images/logo-mtprev.png" alt="Identidade visual do MTPrev" width="220">
+  <img src="images/logo-mtprev.png" alt="Logo MTPrev" width="245" />
 </p>
 
 <h1 align="center">MTPrev — Extensão Geral</h1>
 
 <p align="center">
-  Uma forma mais simples de consultar, organizar e acompanhar processos e expedientes no dia a dia.
+  Ferramentas para organizar a rotina com processos, expedientes e documentos no SPA e no SIGADOC.
 </p>
 
 <p align="center">
-  <strong>Chrome / Chromium · Firefox · SPA clássico · SPA2 (Coreplan) · SIGADOC</strong>
-</p>
-
-<p align="center">
-  <a href="#o-projeto">O projeto</a> ·
-  <a href="#funcionalidades">Funcionalidades</a> ·
-  <a href="#instalação">Instalação</a> ·
-  <a href="#desenvolvimento">Desenvolvimento</a> ·
-  <a href="#equipe">Equipe</a>
+  <strong>Chrome · Firefox · SPA clássico · Workspace Coreplan · SIGADOC</strong>
 </p>
 
 ---
 
-## O projeto
+## Sobre o projeto
 
-O **MTPrev** é uma extensão de navegador criada para apoiar quem trabalha diariamente com processos judiciais e administrativos. A proposta é reunir, em uma interface acessível, ferramentas que economizam tempo em tarefas repetitivas — sem tirar do profissional a responsabilidade pela análise e pelas decisões.
+O **MTPrev — Extensão Geral** nasceu para reunir, em um só lugar, tarefas que fazem parte do dia a dia de quem trabalha com processos administrativos e judiciais. Em vez de alternar entre várias telas, conferir documentos um por um e repetir os mesmos procedimentos, a extensão acrescenta ferramentas de consulta, triagem e organização aos sistemas já utilizados pela equipe.
 
-A extensão acrescenta recursos ao **SPA da PGE/MT**, tanto na interface clássica quanto no **workspace Coreplan (SPA2)**, e oferece rotinas de apoio ao **SIGADOC**. Ela não substitui esses sistemas, não amplia as permissões do usuário e não dispensa a conferência das informações nas fontes oficiais.
+Ela funciona como uma **camada de apoio** sobre o SPA da PGE/MT, incluindo o workspace da Coreplan, e sobre o SIGADOC. A extensão não substitui esses sistemas nem altera as permissões de acesso de quem a utiliza.
 
-O projeto é desenvolvido de maneira colaborativa, com atenção à usabilidade, à organização dos fluxos de trabalho e à adaptação às mudanças de interface dos sistemas.
+Seu princípio é simples: **automatizar o trabalho repetitivo e deixar as decisões processuais sob responsabilidade de quem analisa o caso**.
 
-## Funcionalidades
+> **Versão indicada no manifesto do projeto:** `0.0.1`. Algumas funcionalidades podem variar conforme a versão dos arquivos instalada e a interface disponibilizada pelo SPA.
 
-### Menu radial e navegação
+## O que você encontra no MTPrev
 
-O menu radial reúne os módulos da extensão em um único ponto da tela. Pode ser movido, recolhido e expandido, permitindo abrir as ferramentas sem interromper a navegação. Os painéis seguem uma identidade visual em **azul-petróleo**, com foco em legibilidade e aproveitamento do espaço.
+### Menu radial
 
-### Triagem de processos
+O ponto de partida é o menu com a identidade visual do MTPrev. Ele pode ser arrastado pela tela, recolhido quando não está sendo usado e expandido para mostrar os módulos disponíveis. Ao selecionar uma ferramenta, o menu dá lugar ao painel de trabalho correspondente, sem precisar sair da página.
 
-A triagem oferece recursos de apoio à leitura e ao tratamento de expedientes: atualização da lista, consulta de informações, abertura pontual de processos e preparação de ações compatíveis com a tela e com as permissões disponíveis.
+A interface utiliza painéis em tons escuros, botões com destaque ao passar o mouse e navegação organizada para ocupar menos espaço durante a análise dos processos.
 
-No **SPA2**, a leitura da mesa pode ser feita por lotes, preservando os filtros selecionados e mostrando o progresso. Quando a cobertura não pode ser confirmada, a extensão deve indicar que o resultado é parcial.
+### Triagem de processos e expedientes
+
+A **Triagem** reúne comandos de apoio à leitura e ao tratamento dos expedientes da mesa de trabalho. Entre eles estão a abertura de processos em abas, a atualização da lista, a preparação de classificações e as rotinas de ciência, sempre de acordo com a tela e as permissões disponíveis.
+
+No **workspace do SPA2**, a busca pode percorrer os processos carregados em lotes, mantendo os filtros da mesa. O painel informa o andamento da leitura e sinaliza quando não consegue confirmar a cobertura completa.
+
+Há também recursos de diagnóstico para ajudar na identificação do tipo de demanda e das providências que merecem conferência. Esses apontamentos são **orientações de apoio**, não conclusões automáticas sobre o processo.
 
 ### Relatório de possíveis duplicatas
 
-O relatório ajuda a localizar **expedientes potencialmente relacionados ao mesmo processo**, para que a equipe possa conferir se existe alguma duplicidade de trabalho.
+O relatório de **Duplicados** foi pensado para uma situação comum: encontrar mais de uma tarefa ou expediente relacionado ao mesmo processo e decidir o que realmente precisa ser conferido.
 
-A comparação no workspace considera principalmente o **número CNJ**, as **partes ativas** e a **data de distribuição**. Os resultados são agrupados para facilitar a revisão, com indicadores de semelhança, busca, seleção de candidatos e acesso aos expedientes.
+No SPA clássico, a análise aproveita os registros e os documentos disponibilizados pela interface. No workspace da Coreplan, a comparação considera principalmente:
 
-A pontuação de 0 a 100 é uma **regra de triagem**, não uma probabilidade estatística. Um mesmo número de processo pode corresponder a expedientes distintos e legítimos.
+- **Número do processo (CNJ)**, usado para reunir candidatos;
+- **Partes ativas**, com normalização dos nomes quando possível;
+- **Data de distribuição**, que pode coincidir ou apresentar divergências.
 
-O relatório completo pode ser guardado localmente para consulta posterior, quando a versão instalada oferecer esse recurso. A opção de atualizar solicita uma nova leitura da mesa. As sugestões de encerramento, inclusive em lote quando disponíveis, exigem **revisão e confirmação humana**.
+Os resultados aparecem em **grupos recolhidos**, com os expedientes lado a lado, suas informações principais e links para conferência. A pontuação de semelhança é uma **regra de triagem de 0 a 100**, e não uma probabilidade estatística de duplicidade.
 
-### Painel gerencial
+No workspace, o relatório pode consultar as páginas em lotes, respeitando a mesa e os filtros selecionados. Quando a leitura termina, é possível abrir os candidatos em abas separadas. A versão com armazenamento local também permite **reabrir o último relatório completo sem repetir a coleta**; o botão **Atualizar** faz uma nova análise quando necessário.
 
-O **Painel Gerencial de Processos** transforma os dados da mesa em indicadores, tabelas e visualizações para apoiar a distribuição e o acompanhamento do trabalho.
-
-Conforme os dados disponíveis, permite observar o volume de expedientes, a distribuição entre assessores, a carga crítica, os prazos e a permanência dos processos na caixa. Filtros ajudam a analisar recortes específicos, e os relatórios podem oferecer exportação para conferência e uso interno.
-
-Os indicadores refletem a **visão e os filtros consultados**. Não devem ser interpretados como um retrato de toda a instituição quando a coleta estiver limitada a uma mesa.
-
-### Acompanhamento Especial
-
-Permite cadastrar processos pelo número CNJ e acompanhar as movimentações identificadas nas consultas ao **PJe/TJMT**.
-
-A primeira consulta estabelece uma referência; as seguintes verificam alterações em relação ao último resultado conhecido. Os cards organizam o histórico e distinguem novidades, registros já lidos e falhas de consulta. Notificações do navegador podem ser exibidas quando configuradas e autorizadas.
-
-A disponibilidade das consultas depende da configuração do serviço externo e da autenticação necessária. **O acompanhamento não substitui a consulta oficial ao processo e não monitora, por si só, os encerramentos internos do SPA.**
-
-### Autos, andamentos e documentos PDF
-
-Nas páginas de processo, o MTPrev reúne atalhos para fontes como **autos, pasta do expediente, andamentos do SPA e dados do PJe**, quando disponíveis.
-
-O leitor facilita a organização de documentos por data, a abertura de PDFs e a pesquisa por termos nos arquivos acessíveis. Também pode oferecer recursos para consultar ou reunir documentos e incluir uma capa informativa MTPrev em cópias de consulta.
-
-A leitura é feita conforme a necessidade. Documentos digitalizados sem camada de texto podem não ser integralmente pesquisáveis.
+A ferramenta também oferece ações de conferência e **sugestão de encerramento** onde a versão do SPA e o expediente permitem. Uma sugestão não equivale a um encerramento concluído: antes de qualquer gravação é necessário conferir o expediente, selecionar o motivo e confirmar a ação. Rotinas de lote no SPA2 devem ser tratadas como **assistidas e sujeitas a validação**, não como encerramentos automáticos garantidos.
 
 ### Relatório de peças
 
-Ajuda a identificar e organizar manifestações e peças processuais a partir dos documentos disponíveis, apresentando **classificações sugeridas** e grupos prioritários para revisão.
+O módulo **Peças** ajuda a examinar expedientes e documentos PDF para identificar o tipo de manifestação a que se referem. Quando encontra informações suficientes, apresenta uma classificação sugerida e facilita o preenchimento dos campos correspondentes.
 
-As sugestões são apoio à conferência: não equivalem à classificação definitiva e não substituem a leitura da peça.
+O relatório também organiza grupos prioritários para revisão, inclusive demandas relacionadas a contestação, agravo, pauta de julgamento e outras categorias previstas nas regras de trabalho. A leitura do documento oferece elementos para conferência; **não substitui a análise de seu conteúdo nem salva automaticamente uma classificação apenas por sugeri-la**.
 
-### Prazos e gestão da mesa
+### Prazos e gestão
 
-Os módulos de **Prazos** e **Gestão** apoiam a identificação de pendências, a análise de informações da mesa e a exportação de resultados, conforme os recursos disponíveis na versão instalada.
+O MTPrev reúne relatórios de **Prazos** e **Gestão** para consultar a situação da mesa, visualizar pendências e acompanhar informações úteis à organização do trabalho. Conforme a página e os dados disponíveis, é possível aplicar filtros, examinar os resultados e exportar relatórios.
 
-A ausência de um prazo em um relatório **não comprova que ele inexiste**. A conferência no sistema de origem continua indispensável.
+Essas informações refletem as fontes consultadas. Um prazo que não apareceu no relatório não deve ser presumido inexistente sem conferência no sistema de origem.
 
-### Ofícios e SIGADOC
+### Autos, andamentos e PDFs
 
-As rotinas de **Ofícios** auxiliam o preenchimento e a tramitação de documentos no SIGADOC, incluindo, conforme o fluxo, a escolha de modelos, a classificação, o destinatário, a preparação para assinatura e a juntada de arquivos.
+Nas páginas de processo, o painel **Autos do processo** facilita o acesso aos documentos associados ao expediente. Ele reúne fontes como autos, pasta do processo e, quando configurado, andamentos do PJe/TJMT.
 
-Assinaturas, protocolos e tramitações dependem das credenciais, das permissões e da confirmação do usuário.
+Entre os recursos estão a organização de documentos por data, a abertura de PDFs, os filtros de leitura e a **pesquisa por palavras ou expressões dentro dos PDFs** já acessíveis à ferramenta. Dependendo da origem, o painel também oferece recursos para reunir ou consultar documentos do processo.
 
-## Instalação
+Nos PDFs unificados, a opção **Incluir capa MTPrev** acrescenta os dados disponíveis do processo à cópia de consulta. Na pesquisa interna, os resultados permitem abrir diretamente a página encontrada; páginas sem texto ou com imagem predominante são consideradas na indicação de leitura inconclusiva. Veja a [comparação com a extensão CDSP e os limites da adaptação](docs/comparacao-extensao-colega.md).
 
-### Chrome ou Chromium
+No SPA2, a integração utiliza as informações e as rotas fornecidas pela própria página, incluindo a aba de andamentos. A leitura de documentos é feita **sob demanda**, quando o usuário solicita uma fonte ou uma atualização; abrir o menu não significa baixar automaticamente todos os PDFs.
 
-1. Baixe o projeto ou clone o repositório.
-2. Abra `chrome://extensions`.
-3. Ative o **Modo do desenvolvedor**.
-4. Selecione **Carregar sem compactação**.
-5. Escolha a pasta que contém `manifest.json`.
-6. Recarregue as abas do SPA e do SIGADOC.
+### Acompanhamento Especial de Processos
 
-Para atualizar uma instalação local, mantenha a estrutura da pasta e recarregue a extensão em `chrome://extensions`. Algumas funcionalidades exigem configurações adicionais na página de opções.
+O **Acompanhamento Especial** permite informar um número CNJ e acompanhar alterações identificadas nas consultas ao PJe/TJMT.
 
-### Firefox (desenvolvimento)
+A primeira consulta cria uma referência. As seguintes comparam as informações recebidas com a última situação conhecida. Enquanto o Chrome estiver aberto e o serviço estiver devidamente configurado, a verificação é programada para ocorrer **a cada 30 minutos**.
 
-A construção da versão de desenvolvimento requer **Node.js 18+** e **Firefox 128+**:
+Os processos acompanhados aparecem em cards que podem ser expandidos para ver o histórico. Quando há novidades, a extensão destaca os registros não lidos, pode exibir uma notificação do navegador e mostra um **contador no menu radial**. O aviso permanece até ser marcado como lido, sem apagar o histórico.
+
+O acompanhamento consulta movimentações e expedientes disponibilizados pelo serviço do PJe; **não verifica encerramentos internos do SPA**. Erros de consulta são apresentados separadamente, sem apagar a referência anterior.
+
+### Ofícios e integração com o SIGADOC
+
+O módulo de **Ofícios** auxilia o preenchimento e a tramitação de documentos no SIGADOC, integrando etapas que antes exigiam diversas intervenções manuais.
+
+As rotinas incluem a escolha do tipo de documento, a conferência de classificação e destinatário, o preenchimento de campos, a preparação da assinatura e, nos fluxos compatíveis, a continuidade da juntada e da tramitação. Quando disponível, o PDF do expediente pode ser incluído como documento capturado.
+
+Há modelos e rotinas para diferentes situações de trabalho, como solicitações de informações, cumprimento de decisões e outras demandas previstas no projeto. **Assinatura, protocolo e tramitação dependem de autorização, das credenciais necessárias e da conferência do usuário.**
+
+## Como instalar
+
+### Google Chrome ou Chromium
+
+1. Baixe ou extraia a pasta do projeto.
+2. Abra `chrome://extensions` e ative o **Modo do desenvolvedor**.
+3. Clique em **Carregar sem compactação**.
+4. Selecione a pasta que contém o arquivo `manifest.json`.
+5. Recarregue as abas do SPA e do SIGADOC que já estiverem abertas.
+
+O manifesto atual requer **Chrome 116 ou superior**. Ao atualizar uma instalação local, substitua os arquivos necessários **dentro da pasta existente**; não substitua a pasta inteira por engano. Após a atualização, clique em **Atualizar** na página de extensões.
+
+### Firefox
+
+Para gerar a versão de desenvolvimento para Firefox, é necessário **Firefox 128 ou superior** e **Node.js 18 ou superior**:
 
 ```bash
 node scripts/build-firefox.js
 ```
 
-Em seguida, abra `about:debugging#/runtime/this-firefox`, escolha **Carregar extensão temporária** e selecione `dist/firefox/manifest.json`.
+Abra `about:debugging#/runtime/this-firefox`, escolha **Carregar extensão temporária** e selecione `dist/firefox/manifest.json`.
 
-A extensão temporária precisa ser carregada novamente após reiniciar o Firefox. Para distribuição permanente, é necessário um pacote assinado.
+A instalação temporária precisa ser refeita após reiniciar o Firefox. A distribuição permanente exige um pacote assinado pela Mozilla.
 
-## Configuração e privacidade
+### Configurações adicionais
 
-Algumas integrações — especialmente as consultas ao **PJe/TJMT** — dependem de um serviço externo configurado e autorizado nas opções da extensão.
+Alguns recursos, especialmente a consulta de andamentos do PJe/TJMT, dependem da configuração e autorização de um serviço externo nas **opções da extensão**. Os demais recursos continuam sujeitos às permissões da conta utilizada no SPA ou SIGADOC.
 
-- Não compartilhe senhas, cookies de sessão, tokens ou documentos restritos.
-- Relatórios e acompanhamentos podem ser armazenados no perfil local do navegador; sua remoção pode apagar esses dados.
-- Evite consultas desnecessárias e interrompa novas coletas quando os sistemas apresentarem instabilidade.
-- Respeite as permissões e as regras institucionais aplicáveis ao tratamento dos dados.
+### Levar a versão do GitHub para outro computador, com MCP
 
-> **Importante:** o MTPrev é uma ferramenta complementar de apoio. Não é uma funcionalidade oficial do SPA, do PJe ou do SIGADOC. Qualquer ação com efeitos processuais exige conferência no sistema de origem.
+Os pacotes atualizados ficam versionados em **`dist/chrome-store`** (Chrome/Edge) e **`dist/firefox`**. Você pode carregá-los diretamente após clonar ou baixar o repositório, sem instalar dependências ou executar um build.
 
-## Desenvolvimento
+O Git não leva a configuração salva no navegador nem o arquivo privado `.local/test-credentials.json`. Por isso, apenas copiar o código não ativa o MCP no outro computador.
 
-A estrutura principal do repositório inclui:
+1. **Neste computador:** nas opções da extensão que funciona, clique em **Exportar configuração MCP**. Se a configuração vem de `.local/test-credentials.json`, execute `node scripts/export-mcp-settings.js`; o arquivo será criado em `.local/mtprev-mcp-settings.json`.
+2. Leve **`mtprev-mcp-settings.json` separadamente**, por exemplo por pendrive. Ele contém a credencial do MCP e deve ficar fora do GitHub. A exportação inclui somente a configuração do MCP; senhas do SIGADOC e dados de processos não são exportados.
+3. **No outro computador:** clone/baixe o repositório e carregue `dist/chrome-store` no Chrome/Edge ou `dist/firefox/manifest.json` no Firefox, conforme as instruções acima.
+4. Abra as **Opções** da extensão → **Importar configuração MCP** → selecione o arquivo. Marque a autorização e clique em **Salvar e autorizar**.
+5. Clique em **Testar conexão salva**. O teste confirma a ferramenta de consulta ao TJMT sem consultar processos. Depois, recarregue as abas do SPA.
 
-| Caminho | Finalidade |
+Se o serviço responder HTTP 401/403, confira a credencial; HTTP 404 indica que é preciso conferir o endereço completo. Os builds `dist/local-test` e `dist/firefox-local-test` contêm configurações privadas e não fazem parte da distribuição para GitHub.
+
+## Cuidados importantes
+
+O MTPrev foi criado para **ajudar a conferir e organizar**, não para tomar decisões processuais de forma autônoma. Antes de marcar uma tarefa como conferida, sugerir encerramento, assinar um documento ou iniciar qualquer tramitação, confira as informações no sistema oficial.
+
+- **Duplicidade sugerida não é duplicidade confirmada.** Números iguais podem corresponder a tarefas distintas de um mesmo processo.
+- **Cobertura incompleta exige cautela.** Se a consulta não alcançou toda a mesa ou algum documento falhou, o relatório deve ser entendido como parcial.
+- **Evite sobrecarregar o SPA.** Prefira consultas moderadas e use a versão salva dos relatórios quando não houver necessidade de atualização. Interrompa novas coletas durante instabilidades.
+- **Proteja as credenciais e os dados processuais.** Não compartilhe cookies de sessão, tokens, senhas, PDFs restritos ou relatórios com pessoas não autorizadas.
+- **Dados locais pertencem ao perfil do navegador.** A lista de acompanhamentos e os relatórios armazenados podem desaparecer ao limpar os dados ou remover a extensão.
+
+A extensão é uma ferramenta complementar e **não representa uma funcionalidade oficial dos sistemas SPA, PJe ou SIGADOC**.
+
+## Para quem desenvolve ou mantém o projeto
+
+O repositório está organizado desta forma:
+
+| Caminho | Conteúdo |
 | --- | --- |
-| `manifest.json` | Configuração e permissões da extensão |
-| `js/` | Painéis, integrações e lógica da aplicação |
-| `css/` | Estilos e identidade visual |
-| `images/` | Logos, ícones e recursos gráficos |
-| `data/` | Dados auxiliares |
-| `docs/` | Documentação e notas técnicas |
-| `tests/` | Testes automatizados |
-| `scripts/` | Scripts de construção e empacotamento |
+| `manifest.json` | Configuração da extensão e permissões. |
+| `js/` | Painéis, automações, integrações e rotinas em segundo plano. |
+| `css/` | Aparência do menu radial, painéis e temas. |
+| `images/` | Logo, ícones e recursos visuais. |
+| `data/` | Arquivos auxiliares utilizados por determinados relatórios. |
+| `docs/` | Documentação técnica e notas sobre a adaptação ao SPA. |
+| `tests/` | Testes automatizados e páginas locais de validação. |
+| `scripts/` | Geração de pacotes para navegadores e publicação. |
 
-Para executar os testes:
+Para executar a suíte automatizada:
 
 ```bash
 node --test tests/*.test.cjs
 ```
 
-Para gerar o pacote de publicação do Chrome, quando o script estiver disponível na versão local:
+Depois de alterar o código, gere novamente os dois pacotes versionados (Node.js 18 ou superior; funciona também no Windows, sem `npm install` ou `zip`):
+
+```bash
+node scripts/build-github.js
+```
+
+Inclua as alterações de `dist/chrome-store` e `dist/firefox` no mesmo commit dos fontes, para que o outro computador receba o mesmo código. Veja também [as instruções dos pacotes](dist/README.md).
+
+Para gerar o pacote de publicação do Chrome:
 
 ```bash
 node scripts/build-chrome-store.js
 ```
 
-### Fluxo de colaboração
+Os testes locais não substituem a validação supervisionada em ambiente autenticado, especialmente nas operações que **gravam informações, assinam documentos ou movimentam processos**.
 
-O desenvolvimento é organizado em branches:
-
-- **`main`** — versão estável.
-- **`test`** — integração e validação das alterações.
-- **`feature/*` e `fix/*`** — desenvolvimento de funcionalidades e correções específicas.
-
-A prática recomendada é criar uma branch a partir da `test`, implementar e testar as alterações e integrá-las à `test` após revisão. A atualização da `main` deve ocorrer somente depois da validação.
-
-Os testes automatizados não substituem os testes supervisionados nos sistemas autenticados, principalmente em operações de assinatura, movimentação e gravação de dados.
-
-## Equipe
-
-O **MTPrev — Extensão Geral** foi desenvolvido por:
-
-**Arthur Costa Dias · Marcela Paesano · João Guilherme Ferreira Gomes dos Santos**
-
-O projeto reúne contribuições de desenvolvimento, aprimoramento de interfaces e construção de ferramentas para tornar mais simples a rotina de trabalho com processos.
+Outras referências do repositório: [instruções de carregamento](README_CARREGAR.txt), [guia de atualizações](GUIA_DE_UPDATES.txt), [menu radial](docs/menu-radial.md), [adequação ao POP MTPrev](docs/adequacao-pop-mtprev.md) e [publicação na Chrome Web Store](store/LEIA-ME.md).
 
 ---
 
 <p align="center">
   <strong>MTPrev — Extensão Geral</strong><br>
-  Menos tarefas repetitivas. Mais tempo para o trabalho que exige análise.
+  Desenvolvido por Arthur Costa Dias.<br>
+  Mais agilidade nas tarefas repetitivas. Mais tempo para a análise que realmente importa.
 </p>

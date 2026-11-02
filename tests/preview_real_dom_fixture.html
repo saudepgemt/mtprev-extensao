@@ -1,0 +1,68 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+body{margin:0;background:#eef3f7;font-family:Arial,sans-serif;font-size:13px}
+#workspace-process-preview{margin:12px auto;width:950px;background:#f7f9fc;padding:16px;box-sizing:border-box}
+.workspace-preview__tabs{display:flex;gap:8px;margin-bottom:12px}
+.workspace-preview__tabs button{padding:8px}
+.workspace-preview__panel:not(.is-active){display:none}
+.workspace-preview__overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.workspace-preview__overview-primary{display:grid;gap:12px}
+.workspace-preview__section{border:1px solid #dbe3ec;background:white;border-radius:9px;padding:12px}
+.workspace-preview__section-heading{display:flex;justify-content:space-between;gap:8px;margin-bottom:10px}
+.workspace-preview__section-heading span{font-weight:bold}
+.workspace-preview__fields{display:grid;gap:5px}
+.workspace-preview__timeline-item{padding:12px;margin-bottom:6px;background:white;border:1px solid #dde5f0}
+</style></head><body>
+<div id="mesa-original">MESA INTACTA</div>
+<div id="workspace-process-preview" class="workspace-process-show is-open">
+ <main class="workspace-process-show__surface workspace-preview__content">
+  <div class="workspace-preview__document" data-procedure-id="1747606">
+   <nav class="workspace-preview__tabs" role="tablist">
+    <button type="button" role="tab" data-workspace-preview-tab="overview" class="is-active" aria-selected="true">Visão geral</button>
+    <button type="button" role="tab" data-workspace-preview-tab="timeline" aria-selected="false">Andamentos <span>9</span></button>
+    <button type="button" role="tab" data-workspace-preview-tab="external-movements" aria-selected="false">Movimentações externas</button>
+    <button type="button" role="tab" data-workspace-preview-tab="annotations" aria-selected="false">Anotações</button>
+   </nav>
+   <div class="workspace-preview__body">
+    <div class="workspace-preview__panel is-active" id="workspace-preview-overview" data-workspace-preview-panel="overview">
+     <div id="spa-cdsp-external-docs-panel">Leitor MTPrev comprimido</div>
+     <div class="workspace-preview__overview-grid">
+      <div class="workspace-preview__overview-primary">
+       <section class="workspace-preview__section" id="section-situacao"><div class="workspace-preview__section-heading"><div><span>Situação atual</span><small>Contexto para continuar</small></div></div><div class="workspace-preview__facts">Responsável</div></section>
+       <section class="workspace-preview__section" id="section-prazos"><div class="workspace-preview__section-heading"><div><span>Prazos em aberto</span><small>Vencimentos</small></div><div class="workspace-preview__section-tools"><strong>2</strong><a href="#">Adicionar</a></div></div><div class="workspace-preview__deadlines">Prazo A, Prazo B</div></section>
+       <section class="workspace-preview__section" id="section-eventos"><div class="workspace-preview__section-heading"><div><span>Eventos</span><small>Compromissos</small></div><div class="workspace-preview__section-tools"><a href="#">Adicionar</a></div></div><div class="workspace-preview__empty">Sem eventos</div></section>
+       <section class="workspace-preview__section workspace-preview__relationships" id="section-relacionados"><div class="workspace-preview__section-heading"><div><span>Processos relacionados</span><small>Vínculos</small></div></div>
+        <div class="workspace-preview__relationship-tabs"><button type="button" aria-selected="false" data-workspace-relationship-tab="main">Principal 1</button><button type="button" aria-selected="false" aria-expanded="false" data-workspace-relationship-tab="pending_notice">Expedientes <strong>7</strong></button></div>
+        <div class="workspace-preview__relationship-content" data-workspace-relationship-content>Selecione uma categoria para visualizar os itens.</div>
+       </section>
+       <section class="workspace-preview__section workspace-preview__users" id="section-usuarios"><div class="workspace-preview__section-heading"><div><span>Usuários</span></div></div><p>Usuário de teste</p></section>
+      </div>
+      <section class="workspace-preview__section workspace-preview__data-section" id="section-dados"><div class="workspace-preview__section-heading"><div><span>Dados do processo</span><small>Informações consolidadas</small></div></div><div class="workspace-preview__fields"><div class="workspace-preview__field">Campo 1</div><div class="workspace-preview__field">Campo 2</div><div class="workspace-preview__field">Campo 3</div><div class="workspace-preview__field">Campo 4</div></div></section>
+     </div>
+    </div>
+    <div class="workspace-preview__panel" id="workspace-preview-timeline" data-workspace-preview-panel="timeline">
+     <div class="workspace-preview__timeline">
+      <article class="workspace-preview__timeline-item"><strong>Primeiro andamento</strong><time datetime="2026-10-31T11:00:00">31/10/2026 às 11:00</time></article>
+      <article class="workspace-preview__timeline-item"><strong>Segundo andamento</strong><time datetime="2026-10-30T11:00:00">30/10/2026 às 11:00</time></article>
+      <article class="workspace-preview__timeline-item"><strong>Terceiro andamento</strong><time datetime="2026-10-29T11:00:00">29/10/2026 às 11:00</time></article>
+      <article class="workspace-preview__timeline-item"><strong>Quarto andamento</strong><time datetime="2026-10-28T11:00:00">28/10/2026 às 11:00</time></article>
+     </div>
+    </div>
+    <div class="workspace-preview__panel" id="workspace-preview-external-movements" data-workspace-preview-panel="external-movements">Movimentações externas</div>
+    <div class="workspace-preview__panel" id="workspace-preview-annotations" data-workspace-preview-panel="annotations">Anotações</div>
+   </div>
+  </div>
+ </main>
+</div>
+<script>
+ document.querySelectorAll('[data-workspace-preview-tab]').forEach(tab=>tab.addEventListener('click',()=>{
+  document.querySelectorAll('[data-workspace-preview-tab]').forEach(x=>{x.classList.toggle('is-active',x===tab);x.setAttribute('aria-selected',String(x===tab));});
+  document.querySelectorAll('[data-workspace-preview-panel]').forEach(panel=>panel.classList.toggle('is-active', panel.getAttribute('data-workspace-preview-panel')===tab.dataset.workspacePreviewTab));
+ }));
+ document.querySelector('[data-workspace-relationship-tab="pending_notice"]').addEventListener('click',e=>{
+  const b=e.currentTarget;b.setAttribute('aria-selected','true');b.setAttribute('aria-expanded','true');b.classList.add('is-active');
+  document.querySelector('[data-workspace-relationship-content]').textContent='7 expedientes carregados';
+ });
+ window.chrome={runtime:{sendMessage:(msg,cb)=>{if(cb)cb({ok:false})},lastError:null}};
+ window.setInterval=()=>1;
+</script>
+</body></html>

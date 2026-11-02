@@ -1868,9 +1868,12 @@
         if (state.stopped) throw new DOMException('Carregamento interrompido', 'AbortError');
         setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`);
       };
-      const coverage = typeof adapter.collectWorkspaceReport === 'function'
-        ? await adapter.collectWorkspaceReport({isStopped: () => state.stopped, onProgress})
-        : await adapter.collectWorkspaceRecords({onProgress});
+      const coverage = globalThis.MTPrevWorkspaceCache?.collect
+        ? await globalThis.MTPrevWorkspaceCache.collect({onProgress,force:Boolean(state.managementForceRefresh)})
+        : typeof adapter.collectWorkspaceReport === 'function'
+          ? await adapter.collectWorkspaceReport({isStopped: () => state.stopped, onProgress})
+          : await adapter.collectWorkspaceRecords({onProgress});
+      if (coverage?.fromCache) setStatus('Dados da mesa reutilizados do cache completo (até 10 minutos).');
       if (!coverage || !Array.isArray(coverage.records)) {
         throw new Error('A consulta do SPA2 nao devolveu registros validos para o painel gerencial.');
       }
@@ -2221,7 +2224,7 @@
       #${CONFIG.modalId} .mtprev-mgmt-tablehead strong {font-size:13px;color:#20465f;}
       #${CONFIG.modalId} .mtprev-mgmt-tablehead input {max-width:245px;width:100%;border:1px solid #d2e0ed;border-radius:7px;padding:8px 10px;font-size:12px;color:#284764;}
       #${CONFIG.modalId} .mtprev-mgmt-table {border-collapse:collapse;width:100%;min-width:860px;font-size:11px;}
-      #${CONFIG.modalId} .mtprev-mgmt-table th {background:#ecf3fa;color:#59718a;text-align:left;font-size:10px;font-weight:800;padding:11px;border-bottom:1px solid #dbe7f0;}
+      #${CONFIG.modalId} .mtprev-mgmt-table th {background:#e8f1f7;color:#254965;text-align:left;font-size:11px;font-weight:800;padding:12px;border-bottom:1px solid #c8dce9;white-space:normal;}
       #${CONFIG.modalId} .mtprev-mgmt-table td {padding:10px 11px;border-bottom:1px solid #edf2f8;color:#35506c;}
       #${CONFIG.modalId} .mtprev-mgmt-table tbody tr:hover {background:#f0f7fd;}
       #${CONFIG.modalId} .mtprev-mgmt-table .mtprev-mgmt-num {text-align:center;font-weight:800;}
@@ -2233,6 +2236,8 @@
       #mtprev-management-launcher .mtprev-launch-head {background:linear-gradient(110deg,#18364b 0%,#20536e 58%,#247d9b 100%);color:white;padding:18px 21px;font-size:17px;font-weight:800;}
       #mtprev-management-launcher .mtprev-launch-head {display:flex;align-items:center;gap:12px;}
       #mtprev-management-launcher .mtprev-launch-head img {width:46px;height:46px;object-fit:contain;background:#ffffffed;padding:5px;border-radius:12px;box-sizing:border-box;}
+      #mtprev-management-launcher .mtprev-launch-force {display:flex;align-items:center;gap:8px;margin:14px 0 2px;color:#4b6680;font-size:11px;cursor:pointer}
+      #mtprev-management-launcher .mtprev-launch-force input {width:15px;height:15px;accent-color:#207eaa}
       #mtprev-management-launcher .mtprev-launch-progress {margin:14px 0 2px;padding:12px;border:1px solid #d4e3ec;border-radius:10px;background:#f2f7fa;}
       #mtprev-management-launcher .mtprev-launch-progress-track {height:10px;border-radius:10px;background:#d8e6ed;overflow:hidden;margin:8px 0;}
       #mtprev-management-launcher .mtprev-launch-progress-fill {height:100%;width:0;background:linear-gradient(90deg,#1784a1,#29b4c2);transition:width .25s ease;}
@@ -3507,7 +3512,10 @@
 
   function tableShell(headers, sortState, onSort) {
     const wrap = createElement("div", "", "overflow:auto;border:1px solid #d2dae8;border-radius:7px;background:#fff;");
-    const table = createElement("table", "", "width:100%;border-collapse:collapse;table-layout:auto;min-width:980px;");
+    // Muitas colunas ficam ilegíveis se comprimidas na largura da tela.
+    // O contêiner permite rolagem horizontal, mantendo rótulos e números visíveis.
+    const minimumTableWidth = Math.max(980, headers.length * 132);
+    const table = createElement("table", "", "width:100%;border-collapse:collapse;table-layout:auto;min-width:" + minimumTableWidth + "px;");
     const thead = document.createElement("thead");
     const tr = document.createElement("tr");
     headers.forEach((header) => {
@@ -3515,7 +3523,7 @@
       const th = createElement(
         "th",
         "",
-        "border:1px solid #d2dae8;background:#272f7e;color:#fff;padding:8px 9px;text-align:center;font-size:12px;line-height:1.2;"
+        "border:1px solid #c3d9e7;background:#1d4e6c;color:#fff;padding:10px 9px;text-align:left;font-size:12px;line-height:1.25;"
       );
       if (config.key && onSort) {
         const active = sortState && sortState.key === config.key;
@@ -3523,7 +3531,7 @@
           "button",
           "",
           "width:100%;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;" +
-            "gap:6px;padding:0;margin:0;cursor:pointer;font-size:12px;font-weight:900;line-height:1.2;"
+            "gap:7px;padding:0;margin:0;cursor:pointer;font-size:12px;font-weight:800;line-height:1.25;"
         );
         button.type = "button";
         button.title = "Ordenar por " + config.label;
@@ -3531,8 +3539,8 @@
         button.appendChild(
           createElement(
             "span",
-            active ? sortState.direction.toUpperCase() : "ORD",
-            "display:inline-block;border:1px solid rgba(255,255,255,.55);border-radius:4px;padding:1px 4px;font-size:9px;line-height:1.2;"
+            active ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕',
+            "display:inline-block;opacity:.75;font-size:13px;line-height:1.2;"
           )
         );
         button.addEventListener("click", () => onSort(config.key));
@@ -3675,16 +3683,16 @@
       { label: "Setor", key: "sector", type: "text" },
       { label: "Total", key: "total", type: "number" },
       { label: "Recursos", key: "recursos", type: "number" },
-      { label: "Contestacao", key: "contestacao", type: "number" },
+      { label: "Contestação", key: "contestacao", type: "number" },
       { label: "Demais", key: "demais", type: "number" },
-      { label: "Criticos", key: "critical", type: "number" },
-      { label: "Atencao", key: "attention", type: "number" },
+      { label: "Críticos", key: "critical", type: "number" },
+      { label: "Em atenção", key: "attention", type: "number" },
       { label: "SPA <= 8 dias", key: "pjeNear", type: "number" },
       { label: "+20 dias", key: "over20", type: "number" },
-      { label: "Media na caixa", key: "averageReceived", type: "number" },
-      { label: "Pendencia mais antiga", key: "oldestBaseDate", type: "date" },
-      { label: "Prazo SPA mais proximo", key: "nearestPjeDate", type: "date" },
-      { label: "Carga Critica", key: "criticalLoadRank", type: "number" }
+      { label: "Média na caixa", key: "averageReceived", type: "number" },
+      { label: "Pendência mais antiga", key: "oldestBaseDate", type: "date" },
+      { label: "Prazo SPA mais próximo", key: "nearestPjeDate", type: "date" },
+      { label: "Carga crítica", key: "criticalLoadRank", type: "number" }
     ];
   }
 
@@ -4045,6 +4053,10 @@
       phase(message){this.start();progressLabel.textContent=message;updateClock();}
     };
     overlay.addEventListener('mtprev:launcher-cleanup',()=>overlay.mtprevProgress.stop());
+    const forceLabel=document.createElement('label');forceLabel.className='mtprev-launch-force';
+    const forceCheck=document.createElement('input');forceCheck.type='checkbox';
+    forceLabel.append(forceCheck,document.createTextNode(' Ler novamente a mesa (ignorar cache de 10 minutos)'));
+    body.appendChild(forceLabel);
     const actions=createElement('div','');actions.className='mtprev-launch-actions';
     const cancel=createElement('button','Cancelar');cancel.type='button';cancel.addEventListener('click',()=>{if(state.running){state.stopped=true;status.textContent='Interrompendo leitura…';cancel.disabled=true;}else{overlay.mtprevProgress.stop();overlay.remove();}});actions.appendChild(cancel);
     if(Array.isArray(state.lastRecords)&&state.lastRecords.length){
@@ -4056,7 +4068,7 @@
       if(state.running) return;
       generate.disabled=true;generate.textContent='Lendo mesa de trabalho…';cancel.textContent='Interromper';cancel.disabled=false;
       status.textContent='Consultando os processos e preparando os indicadores…';progress.hidden=false;progressLabel.textContent='Iniciando leitura…';overlay.mtprevProgress.start();
-      try { await generateManagementReport(); }
+      try { state.managementForceRefresh=forceCheck.checked;await generateManagementReport(); }
       finally {overlay.mtprevProgress.stop();if(overlay.isConnected){generate.disabled=false;cancel.disabled=false;cancel.textContent='Cancelar';generate.textContent='Gerar painel gerencial';status.textContent=state.stopped?'Leitura interrompida. Nenhum painel parcial foi gerado.':'Consulta encerrada. Se houve erro, confira o aviso da extensão.';}}
     });actions.appendChild(generate);body.appendChild(actions);dialog.appendChild(body);overlay.appendChild(dialog);
     document.body.appendChild(overlay);

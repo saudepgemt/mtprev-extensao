@@ -1755,13 +1755,22 @@
     await waitProcessingDone(length + " processos por pagina", timeoutMs);
   }
 
-  async function collectAllRecords() {
+  async function collectAllRecords(onProgress = () => {}) {
     state.workspaceCoverage = null;
-    if (window.SpaAdapter?.isWorkspace()) {
+    // No SPA2 a fonte correta são os cards da mesa; jamais usar a tabela
+    // legada como fallback, pois suas colunas não existem em /workspace.
+    if (/^\/workspace\/?$/.test(window.location.pathname)) {
+      if (typeof window.SpaAdapter?.collectWorkspaceReport !== "function") {
+        throw new Error("Leitor da mesa SPA2 não inicializado. Recarregue a extensão e a página do SPA e tente novamente.");
+      }
       const reportDate = startOfToday();
       const coverage = await window.SpaAdapter.collectWorkspaceReport({
         isStopped: () => state.stopped,
-        onProgress: ({count,total}) => setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`)
+        onProgress: (progress) => {
+          const {count, total} = progress;
+          setStatus(`Lendo SPA2: ${count} de ${total ?? '?'} expediente(s)…`);
+          onProgress(progress);
+        }
       });
       state.workspaceCoverage = coverage;
       log(window.SpaAdapter.collectionSummary(coverage));
@@ -1782,6 +1791,7 @@
 
       let info = dt.page.info();
       const pages = Math.max(1, info && Number.isFinite(info.pages) ? info.pages : 1);
+      onProgress({page:0,pages,count:0,total:null,stage:"preparing"});
 
       for (let page = 0; page < pages; page += 1) {
         if (state.stopped) break;
@@ -1798,6 +1808,7 @@
           seen.add(key);
           collected.push(record);
         });
+        onProgress({page:page + 1,pages,count:collected.length,total:null,stage:"reading"});
       }
     } finally {
       try {
@@ -2425,6 +2436,238 @@
     return FIXED_HOLIDAYS.map((holiday) => pad2(holiday.day) + "/" + pad2(holiday.month)).join(", ");
   }
 
+  // A janela de prazos utiliza um tema escopado para não herdar fundos e
+  // tamanhos do SPA ou dos controles embutidos da extensão.
+  function ensureDeadlineReportStyles() {
+    if (document.getElementById("mtprev-deadline-report-styles")) return;
+    const style = document.createElement("style");
+    style.id = "mtprev-deadline-report-styles";
+    style.textContent = `
+      #spa-cdsp-deadline-report-modal, #mtprev-deadline-reading-modal {
+        position:fixed!important; inset:0!important; z-index:2147483645!important;
+        display:flex!important;align-items:center!important;justify-content:center!important;
+        padding:clamp(10px,2vw,24px)!important;box-sizing:border-box!important;
+        background:rgba(10,26,41,.72)!important; font-family:system-ui,-apple-system,'Segoe UI',sans-serif!important;
+        color-scheme:light!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-dialog {
+        width:min(1220px,100%)!important;max-height:calc(100dvh - 32px)!important;
+        display:flex!important;flex-direction:column!important;overflow:hidden!important;
+        border:1px solid #46728b!important;border-radius:15px!important;
+        background:#f4f8fb!important;box-shadow:0 28px 76px #03162470!important;
+        color:#213c52!important;box-sizing:border-box!important;padding:0!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-header {
+        display:flex!important;align-items:center!important;gap:14px!important;flex-wrap:wrap!important;
+        flex:none!important;padding:14px 18px!important;
+        background:linear-gradient(110deg,#203e55,#276580)!important;color:#f3faff!important;
+        border-bottom:1px solid #527c94!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-logo {
+        display:block!important;flex:none!important;max-width:66px!important;width:66px!important;
+        height:48px!important;object-fit:contain!important;background:transparent!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-heading {flex:1 1 260px!important;min-width:0!important}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-path {font-size:11px!important;color:#bbdbe8!important;font-weight:700!important;margin:0 0 5px!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-heading h2 {
+        margin:0!important;font-size:clamp(17px,2vw,22px)!important;line-height:1.25!important;
+        font-weight:800!important;color:#fff!important;text-align:left!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions {display:flex!important;gap:7px!important;flex-wrap:wrap!important;justify-content:flex-end!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions button {
+        appearance:none!important;padding:9px 12px!important;border:1px solid #719ab0!important;
+        border-radius:8px!important;background:#275573!important;color:#f3faff!important;
+        font:700 12px/1.2 system-ui,sans-serif!important;cursor:pointer!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions button:hover {background:#347696!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions .mtprev-deadline-close {
+        background:#243c50!important;border-color:#57778a!important;
+        min-width:36px!important;font-size:20px!important;padding:5px 8px!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-content {
+        flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;
+        overscroll-behavior:contain!important;padding:18px 20px 24px!important;background:#f4f8fb!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-summary {
+        border:1px solid #d3e3eb!important;background:#fff!important;border-radius:11px!important;
+        padding:13px 16px!important;margin-bottom:14px!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-subtitle {
+        color:#4a687c!important;font-size:12px!important;line-height:1.55!important;
+        margin:0 0 8px!important;text-align:left!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-metrics {
+        color:#213f55!important;font-size:12px!important;line-height:1.5!important;
+        margin:0!important;font-weight:750!important;text-align:left!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-filterbar {
+        display:flex!important;justify-content:flex-start!important;gap:12px!important;flex-wrap:wrap!important;
+        background:#e9f2f7!important;border:1px solid #cadae5!important;border-radius:10px!important;
+        padding:12px 14px!important;margin:0 0 15px!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-filterbar label {color:#24455c!important;flex-wrap:wrap!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-report-filterbar select {max-width:100%!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap {
+        overflow-x:auto!important;border:1px solid #cedee9!important;border-radius:10px!important;
+        margin:0 0 16px!important;background:#fff!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap table {
+        min-width:930px!important;width:100%!important;table-layout:fixed!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap thead th {
+        background:#244c66!important;color:#fff!important;font-size:12px!important;
+        border-color:#426a82!important;padding:12px 9px!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap tbody td {
+        font-size:12px!important;padding:10px 8px!important;line-height:1.4!important;
+        word-break:normal!important;overflow-wrap:anywhere!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap th:last-child,
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap td:last-child {width:190px!important;}
+      #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap button {
+        max-width:100%!important;min-width:0!important;border-radius:6px!important;
+      }
+      #spa-cdsp-deadline-report-modal .mtprev-workspace-coverage {
+        margin:0 0 14px!important;padding:10px 13px!important;border:1px solid #a7d2df!important;
+        border-radius:9px!important;background:#e7f5f8!important;color:#24556a!important;
+        font-size:12px!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-card {
+        width:min(460px,100%)!important;border-radius:15px!important;overflow:hidden!important;
+        border:1px solid #47778f!important;background:#f7fafc!important;
+        box-shadow:0 26px 70px #04182570!important;color:#214155!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-header {
+        padding:16px 20px!important;background:linear-gradient(110deg,#203f55,#276580)!important;
+        color:#fff!important;font-size:17px!important;font-weight:800!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-body {padding:20px!important;}
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-label {
+        font-size:14px!important;font-weight:750!important;color:#254b63!important;
+        margin:0 0 8px!important;line-height:1.45!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-track {
+        height:13px!important;overflow:hidden!important;border-radius:999px!important;
+        background:#d8e9f0!important;border:1px solid #b3d2df!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-fill {
+        display:block!important;height:100%!important;width:0;
+        background:linear-gradient(90deg,#147da0,#37b9c7)!important;transition:width .2s ease!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-track.is-indeterminate .mtprev-deadline-reading-fill {
+        width:35%!important;animation:mtprevDeadlineProgress 1.4s ease-in-out infinite!important;
+      }
+      @keyframes mtprevDeadlineProgress {from{transform:translateX(-110%)}to{transform:translateX(300%)}}
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-meta {
+        margin-top:10px!important;color:#516e7d!important;font-size:12px!important;line-height:1.5!important;
+      }
+      #mtprev-deadline-reading-modal .mtprev-deadline-reading-cancel {
+        display:block!important;margin:14px 0 0 auto!important;padding:8px 12px!important;
+        border-radius:7px!important;border:1px solid #a7c1cf!important;
+        background:#e6f0f5!important;color:#27506a!important;font-weight:750!important;
+        cursor:pointer!important;
+      }
+      @media(max-width:650px) {
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-header {padding:12px!important;gap:9px!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-logo {width:44px!important;max-width:44px!important;height:36px!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-heading {flex-basis:180px!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions {width:100%!important;justify-content:flex-start!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-content {padding:12px!important;}
+      }
+      @media (prefers-reduced-motion:reduce){#mtprev-deadline-reading-modal .mtprev-deadline-reading-fill{animation:none!important;transition:none!important;}}
+      @media print {
+        @page {size:A4 landscape;margin:12mm;}
+        body * {visibility:hidden!important;}
+        #spa-cdsp-deadline-report-modal,#spa-cdsp-deadline-report-modal * {visibility:visible!important;}
+        #spa-cdsp-deadline-report-modal {position:absolute!important;inset:0!important;background:white!important;padding:0!important;display:block!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-dialog {max-height:none!important;width:100%!important;overflow:visible!important;border:0!important;box-shadow:none!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-content {overflow:visible!important;max-height:none!important;background:white!important;padding:8px!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-header {background:#244c66!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-actions,
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-report-filterbar,
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap button {display:none!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap {overflow:visible!important;}
+        #spa-cdsp-deadline-report-modal .mtprev-deadline-table-wrap table {min-width:0!important;}
+        #spa-cdsp-deadline-report-modal tr {break-inside:avoid;}
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function startDeadlineReportProgress() {
+    ensureDeadlineReportStyles();
+    document.getElementById("mtprev-deadline-reading-modal")?.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "mtprev-deadline-reading-modal";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Leitura de expedientes para o relatório de prazos");
+    const card = document.createElement("div");
+    card.className = "mtprev-deadline-reading-card";
+    const head = createScreenText("div", "MTPrev · Relatório de prazos", "");
+    head.className = "mtprev-deadline-reading-header";
+    const body = document.createElement("div");
+    body.className = "mtprev-deadline-reading-body";
+    const label = createScreenText("div", "Preparando leitura da mesa de trabalho…", "");
+    label.className = "mtprev-deadline-reading-label";
+    label.setAttribute("role", "status");
+    const track = document.createElement("div");
+    track.className = "mtprev-deadline-reading-track is-indeterminate";
+    track.setAttribute("role", "progressbar");
+    track.setAttribute("aria-label", "Expedientes lidos");
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", "100");
+    const fill = document.createElement("span");
+    fill.className = "mtprev-deadline-reading-fill";
+    track.appendChild(fill);
+    const meta = createScreenText("div", "Aguardando a quantidade de expedientes · Tempo decorrido: 0s", "");
+    meta.className = "mtprev-deadline-reading-meta";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "mtprev-deadline-reading-cancel";
+    cancel.textContent = "Cancelar leitura";
+    cancel.addEventListener("click", () => {
+      state.stopped = true;
+      cancel.disabled = true;
+      cancel.textContent = "Cancelando…";
+      label.textContent = "Interrompendo a leitura com segurança…";
+    });
+    body.append(label, track, meta, cancel);
+    card.append(head, body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    const started = Date.now();
+    let last = null;
+    let phaseText = "";
+    const render = () => {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      const count = Number(last?.count);
+      const total = Number(last?.total);
+      const page = Number(last?.page);
+      const pages = Number(last?.pages);
+      const validCount = Number.isFinite(count) && count >= 0;
+      const validTotal = last?.total !== null && last?.total !== undefined && Number.isFinite(total) && total > 0;
+      const validPages = Number.isFinite(page) && Number.isFinite(pages) && pages > 0;
+      const percent = validTotal ? Math.max(0, Math.min(100, Math.round(count / total * 100))) :
+        (validPages ? Math.max(0, Math.min(100, Math.round(page / pages * 100))) : null);
+      track.classList.toggle("is-indeterminate", percent === null);
+      if (percent === null) track.removeAttribute("aria-valuenow");
+      else {track.setAttribute("aria-valuenow", String(percent)); fill.style.width = percent + "%";}
+      label.textContent = phaseText || (validTotal ? `Lendo expedientes: ${count} de ${total} · ${percent}%` :
+        (validPages ? `Lendo página ${page} de ${pages} · ${percent}%` : "Lendo expedientes do SPA…"));
+      const detail = validPages ? `Página ${page}/${pages}` :
+        (validTotal ? `${count} de ${total} expediente(s)` : (validCount ? `${count} expediente(s) identificado(s)` : "Preparando leitura"));
+      meta.textContent = `${detail} · Tempo decorrido: ${elapsed}s`;
+    };
+    const ticker = window.setInterval(render, 1000);
+    render();
+    return {
+      update(progress) {last = progress || null; phaseText = ""; render();},
+      phase(text) {phaseText = text;render();},
+      close() {window.clearInterval(ticker);overlay.remove();}
+    };
+  }
+
   function closeScreenReport() {
     const oldReport = document.querySelector("#spa-cdsp-deadline-report-modal");
     if (oldReport) oldReport.remove();
@@ -2454,7 +2697,7 @@
 
     setImportantStyles(root, {
       "color-scheme": "light",
-      background: "#ffffff",
+      background: "#f4f8fb",
       color: "#1c2b39"
     });
 
@@ -2467,8 +2710,8 @@
 
       table.querySelectorAll("thead th").forEach((cell) => {
         setImportantStyles(cell, {
-          background: "#272f7e",
-          "background-color": "#272f7e",
+          background: "#244c66",
+          "background-color": "#244c66",
           color: "#ffffff",
           "border-color": "#d2dae8"
         });
@@ -2570,7 +2813,7 @@
       const th = document.createElement("th");
       th.textContent = label;
       th.style.cssText =
-        "border:1px solid #d2dae8;padding:8px 9px;text-align:center;background:#272f7e;" +
+        "border:1px solid #d2dae8;padding:8px 9px;text-align:center;background:#244c66;" +
         "color:#fff;font-size:13px;font-weight:800;";
       headRow.appendChild(th);
     });
@@ -2602,14 +2845,14 @@
   function createScreenMetricExplanation() {
     const section = document.createElement("section");
     section.style.cssText =
-      "margin:18px auto 0 auto;border:1px solid #d2dae8;border-radius:6px;background:#f8fafd;" +
+      "margin:18px auto 0 auto;border:1px solid #d2dae8;border-radius:10px;background:#fff;" +
       "padding:14px 16px;max-width:1120px;color:#1c2b39;";
 
     section.appendChild(
       createScreenText(
         "h3",
         "Explica\u00e7\u00e3o das M\u00e9tricas",
-        "margin:0 0 10px 0;color:#192452;text-align:center;font-size:16px;line-height:1.25;"
+        "margin:0 0 10px 0;color:#244c66;text-align:left;font-size:16px;line-height:1.25;"
       )
     );
 
@@ -3046,12 +3289,13 @@
 
   function createScreenReportTable(records, reportType) {
     const wrapper = document.createElement("div");
+    wrapper.className = "mtprev-deadline-table-wrap";
     wrapper.style.cssText =
-      "width:100%;overflow-x:hidden;margin:0 auto 18px auto;border:1px solid #d2dae8;border-radius:6px;";
+      "width:100%;overflow-x:auto;margin:0 auto 18px auto;border:1px solid #d2dae8;border-radius:10px;";
 
     const table = document.createElement("table");
     table.style.cssText =
-      "width:100%;border-collapse:collapse;table-layout:fixed;margin:0 auto;background:#fff;";
+      "width:100%;min-width:930px;border-collapse:collapse;table-layout:fixed;margin:0 auto;background:#fff;";
 
     const thead = document.createElement("thead");
     const headRow = document.createElement("tr");
@@ -3062,7 +3306,7 @@
       th.textContent = column;
       th.style.cssText =
         "border:1px solid #d2dae8;padding:10px 9px;text-align:center;vertical-align:middle;" +
-        "background:#272f7e;color:#fff;font-size:13px;font-weight:800;line-height:1.2;" +
+        "background:#244c66;color:#fff;font-size:12px;font-weight:800;line-height:1.3;" +
         "overflow-wrap:anywhere;word-break:break-word;";
       headRow.appendChild(th);
     });
@@ -3115,7 +3359,7 @@
         "div",
         section.title + " (" + section.records.length + ")",
         "margin:0 auto 8px auto;padding:8px 12px;border:1px solid #d2dae8;" +
-          "border-radius:6px;background:#ebeff9;color:#192452;text-align:center;" +
+          "border-radius:8px;background:#e6f2f7;color:#244c66;text-align:left;" +
           "font-size:14px;font-weight:800;max-width:720px;"
       );
       sectionElement.appendChild(title);
@@ -3127,6 +3371,7 @@
 
   function renderScreenReport(records, reportDate) {
     closeScreenReport();
+    ensureDeadlineReportStyles();
 
     let currentReportType = "todos";
     let currentSortMode = "pje";
@@ -3137,136 +3382,103 @@
     overlay.id = "spa-cdsp-deadline-report-modal";
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
-    overlay.style.cssText =
-      "position:fixed;inset:0;z-index:999999;background:rgba(10,14,20,.58);" +
-      "display:flex;align-items:flex-start;justify-content:center;padding:18px 6px;" +
-      "box-sizing:border-box;overflow:auto;font-family:Arial,sans-serif;";
+    overlay.setAttribute("aria-label", "Relatório de Controle de Prazos");
 
     const dialog = document.createElement("div");
-    dialog.style.cssText =
-      "width:min(1760px,calc(100vw - 8px));background:#fff;color:#1c2b39;" +
-      "border-radius:8px;border:1px solid #d2dae8;box-shadow:0 18px 55px rgba(0,0,0,.35);" +
-      "padding:12px 12px 18px 12px;box-sizing:border-box;";
+    dialog.className = "mtprev-deadline-report-dialog";
+    const toolbar = document.createElement("header");
+    toolbar.className = "mtprev-deadline-report-header";
 
-    const toolbar = document.createElement("div");
-    toolbar.style.cssText =
-      "display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;";
+    if (CONFIG.headerImageUrl) {
+      const brand = document.createElement("img");
+      brand.className = "mtprev-deadline-report-logo";
+      brand.src = CONFIG.headerImageUrl;
+      brand.alt = "MTPrev";
+      toolbar.appendChild(brand);
+    }
 
+    const heading = document.createElement("div");
+    heading.className = "mtprev-deadline-report-heading";
+    const path = createScreenText("div", "MTPrev › Redação e Correção › Controle de Prazos", "");
+    path.className = "mtprev-deadline-report-path";
+    const title = createScreenText("h2", metadata.title, "");
+    heading.append(path, title);
+    toolbar.appendChild(heading);
+
+    const actions = document.createElement("div");
+    actions.className = "mtprev-deadline-report-actions";
     const pdfButton = document.createElement("button");
     pdfButton.type = "button";
-    pdfButton.textContent = "Imprimir / salvar PDF";
-    pdfButton.style.cssText =
-      "border:0;border-radius:5px;background:#26317d;color:#fff;padding:8px 12px;" +
-      "font-size:12px;font-weight:800;cursor:pointer;";
+    pdfButton.textContent = "Imprimir / PDF";
     pdfButton.addEventListener("click", () => {
       if (!currentPayload.records.length) {
         window.alert("Nenhum processo encontrado para o filtro atual.");
         return;
       }
-
       setStatus("Abrindo impressão...");
-      log("Use a opção Salvar como PDF na janela de impressão do Chrome.", "ok");
+      log("Use a opção Salvar como PDF na janela de impressão do navegador.", "ok");
       window.print();
       setStatus("Impressão aberta");
     });
-
     const excelButton = document.createElement("button");
     excelButton.type = "button";
     excelButton.textContent = "Exportar Excel";
-    excelButton.style.cssText =
-      "border:0;border-radius:5px;background:#107c41;color:#fff;padding:8px 12px;" +
-      "font-size:12px;font-weight:800;cursor:pointer;";
     excelButton.addEventListener("click", () => {
       if (!currentPayload.records.length) {
         window.alert("Nenhum processo encontrado para o filtro atual.");
         return;
       }
-
       setStatus("Gerando Excel...");
       generateExcel(records, currentReportType, reportDate, currentSortMode)
         .then(() => {
           setStatus("Excel gerado");
-          log("Excel gerado com os filtros atuais do relat\u00f3rio.", "ok");
+          log("Excel gerado com os filtros atuais do relatório.", "ok");
         })
         .catch((error) => {
           setStatus("Erro ao gerar");
           const message = error && error.message ? error.message : String(error);
           log(message, "error");
-          window.alert("Nao foi possivel gerar o Excel: " + message);
+          window.alert("Não foi possível gerar o Excel: " + message);
         });
     });
-
     const closeButton = document.createElement("button");
     closeButton.type = "button";
-    closeButton.textContent = "Fechar";
-    closeButton.style.cssText =
-      "border:0;border-radius:5px;background:#425466;color:#fff;padding:8px 12px;" +
-      "font-size:12px;font-weight:800;cursor:pointer;";
+    closeButton.className = "mtprev-deadline-close";
+    closeButton.textContent = "×";
+    closeButton.title = "Fechar relatório";
+    closeButton.setAttribute("aria-label", "Fechar relatório");
     closeButton.addEventListener("click", closeScreenReport);
-    toolbar.appendChild(pdfButton);
-    toolbar.appendChild(excelButton);
-    toolbar.appendChild(closeButton);
+    actions.append(pdfButton, excelButton, closeButton);
+    toolbar.appendChild(actions);
     dialog.appendChild(toolbar);
 
-    if (CONFIG.headerImageUrl) {
-      const header = document.createElement("img");
-      header.src = CONFIG.headerImageUrl;
-      header.alt = "CDSP PGE-MT";
-      header.style.cssText = "display:block;width:100%;height:auto;background:#272f7e;margin:0 auto 12px auto;";
-      dialog.appendChild(header);
-    }
-
-    const title = createScreenText(
-      "h2",
-      metadata.title,
-      "margin:0 0 6px 0;color:#00245b;text-align:center;font-size:22px;line-height:1.2;"
-    );
-    const subtitle = createScreenText(
-      "div",
-      metadata.subtitle,
-      "margin:0 0 12px 0;color:#263544;text-align:center;font-size:13px;line-height:1.35;"
-    );
-    const metricsLine = createScreenText(
-      "div",
-      metadata.metricsLine || "",
-      "margin:-6px 0 12px 0;color:#344252;text-align:center;font-size:12px;line-height:1.35;font-weight:700;"
-    );
-    dialog.appendChild(title);
-    dialog.appendChild(subtitle);
-    dialog.appendChild(metricsLine);
+    const content = document.createElement("div");
+    content.className = "mtprev-deadline-report-content";
+    const overview = document.createElement("section");
+    overview.className = "mtprev-deadline-report-summary";
+    const subtitle = createScreenText("div", metadata.subtitle, "");
+    subtitle.className = "mtprev-deadline-report-subtitle";
+    const metricsLine = createScreenText("div", metadata.metricsLine || "", "");
+    metricsLine.className = "mtprev-deadline-report-metrics";
+    overview.append(subtitle, metricsLine);
+    content.appendChild(overview);
 
     const controls = document.createElement("div");
-    controls.style.cssText =
-      "display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;" +
-      "margin:0 auto 14px auto;padding:10px;border:1px solid #d2dae8;border-radius:6px;background:#f8fafd;";
-
+    controls.className = "mtprev-deadline-report-filterbar";
     const categoryControl = createScreenSelectControl(
-      "Categoria",
-      "spa-cdsp-report-category",
-      reportTypeOptions(),
-      currentReportType,
-      (value) => {
-        currentReportType = value;
-        redrawReport();
-      }
+      "Categoria", "spa-cdsp-report-category", reportTypeOptions(), currentReportType,
+      (value) => { currentReportType = value; redrawReport(); }
     );
     const sortControl = createScreenSelectControl(
-      "Ordenar por",
-      "spa-cdsp-report-sort",
-      sortModeOptions(),
-      currentSortMode,
-      (value) => {
-        currentSortMode = value;
-        redrawReport();
-      }
+      "Ordenar por", "spa-cdsp-report-sort", sortModeOptions(), currentSortMode,
+      (value) => { currentSortMode = value; redrawReport(); }
     );
-
-    controls.appendChild(categoryControl.wrapper);
-    controls.appendChild(sortControl.wrapper);
-    dialog.appendChild(controls);
-
+    controls.append(categoryControl.wrapper, sortControl.wrapper);
+    content.appendChild(controls);
     const sectionsContainer = document.createElement("div");
-    dialog.appendChild(sectionsContainer);
+    content.appendChild(sectionsContainer);
+    content.appendChild(createScreenMetricExplanation());
+    dialog.appendChild(content);
 
     function redrawReport() {
       currentPayload = reportPayload(records, currentReportType, currentSortMode);
@@ -3276,43 +3488,31 @@
       metricsLine.textContent = metadata.metricsLine || "";
       pdfButton.disabled = !currentPayload.records.length;
       pdfButton.style.opacity = currentPayload.records.length ? "1" : ".55";
-      pdfButton.style.cursor = currentPayload.records.length ? "pointer" : "not-allowed";
       excelButton.disabled = !currentPayload.records.length;
       excelButton.style.opacity = currentPayload.records.length ? "1" : ".55";
-      excelButton.style.cursor = currentPayload.records.length ? "pointer" : "not-allowed";
-
-      sectionsContainer.innerHTML = "";
+      sectionsContainer.replaceChildren();
       currentPayload.sections.forEach((section) => {
         sectionsContainer.appendChild(createScreenReportSection(section, currentPayload.sections.length > 1));
       });
-
       state.lastReport = {
-        reportType: currentReportType,
-        sortMode: currentSortMode,
-        summary: currentPayload.summary,
-        sections: currentPayload.sections,
-        records
+        reportType: currentReportType, sortMode: currentSortMode,
+        summary: currentPayload.summary, sections: currentPayload.sections, records
       };
-
       enforceScreenReportTheme(dialog);
     }
 
     redrawReport();
-    dialog.appendChild(createScreenMetricExplanation());
-    enforceScreenReportTheme(dialog);
-
     overlay.appendChild(dialog);
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) closeScreenReport();
     });
-
     state.reportEscapeHandler = (event) => {
       if (event.key === "Escape") closeScreenReport();
     };
     document.addEventListener("keydown", state.reportEscapeHandler);
-
     document.body.appendChild(overlay);
     enforceScreenReportTheme(dialog);
+    closeButton.focus({preventScroll:true});
   }
 
   function currentProcedureIdFromPath() {
@@ -6334,11 +6534,14 @@
 
     state.running = true;
     state.stopped = false;
+    const progress = startDeadlineReportProgress();
 
     try {
       setStatus("Coletando processos...");
-      log("Iniciando leitura de todas as paginas do resultado atual do SPA.");
-      const result = await collectAllRecords();
+      log("Iniciando leitura de todas as páginas do resultado atual do SPA.");
+      const result = await collectAllRecords((detail) => progress.update(detail));
+      if (state.stopped) throw new Error("Leitura cancelada pelo usuário.");
+      progress.phase("Organizando processos por prazo interno…");
       const payload = reportPayload(result.records, "todos", "pje");
       validateSelectedRecords(payload.records, "todos");
 
@@ -6353,16 +6556,23 @@
           ")."
       );
 
-      setStatus("Exibindo relatorio...");
+      setStatus("Exibindo relatório...");
+      progress.close();
       renderScreenReport(result.records, result.reportDate);
-      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal > div"), result.coverage);
+      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal .mtprev-deadline-report-content"), result.coverage);
       setStatus("Relatorio exibido");
       log("Relatorio exibido na tela.", "ok");
     } catch (error) {
-      setStatus("Erro ao gerar");
-      log(error && error.message ? error.message : String(error), "error");
-      window.alert("Nao foi possivel gerar o relatorio: " + (error && error.message ? error.message : String(error)));
+      if (state.stopped) {
+        setStatus("Leitura cancelada");
+        log("Leitura de prazos interrompida pelo usuário.");
+      } else {
+        setStatus("Erro ao gerar");
+        log(error && error.message ? error.message : String(error), "error");
+        window.alert("Não foi possível gerar o relatório: " + (error && error.message ? error.message : String(error)));
+      }
     } finally {
+      progress.close();
       state.running = false;
     }
   }
@@ -6377,11 +6587,14 @@
     state.stopped = false;
     const reportType = selectedReportType();
     const sortMode = "pje";
+    const progress = startDeadlineReportProgress();
 
     try {
       setStatus("Coletando processos...");
-      log("Iniciando leitura de todas as paginas do resultado atual do SPA.");
-      const result = await collectAllRecords();
+      log("Iniciando leitura de todas as páginas do resultado atual do SPA.");
+      const result = await collectAllRecords((detail) => progress.update(detail));
+      if (state.stopped) throw new Error("Leitura cancelada pelo usuário.");
+      progress.phase("Organizando processos por prazo interno…");
       const allSummary = summarize(result.records);
 
       const payload = reportPayload(result.records, reportType, sortMode);
@@ -6401,15 +6614,22 @@
       );
 
       setStatus("Exibindo relatório...");
+      progress.close();
       renderScreenReport(result.records, result.reportDate);
-      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal > div"), result.coverage);
+      window.SpaAdapter?.showCollectionSummary(document.querySelector("#spa-cdsp-deadline-report-modal .mtprev-deadline-report-content"), result.coverage);
       setStatus("Relatório exibido");
       log("Relatório exibido. Use Imprimir / salvar PDF se precisar do arquivo.", "ok");
     } catch (error) {
-      setStatus("Erro ao gerar");
-      log(error && error.message ? error.message : String(error), "error");
-      window.alert("Nao foi possivel gerar o relatorio: " + (error && error.message ? error.message : String(error)));
+      if (state.stopped) {
+        setStatus("Leitura cancelada");
+        log("Leitura de prazos interrompida pelo usuário.");
+      } else {
+        setStatus("Erro ao gerar");
+        log(error && error.message ? error.message : String(error), "error");
+        window.alert("Não foi possível gerar o relatório: " + (error && error.message ? error.message : String(error)));
+      }
     } finally {
+      progress.close();
       state.running = false;
     }
   }
@@ -7492,6 +7712,10 @@
 
     const actions = document.createElement("div");
     actions.style.cssText = "display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;";
+    const explanation = createScreenText("p",
+      "Controle de prazos: identifica expedientes com prazo interno atingido ou vencido. A elaboração da peça é uma ação separada.",
+      "margin:4px 0 8px;color:#b9d1dd;font-size:12px;line-height:1.45;");
+    content.appendChild(explanation);
     actions.appendChild(createButton("Gerar relat\u00f3rio", generateSelectedScreenReport, "primary"));
     actions.appendChild(createAgravoActionGroup());
     actions.children[0].dataset.mtprevRadialOption = actions.children[0].textContent.trim();

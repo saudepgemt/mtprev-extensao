@@ -94,7 +94,7 @@
   const extensionPendingRequests = {};
   const VISUAL_CONFIG = Object.assign({ headerImageUrl: "" }, window.SPA_CDSP_TRIAGEM_CONFIG || {});
   const LOG_LIMIT = 120;
-  const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED";
+  const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED_V2";
   const TRIAGE_CLASSIFICATION_ACTION_KEY = "SPA_CDSP_TRIAGE_CLASSIFICATION_ACTION";
   const TRIAGE_CLOSURE_ACTION_KEY = "SPA_CDSP_TRIAGE_CLOSURE_ACTION";
   const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "Yasmim Marques Nascimento";
@@ -724,48 +724,119 @@
     ].join("|");
   }
 
-  // MTPrev: âncora full-width SPA2. O painel não pertence à coluna Dados.
+  // A barra MTPrev e o primeiro card da Visao geral. A ordem e mantida
+  // mesmo quando o SPA atualiza dinamicamente o conteudo do expediente.
   function findExternalDocumentsHost() {
     const root = document.querySelector('.workspace-preview__document[data-procedure-id]');
-    if (root) return root;
-    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
-    if (overview?.querySelector('.workspace-preview__overview-grid')) return overview;
+    if (root) {
+      return root.querySelector('#workspace-preview-overview') ||
+        root.querySelector(':scope > .workspace-preview__body') || root;
+    }
     const header = document.querySelector('.procedure-header .card-body') ||
       document.querySelector('.procedure-header') ||
       (findExternalDocumentsLink() && findExternalDocumentsLink().closest('.card-body, .card, .content__inner')) ||
       document.querySelector('.content__inner, main, .container-fluid, .container');
     if (!header) return null;
-    const row=header.querySelector('.row');
+    const row = header.querySelector('.row');
     if (!row) return header;
-    const columns=[...row.children].filter(col=>/\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(col.className || ''));
+    const columns = [...row.children].filter(col => /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(col.className || ''));
     return columns[1] || header;
   }
 
-  function placeExternalDocumentsPanel(panel,host) {
-    if (!panel || !host || panel.dataset.mtprevWatchDocked==='1') return;
-    if (host.matches?.('.workspace-preview__document')) {
-      const body=host.querySelector(':scope > .workspace-preview__body');
-      const toolbar=host.querySelector(':scope > .workspace-preview__toolbar');
-      const before=body || toolbar?.nextElementSibling || null;
-      if (panel.parentElement!==host || panel.nextElementSibling!==before) host.insertBefore(panel,before);
+  function placeExternalDocumentsPanel(panel, host) {
+    if (!panel || !host || panel.dataset.mtprevWatchDocked === '1') return;
+    if (host.matches?.('#workspace-preview-overview')) {
+      // Sempre no inicio da aba; sem fixed/absolute nem nova barra de rolagem.
+      if (panel.parentElement !== host || panel !== host.firstElementChild) {
+        host.insertBefore(panel, host.firstChild);
+      }
       return;
     }
-    if (host.matches?.('#workspace-preview-overview')) {
-      const grid=host.querySelector(':scope > .workspace-preview__overview-grid');
-      if (grid) {
-        if (panel.parentElement!==host || panel.nextElementSibling!==grid) host.insertBefore(panel,grid);
+    if (host.matches?.('.workspace-preview__document')) {
+      const body = host.querySelector(':scope > .workspace-preview__body');
+      if (body) {
+        if (panel.parentElement !== body || panel !== body.firstElementChild) body.prepend(panel);
         return;
       }
     }
-    if (panel.parentElement!==host) host.appendChild(panel);
+    if (panel.parentElement !== host) host.appendChild(panel);
+  }
+
+  // Transfere a roda do mouse apenas quando a lista chega ao seu limite.
+  // Primeiro rola o documento do próprio iframe; só depois o SPA que o contém.
+  function chainExternalAutosWheelAtBoundary(event, viewer) {
+    if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return;
+    const scroller = event.target instanceof Element
+      ? event.target.closest(".spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline") : null;
+    if (!scroller || !viewer.contains(scroller)) return;
+
+    const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(window.innerHeight, 400) : 1;
+    const delta = event.deltaY * multiplier;
+    const down = delta > 0;
+    const hasRoom = (node) => down
+      ? node.scrollTop + node.clientHeight < node.scrollHeight - 2
+      : node.scrollTop > 2;
+    if (hasRoom(scroller)) return; // A lista continua com seu rolamento normal.
+
+    const tryAncestors = (start) => {
+      for (let node = start; node; node = node.parentElement) {
+        const computed = node.ownerDocument.defaultView.getComputedStyle(node);
+        if (!/(auto|scroll|overlay)/.test(computed.overflowY) ||
+            node.scrollHeight <= node.clientHeight + 2 || !hasRoom(node)) continue;
+        node.scrollBy({ top: delta, behavior: "auto" });
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    };
+    const tryDocument = (doc) => {
+      const root = doc.scrollingElement;
+      if (!root || root === scroller || !hasRoom(root)) return false;
+      const overflow = doc.defaultView.getComputedStyle(root).overflowY;
+      if (/(hidden|clip)/.test(overflow)) return false;
+      root.scrollBy({ top: delta, behavior: "auto" });
+      event.preventDefault();
+      return true;
+    };
+
+    try {
+      // Nunca saltar diretamente para a página externa se o iframe ainda pode rolar.
+      if (tryAncestors(scroller.parentElement) || tryDocument(document)) return;
+      const frame = window.frameElement; // Null ou SecurityError se não for same-origin.
+      if (!frame) return; // Navegador mantém a rolagem nativa.
+      if (tryAncestors(frame.parentElement)) return;
+      tryDocument(frame.ownerDocument);
+    } catch (_) {
+      // Origem cruzada/iframe isolado: deixa o navegador cuidar da rolagem.
+    }
   }
 
   function injectExternalDocumentsStyles() {
+    // Apenas o iframe recebe o ajuste; o SPA principal mantém seu CSS atual.
+    if (window.parent !== window) document.documentElement.classList.add("mtprev-autos-in-iframe");
     if (document.querySelector("#spa-cdsp-external-docs-style")) return;
 
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
+      /* No iframe, o conteúdo do leitor não deve ser cortado pelo limite antigo. */
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel {
+        max-height: none !important;
+        overscroll-behavior-y: auto;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        max-height: none !important;
+        overflow: visible !important;
+        min-height: 0;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel :is(.spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline) {
+        max-height: min(72dvh, 900px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: auto;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
+      }
       .workspace-preview__document > #spa-cdsp-external-docs-panel {
         display:block !important;position:relative !important;
         box-sizing:border-box !important;width:calc(100% - 32px) !important;
@@ -1883,6 +1954,550 @@
         #spa-cdsp-external-docs-panel .spa-cdsp-movement-deadline-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+      }
+
+      /* MTPrev UI 2026 — visual da linha do tempo. Apenas apresentação. */
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        container-type: inline-size;
+        border-radius: 16px;
+        border: 1px solid #315e7e;
+        background: #0c2136;
+        box-shadow: 0 14px 35px rgba(7, 20, 38, .22);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+        line-height: 1.45;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-header {
+        padding: 16px 18px;
+        gap: 18px;
+        border-bottom: 1px solid #335f7e;
+        background: linear-gradient(110deg, #0e2b49 0%, #143e68 55%, #102c4a 100%);
+        flex-wrap: wrap;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-title {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: 12px;
+        align-items: center;
+        flex: 1 1 260px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        display: grid;
+        grid-column: 1;
+        grid-row: 1 / 3;
+        place-items: center;
+        align-self: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: linear-gradient(140deg, #237bcc, #14436d);
+        border: 1px solid #4d91c5;
+        box-shadow: 0 8px 20px rgba(0,0,0,.15);
+        color: #fff;
+        font-size: 26px;
+        line-height: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        grid-column: 2;
+        grid-row: 1;
+        color: #fff;
+        font-size: clamp(14px, 1.5vw, 20px);
+        font-weight: 800;
+        line-height: 1.22;
+        overflow-wrap: anywhere;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        grid-column: 2;
+        grid-row: 2;
+        color: #c4dbea;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        gap: 7px;
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-memory {
+        min-height: 36px;
+        box-sizing: border-box;
+        border-radius: 9px;
+        padding: 8px 11px;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.2;
+        transition: background-color .15s ease, border-color .15s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete {
+        background: #24486b;
+        border-color: #507391;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button:hover,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete:hover {
+        background: #33628d;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg, #0e2941, #112b44);
+        padding: 13px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 10px;
+        padding: 0 0 9px;
+        gap: 7px;
+        border: 0;
+        border-bottom: 1px solid #315a76;
+        border-radius: 0;
+        background: transparent;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {flex: 1 1 120px; max-width: 220px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 7px;
+        min-height: 37px;
+        padding: 9px 12px;
+        border: 1px solid #3a6081;
+        border-radius: 10px;
+        background: #0b243b;
+        color: #d1e3f4;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:focus-visible + span {
+        outline: 3px solid #74c5ff;
+        outline-offset: 2px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span::before {
+        content: "▤";
+        font-size: 17px;
+        line-height: 1;
+        color: #9fcff4;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="folder"]) span::before {content: "▱";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="spaTimeline"]) span::before {content: "☷";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="movements"]) span::before {content: "⛓";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:checked + span {
+        color: #fff;
+        background: linear-gradient(135deg, #1676d3, #2361c1);
+        border-color: #61b6fc;
+        box-shadow: inset 0 -3px 0 #5cc1ff;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-status {
+        color: #c5d7e7;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row {
+        grid-template-columns: minmax(0,1fr);
+        gap: 8px;
+        margin-bottom: 0;
+        padding: 11px;
+        border: 1px solid #315a79;
+        border-radius: 12px 12px 0 0;
+        background: #193a58;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-input {
+        flex: 1 1 240px;
+        min-width: 0;
+        min-height: 38px;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid #9bbad1;
+        background: #f8fbff;
+        color: #15334e;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > *,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > .spa-cdsp-external-docs-process-wrap {
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        border-radius: 9px;
+        min-height: 38px;
+        background: #12304c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button {
+        background: #e7f2fc;
+        color: #193b5b;
+        border-color: #c9d9e8;
+        min-height: 37px;
+        box-shadow: 0 2px 6px rgba(0,0,0,.1);
+        white-space: normal;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button:hover {
+        background: #d1e7fa;
+        color: #133a5c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
+        margin: 0 0 11px;
+        padding: 10px 11px;
+        border: 1px solid #315a79;
+        border-top: 0;
+        border-radius: 0 0 12px 12px;
+        background: #173550;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 8px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row > .spa-cdsp-external-docs-process-wrap {
+        align-self: stretch;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-option {
+        margin: 9px 14px 0 0;
+        vertical-align: middle;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        border-radius: 13px;
+        max-height: min(66vh, 770px);
+        background: #edf5fc;
+        border: 1px solid #456a86;
+        overflow: hidden;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {
+        position: relative;
+        max-height: min(64vh, 750px);
+        overflow: auto;
+        padding: 14px 14px 14px 31px;
+        background: linear-gradient(110deg, #f1f7fe, #eaf4fc);
+        color: #162f49;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 24px;
+        bottom: 20px;
+        width: 2px;
+        background: #bad7f5;
+        pointer-events: none;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day {
+        position: relative;
+        margin-bottom: 12px;
+        padding-left: 4px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {
+        content: "";
+        position: absolute;
+        top: 11px;
+        left: -19px;
+        width: 13px;
+        height: 13px;
+        border: 3px solid #f4faff;
+        border-radius: 50%;
+        background: #1c71c9;
+        box-shadow: 0 0 0 2px #b5d5f1;
+        z-index: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid #c9def2;
+        margin: 0 0 7px;
+        padding: 7px 13px;
+        border-radius: 999px;
+        background: #dcebf9;
+        color: #12529a;
+        font: 800 12px/1.3 Inter, system-ui, sans-serif;
+        text-align: left;
+        cursor: pointer;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {
+        content: "⌃";
+        flex: 0 0 auto;
+        color: #1a66ad;
+        font-size: 20px;
+        line-height: 1;
+        transition: transform .16s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-title::after {
+        transform: rotate(180deg);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-items {display: none;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-items {display: grid;gap: 7px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {
+        grid-template-columns: 26px minmax(0,1fr) auto;
+        gap: 12px;
+        min-width: 0;
+        padding: 13px;
+        border: 1px solid #cbdff1;
+        border-radius: 12px;
+        background: #fff;
+        color: #122c47;
+        box-shadow: 0 2px 7px rgba(31, 67, 102, .045);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item + .spa-cdsp-external-docs-item {margin-top: 0;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {
+        min-width: 0;
+        position: relative;
+        padding-left: 52px;
+        min-height: 42px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {
+        content: "▤";
+        position: absolute;
+        top: 1px;
+        left: 0;
+        display: grid;
+        place-items: center;
+        height: 40px;
+        width: 40px;
+        color: #1766b8;
+        background: #e8f3fe;
+        border-radius: 13px;
+        font-size: 24px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-title {
+        color: #122e4d;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.28;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-description {
+        color: #455c75;
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-chip {
+        border-radius: 999px;
+        background: #e7f1fb;
+        color: #225c9b;
+        padding: 4px 8px;
+        font-size: 10.5px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 35px;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #087754;
+        color: #fff;
+        white-space: nowrap;
+        box-shadow: 0 4px 10px rgba(8, 119, 84, .16);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open::before {content: "↗";font-size: 14px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open:hover {background: #0a8e65;}
+      #spa-cdsp-external-docs-panel button:focus-visible,
+      #spa-cdsp-external-docs-panel a:focus-visible {outline: 3px solid #6dbcfb;outline-offset: 2px;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg,#0e2941,#112b44) !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-list {
+        background: #eef5fc !important;
+        color: #162f49 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item {
+        background: #fff !important;
+        border-color: #cbdff1 !important;
+        color: #122c47 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-title {color:#122e4d !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-description {color:#455c75 !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-chip {background:#e7f1fb !important;color:#225c9b !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-search,
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-content-input {
+        background:#f8fbff !important;color:#15334e !important;border-color:#9bbad1 !important;
+      }
+      @container (max-width: 760px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {padding:12px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {width:100%;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {max-width:none;flex:1 1 130px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {grid-template-columns: 24px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-actions {grid-column:2;justify-content:flex-start;}
+      }
+      @container (max-width: 460px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title {grid-template-columns:36px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {height:36px;width:36px;font-size:21px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {padding:8px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {padding-left:0;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {display:none;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {padding:9px 9px 9px 27px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {left:15px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {left:-18px;}
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {transition:none;}
+      }
+      /* SPA2 / preview em iframe: card nativo e UMA rolagem principal.
+         O iframe (ou a aba Visão geral) rola o conteúdo completo; a lista de
+         andamentos não abre uma segunda área de rolagem dentro do processo. */
+      html.mtprev-autos-in-iframe #workspace-preview-overview > #spa-cdsp-external-docs-panel,
+      html.mtprev-autos-in-iframe .workspace-preview__body > #spa-cdsp-external-docs-panel {
+        display: block !important;
+        position: relative !important;
+        inset: auto !important;
+        float: none !important;
+        clear: both !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 16px 0 !important;
+        grid-column: 1 / -1 !important;
+        box-sizing: border-box !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        color: #26374c !important;
+        background: #fff !important;
+        border: 1px solid #d9e3ed !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(28, 48, 74, .07) !important;
+        overflow: visible !important;
+        max-height: none !important;
+        overscroll-behavior-y: auto !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {
+        background: #f7f9fc !important;
+        border-bottom: 1px solid #e0e7ef !important;
+        border-radius: 12px 12px 0 0;
+        padding: 13px 16px !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        color: #243952 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        color: #60748a !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        color: #1969b0 !important;
+        border: 1px solid #d3e5f9 !important;
+        background: #e8f3fe !important;
+        box-shadow: none !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {
+        color: #26374c !important;
+        background: #fff !important;
+        padding: 14px 16px !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        border-bottom-color: #e2e9f2 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:not(:has(input:checked)) span {
+        color: #3f5870 !important;
+        background: #f1f5fa !important;
+        border-color: #dae3ed !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-status {
+        color: #536a80 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
+        background: #f5f8fc !important;
+        border-color: #dce6ef !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        color: #253a53 !important;
+        background: #e9f1f9 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-memory {
+        color: #40596f !important;
+        background: #edf3f9 !important;
+        border-color: #d5e1ed !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-process-complete {
+        color: #244662 !important;
+        background: #e9f0f8 !important;
+        border-color: #d0dce8 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movements-timeline {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overscroll-behavior-y: auto !important;
+        scrollbar-gutter: auto !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        background: #fff !important;
+        border-color: #e0e7ef !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movements-timeline,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {
+        background: #f8fafc !important;
+        color: #26374c !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-card {
+        background: #fff !important;
+        color: #26374c !important;
+        border-color: #e2e9f0 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-title,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-date {
+        color: #243952 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-description {
+        color: #536a80 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-results {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      /* Barra de ferramentas escura, compacta e recolhida por padrao.
+         A area de documentos continua com rolagem natural do iframe. */
+      html.mtprev-autos-in-iframe #workspace-preview-overview > #spa-cdsp-external-docs-panel {
+        margin: 0 0 14px !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        border: 1px solid #244c60 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {
+        min-height: 54px;
+        background: linear-gradient(100deg, #193a4b, #276077) !important;
+        border-bottom-color: rgba(255,255,255,.12) !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        color: #f6fbff !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        color: #c4dce8 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        background: #214b62 !important;
+        color: #9adcf9 !important;
+        border-color: #477a92 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-collapsed .spa-cdsp-external-docs-actions > :not(.mtprev-autos-toggle) {
+        display: none !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .mtprev-autos-toggle {
+        background: rgba(255,255,255,.14) !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        color: #fff !important;
       }
     `;
     document.head.appendChild(style);
@@ -3998,10 +4613,20 @@
       const day = document.createElement("section");
       day.className = "spa-cdsp-external-docs-day";
 
-      const dayTitle = document.createElement("div");
+      // Agrupar por data em seções recolhíveis, sem alterar documentos ou requisições.
+      const dayTitle = document.createElement("button");
+      dayTitle.type = "button";
       dayTitle.className = "spa-cdsp-external-docs-day-title";
       dayTitle.textContent = date + " · " + groupItems.length + " " + unitLabel;
-      day.appendChild(dayTitle);
+      dayTitle.setAttribute("aria-expanded", "true");
+      dayTitle.title = "Recolher ou expandir os registros desta data";
+      const dayItems = document.createElement("div");
+      dayItems.className = "spa-cdsp-external-docs-day-items";
+      dayTitle.addEventListener("click", () => {
+        const collapsed = day.classList.toggle("spa-cdsp-external-docs-day-collapsed");
+        dayTitle.setAttribute("aria-expanded", String(!collapsed));
+      });
+      day.append(dayTitle, dayItems);
 
       for (const item of groupItems) {
         const row = document.createElement("article");
@@ -4056,7 +4681,7 @@
           actions.appendChild(open);
         }
         if (actions.childElementCount) row.appendChild(actions);
-        day.appendChild(row);
+        dayItems.appendChild(row);
       }
 
       list.appendChild(day);
@@ -4584,6 +5209,7 @@
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
+    panel.classList.add("spa-cdsp-external-docs-modern");
     panel.dataset.processNumber = processNumber;
     panel.dataset.source = defaultSourceKey;
     panel.dataset.url = sources[defaultSourceKey] ? sources[defaultSourceKey].url : "";
@@ -4600,13 +5226,17 @@
     title.className = "spa-cdsp-external-docs-title";
 
     const titleText = document.createElement("strong");
-    titleText.textContent = "Documentos do processo";
+    titleText.textContent = location.hostname === "pge.mt.spa.coreplan.com.br"
+      ? "Andamentos e PDFs · SPA2" : "Autos e documentos do processo";
 
     const subtitle = document.createElement("span");
     subtitle.textContent = processNumber || "Processo identificado na pendência";
 
-    title.appendChild(titleText);
-    title.appendChild(subtitle);
+    const titleBadge = document.createElement("span");
+    titleBadge.className = "spa-cdsp-external-docs-title-icon";
+    titleBadge.setAttribute("aria-hidden", "true");
+    titleBadge.textContent = "▤";
+    title.append(titleBadge, titleText, subtitle);
 
     const actions = document.createElement("div");
     actions.className = "spa-cdsp-external-docs-actions";
@@ -4661,7 +5291,7 @@
 
     const minimizedMemoryInput = document.createElement("input");
     minimizedMemoryInput.type = "checkbox";
-    minimizedMemoryInput.checked = storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY);
+    minimizedMemoryInput.checked = storageGet(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, "1") !== "0";
 
     const minimizedMemoryText = document.createElement("span");
     minimizedMemoryText.textContent = "Abrir minimizado";
@@ -4669,7 +5299,7 @@
     minimizedMemory.appendChild(minimizedMemoryInput);
     minimizedMemory.appendChild(minimizedMemoryText);
 
-    const toggleButton = createExternalDocumentsButton("Recolher", "spa-cdsp-external-docs-button-secondary");
+    const toggleButton = createExternalDocumentsButton("Recolher", "spa-cdsp-external-docs-button-secondary mtprev-autos-toggle");
 
     actions.appendChild(loadButton);
     actions.appendChild(processCompleteWrap);
@@ -5132,6 +5762,9 @@
 
     const viewer = document.createElement("div");
     viewer.className = "spa-cdsp-external-docs-viewer";
+    if (window.parent !== window) {
+      viewer.addEventListener("wheel", (event) => chainExternalAutosWheelAtBoundary(event, viewer), { passive: false });
+    }
 
     const placeholder = document.createElement("div");
     placeholder.className = "spa-cdsp-external-docs-placeholder";
@@ -6452,7 +7085,7 @@
       toggleButton.textContent = collapsed ? "Expandir" : "Recolher";
     }
 
-    setExternalDocumentsCollapsed(storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
+    setExternalDocumentsCollapsed(minimizedMemoryInput.checked);
 
     minimizedMemoryInput.addEventListener("change", () => {
       storageSetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, minimizedMemoryInput.checked);
@@ -14396,7 +15029,9 @@
 
     header.appendChild(title);
     header.appendChild(status);
-    header.appendChild(quickStopButton);
+    // No módulo embutido, não exibir a ação solta "Encerrar".
+    // No painel independente, mantém o controle de interrupção de automação.
+    if (!embedded) header.appendChild(quickStopButton);
     header.appendChild(toggleButton);
     panel.appendChild(header);
     content.appendChild(createHealthLogo());

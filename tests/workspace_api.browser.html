@@ -1,0 +1,46 @@
+<!doctype html><meta charset="utf-8"><title>Lotes sem rolagem</title>
+<pre id="results">Executando</pre>
+<form class="workspace-search" data-partial-url="https://pge.mt.spa.coreplan.com.br/workspace/list"><input name="view" value="all"></form>
+<div class="workspace-process-list"><article class="workspace-process-card" data-procedure-id="1">Processo 1</article></div>
+<div class="workspace-infinite-scroll" data-loaded-count="1" data-total-count="60"><button class="workspace-infinite-scroll__button">Mais</button></div>
+<script src="../js/shared/spa_selectors.js"></script>
+<script>
+(async()=>{
+ const output=document.querySelector('#results'),results=[];
+ const assert=(ok,label)=>{if(!ok)throw Error(label);results.push('PASS '+label)};
+ try {
+  const xhr=new XMLHttpRequest();xhr.open('GET','../js/shared/spa_adapter.js',false);xhr.send();
+  new Function('location',xhr.responseText)({href:'https://pge.mt.spa.coreplan.com.br/workspace',origin:'https://pge.mt.spa.coreplan.com.br'});
+  const requests=[],progress=[],position=scrollY;let clicks=0,fail=false,serverCap=Infinity;
+  document.querySelector('button').onclick=()=>clicks++;
+  window.fetch=async raw=>{
+   if(fail)throw Error('API indisponível');
+   const url=new URL(raw),size=Number(url.searchParams.get('per_page')),page=Number(url.searchParams.get('page'));
+   requests.push({size,page});
+   const effective=Math.min(size,serverCap);
+   const start=(page-1)*effective+1,end=Math.min(60,start+effective-1);
+   const html=Array.from({length:end-start+1},(_,i)=>`<article class="workspace-process-card" data-procedure-id="${start+i}">Processo ${start+i}</article>`).join('');
+   return {ok:true,json:async()=>({results_html:html+'<div class="workspace-infinite-scroll" data-total-count="60"></div>'})};
+  };
+  assert(SpaAdapter.getWorkspacePreload()===null,'sem leitura inicial não retorna dados antigos');
+  const result=await SpaAdapter.collectWorkspaceRecords({batchSize:25,allowScroll:false,onProgress:p=>progress.push(p)});
+  assert(result.reason==='complete'&&result.records.length===60,'coleta todos os 60 processos');
+  assert(JSON.stringify(requests)===JSON.stringify([{size:25,page:1},{size:25,page:2},{size:25,page:3}]),'requisições de 25, sem repetir nem pular páginas');
+  assert(progress.map(p=>p.batchSize).join(',')==='25,25,10','progresso informa os lotes recebidos');
+  assert(progress.every(p=>Number.isFinite(p.requestMs)&&p.requestMs>=0),'mede o tempo de cada requisição');
+  assert(scrollY===position&&clicks===0,'não rola nem aciona paginação nativa');
+  assert((await SpaAdapter.getWorkspacePreload()).records.length===60,'disponibiliza os lotes carregados ao relatório');
+  await SpaAdapter.collectWorkspaceRecords();assert(requests.length===3,'relatório reutiliza a leitura recente');
+  document.querySelector('input').value='limited';serverCap=25;
+  assert(SpaAdapter.getWorkspacePreload()===null,'mudança de filtro invalida os lotes anteriores');
+  const before=requests.length;
+  const limited=await SpaAdapter.collectWorkspaceRecords({batchSize:60,adaptiveBatch:true,allowScroll:false});
+  assert(limited.records.length===60&&limited.reason==='complete','lote máximo respeita o limite do servidor');
+  assert(JSON.stringify(requests.slice(before))===JSON.stringify([{size:60,page:1},{size:25,page:1},{size:25,page:2},{size:25,page:3}]),'adapta ao limite sem pular processos');
+  document.querySelector('input').value='changed';fail=true;
+  let rejected=false;try{await SpaAdapter.collectWorkspaceRecords({batchSize:25,allowScroll:false})}catch(e){rejected=true}
+  assert(rejected&&clicks===0&&scrollY===position,'falha da API não ativa fallback com rolagem');
+  output.dataset.result='pass';output.textContent=results.join('\n');
+ }catch(e){output.dataset.result='fail';output.textContent=results.join('\n')+'\nFAIL '+e.message;}
+})();
+</script>

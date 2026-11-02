@@ -50,10 +50,12 @@
       const key = norm(label);
       if (key && value && !fields.has(key)) fields.set(key, String(value).trim());
     };
-    for (const field of node.querySelectorAll('.workspace-process-card__field')) {
-      const label = field.querySelector('small,[data-full-label]');
-      const value = field.querySelector('[data-copy-value],strong[data-full-value],strong');
-      add(label?.getAttribute('data-full-label') || label?.textContent,
+    // As variantes de card usam rótulos (<small>) e valores (<strong>) com ou
+    // sem os wrappers __field. A associação é pelo rótulo, não pela coluna.
+    for (const field of node.querySelectorAll('.workspace-process-card__field,[data-workspace-field]')) {
+      const label = field.querySelector('small,[data-full-label],[data-workspace-label]');
+      const value = field.querySelector('[data-copy-value],strong[data-full-value],.workspace-process-card__field-value strong,strong');
+      add(label?.getAttribute('data-full-label') || label?.getAttribute('data-workspace-label') || label?.textContent,
         value?.getAttribute('data-copy-value') || value?.getAttribute('data-full-value') || value?.textContent);
     }
     // Alternativa para os cards <article><a>...<strong data-full-value>
@@ -87,8 +89,9 @@
       const deadlineDetails = deadlineNodes.map(item => [item.textContent, ...Array.from(item.querySelectorAll('[title],[data-content],[data-original-title]')).map(el => el.getAttribute('title') || el.getAttribute('data-content') || el.getAttribute('data-original-title'))].filter(Boolean).join(' ')).join(' ');
       return {id:`workspace-card-${rowKey}`,rowKey,processNumber,expedienteId:get('ID do expediente'),
         procedureId,
-        assunto:get('Assunto Principal','Assunto(s) do Tribunal'),actionClass:get('Classe'),origin:get('Origem do expediente'),
-        manifestationSuggested:get('Manifestação sugerida'),distributionDate:get('Data da distribuição'),
+        assunto:get('Assunto Principal','Assunto(s) do Tribunal','Assunto','Assunto do processo','Assunto do Tribunal','Matéria'),
+        actionClass:get('Classe','Classe processual','Tipo de ação'),origin:get('Origem do expediente'),
+        manifestationSuggested:get('Manifestação sugerida','Sugestão de manifestação','Sugestão de ação (IA)','Tipo de peça'),distributionDate:get('Data da distribuição'),
         jurisdiction:get('Jurisdição'),assessor:get('Assessor(a)'),party:get('Parte(s) ativa(s)','Partes ativas','Parte ativa'),
         judgingBody:get('Órgão julgador','Julgador'), tribunal:get('Tribunal'),
         receivedText:get('Recebido','Tempo na caixa'), knowledgeDateText:get('Data da ciência'), deadlineDetails,

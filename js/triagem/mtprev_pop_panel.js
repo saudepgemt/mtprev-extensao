@@ -223,6 +223,11 @@
     .mtprev-triage-row{box-shadow:0 1px 3px rgba(25,57,78,.06);transition:box-shadow .18s ease,border-color .18s ease;}
     .mtprev-triage-row:hover{box-shadow:0 5px 17px rgba(31,78,110,.13);border-color:#85b7cf;}
     .mtprev-triage-head{background:linear-gradient(110deg,#183a53,#205c78 60%,#287f9b);}
+    .mtprev-triage-entry__refresh{display:flex;align-items:center;gap:7px;margin:10px 3px 4px;font-size:11px;color:#bcd6e5;line-height:1.4;cursor:pointer}
+    .mtprev-triage-entry__refresh input{accent-color:#2da8cc;width:15px;height:15px}
+    .mtprev-triage-row{border-radius:12px;border-color:#d2e2ee;background:#fff}
+    .mtprev-triage-side-button:focus-visible{outline:2px solid #77d9f0;outline-offset:2px}
+
     @media(max-width:850px){.mtprev-triage-workspace{flex-direction:column;}.mtprev-triage-sidebar{flex:0 0 auto;min-width:0;max-height:210px;}.mtprev-triage-main{padding:11px;}}
     @media(max-width:900px){.mtprev-triage-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mtprev-triage-detail-grid{grid-template-columns:1fr}.mtprev-triage-head{gap:7px;padding:9px}.mtprev-triage-brand{min-width:50px}.mtprev-triage-main{padding:9px}}
     `;
@@ -239,19 +244,73 @@
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}min ${String(s % 60).padStart(2, '0')}s`;
   }
   const reportKey = record => [record.processNumber || '', record.expedienteId || '', record.rowKey || record.id || ''].join('|');
+  // A proposta do organograma NÃO permite deduzir um assessor apenas do CNJ.
+  // Correções manuais ficam locais e separadas dos dados retornados pelo SPA.
+  const manualCategories = Object.freeze([
+    ['exec_individual','Execução individual','Execução individual',''],
+    ['exec_coletiva','Execução coletiva (não recurso)','Execução coletiva',''],
+    ['exec_coletiva_recurso','Recurso de execução coletiva','Execução coletiva','Recurso de execução coletiva'],
+    ['exec_honorarios','Execução de honorários','Execução de honorários',''],
+    ['pensao','Pensão por morte (geral)','Pensão por morte',''],
+    ['pensao_funcional','Pensão por morte — subsídio/vida funcional','Pensão por morte envolvendo vida funcional do instituidor',''],
+    ['contrib_nao','Contribuição não doente','Contribuição não doente',''],
+    ['contrib_nao_recurso','Recurso de contribuição não doente','Contribuição não doente','Recurso'],
+    ['contrib_doente','Contribuição doente','Contribuição doente',''],
+    ['contrib_doente_ir','Contribuição doente + IR','Contribuição doente com imposto de renda',''],
+    ['aposentadoria','Aposentadoria','Aposentadoria',''],
+    ['residual','Residual civil/militar','Residual civil e militar',''],
+    ['imposto_renda','Imposto de Renda','Imposto de Renda',''],
+    ['pauta','Pauta de julgamento','Pauta de julgamento',''],
+    ['confirmar_pauta','Confirmar pauta de julgamento','','Confirmar pauta de julgamento'],
+    ['mandado_seguranca','Mandado de segurança','Mandado de segurança',''],
+    ['juntada_comprovante','Juntada de comprovante de cumprimento de ordem judicial','','Juntada de comprovante de cumprimento de ordem judicial'],
+    ['contrarrazoes','Contrarrazões (exceto matérias de Victor)','','Contrarrazões'],
+  ]);
+  function currentRules() {
+    const rules = window.MTPrevTriageRules;
+    if (!rules || typeof rules.suggestDistribution !== 'function' || !rules.version) {
+      throw new Error('As regras do organograma não foram carregadas nesta versão. Substitua também js/shared/mtprev_triage_rules.js, recarregue a extensão e atualize a página do SPA.');
+    }
+    return rules;
+  }
+  const manualStorageKey = key => {
+    let user = '';
+    try { user = new URL(location.href).searchParams.get('user_id') || ''; } catch (_) {}
+    return 'MTPREV_TRIAGE_MANUAL_V2:' + location.origin + ':' + user + ':' + key;
+  };
+  function storedManualChoice(key) {
+    try { return localStorage.getItem(manualStorageKey(key)) || ''; } catch (_) { return ''; }
+  }
+  function applyTriageSuggestion(row, categoryId = '') {
+    const rules = currentRules();
+    const option = manualCategories.find(item => item[0] === categoryId);
+    // Uma entrada manual pode ser usada para REVISÃO; nunca sobrescreve o assunto de origem.
+    const inputs = option ? { ...row.record, assunto: option[2], actionClass: '', manifestationSuggested: option[3], lastProgress: '' } : row.record;
+    // Diagnóstico do SPA permanece fiel aos dados originais. A matéria manual
+    // influencia somente a sugestão, com proveniência claramente identificada.
+    const diagnosis = rules.diagnose(row.record);
+    const proposed = option ? rules.suggestDistribution(inputs) : diagnosis.distribution || rules.suggestDistribution(inputs);
+    const distribution = option ? {
+      ...proposed,
+      source: 'Matéria informada manualmente para conferência · ' + proposed.source,
+      candidates: proposed.candidates.map(candidate => ({ ...candidate, source: 'Classificação manual, não informada pelo SPA' }))
+    } : proposed;
+    const candidates = distribution.candidates || [];
+    const people = [...new Map(candidates.flatMap(c => c.assessores || []).map(person => [person.name,person])).values()];
+    Object.assign(row, { diagnosis, distribution, candidates, people, manualLabel: option?.[1] || '', manualChoice: categoryId,
+      kind: candidates.length === 0 ? 'unknown' : option ? 'review' : candidates.length === 1 && people.length === 1 ? 'matched' : 'review' });
+    return row;
+  }
   function classifyTriage(records) {
+    currentRules(); // Falhar visivelmente se só foi instalado o painel, sem o arquivo de regras.
     const unique = new Map();
     for (const record of records) {
       const key = reportKey(record);
       if (key !== '||' && !unique.has(key)) unique.set(key, record);
     }
     return [...unique.values()].map(record => {
-      const diagnosis = R.diagnose(record);
-      const distribution = diagnosis.distribution || R.suggestDistribution?.(record) || {candidates:[],notes:[]};
-      const candidates = distribution.candidates || [];
-      const people = [...new Map(candidates.flatMap(c => c.assessores || []).map(p => [p.name,p])).values()];
-      const kind = candidates.length === 1 && people.length === 1 ? 'matched' : candidates.length ? 'review' : 'unknown';
-      return {record,diagnosis,distribution,candidates,people,kind,key:reportKey(record)};
+      const row = { record, key: reportKey(record) };
+      return applyTriageSuggestion(row, storedManualChoice(row.key));
     });
   }
 
@@ -317,7 +376,10 @@
     generate.type='button';
     const reopen = reportNode('button','','Reabrir último relatório');
     reopen.type='button'; reopen.hidden=true;
-    actions.append(generate,reopen); root.append(actions);
+    const forceLabel=reportNode('label','mtprev-triage-entry__refresh');
+    const forceRefresh=reportNode('input');forceRefresh.type='checkbox';
+    forceLabel.append(forceRefresh,document.createTextNode(' Ler novamente a mesa (ignorar cache de 10 minutos)'));
+    actions.append(generate,reopen); root.append(actions,forceLabel);
     const hint = reportNode('p','mtprev-triage-entry__note','A classificação é consultiva. Nenhuma ciência, distribuição ou encerramento será executado.');
     root.append(hint);
     const status = reportNode('p','mtprev-triage-entry__note');status.setAttribute('role','status');root.append(status);
@@ -383,10 +445,11 @@
       generate.disabled=true;
       const showProgress=showLoad(main);
       try {
-        let records,coverage='partial',total;
+        currentRules(); // Não coletar centenas de cards quando a lógica de distribuição está ausente.
+        let records,coverage='partial',total,fromCache=false;
         if(window.SpaAdapter?.route?.().kind==='workspace') {
-          const result=await window.SpaAdapter.collectWorkspaceRecords({signal:currentController.signal,onProgress:showProgress});
-          records=result.records||[];coverage=result.reason;total=result.total;
+          const result=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:currentController.signal,onProgress:showProgress,force:forceRefresh.checked});
+          records=result.records||[];coverage=result.reason;total=result.total;fromCache=Boolean(result.fromCache);
         } else {
           records=api.getRecords()||[];total=records.length;
           showProgress({count:records.length,total});
@@ -394,7 +457,7 @@
         if(currentController.signal.aborted)return;
         if(!records.length)throw new Error('Nenhum expediente foi encontrado na tela ou na mesa atual.');
         const rows=classifyTriage(records);
-        last={rows,elapsed:Date.now()-startedAt,coverage,total,at:new Date()};
+        last={rows,elapsed:Date.now()-startedAt,coverage,total,at:new Date(),fromCache};
         reopen.hidden=false;
         status.textContent=`Última análise: ${rows.length} expediente(s). ${coverage==='complete'?'Leitura completa.':'Cobertura não confirmada.'}`;
         renderReport(main,last);
@@ -415,7 +478,7 @@
       const review=rows.filter(x=>x.kind==='review').length;
       const unknown=rows.filter(x=>x.kind==='unknown').length;
       main.replaceChildren();
-      const summary=reportNode('div','mtprev-triage-note',`${rows.length} expedientes examinados · ${fmtDuration(data.elapsed)} · ${data.coverage==='complete'?'Leitura completa da mesa.':'Leitura parcial ou apenas registros visíveis — confirme a cobertura.'} Nenhuma alteração foi feita no SPA.`);
+      const summary=reportNode('div','mtprev-triage-note',`${rows.length} expedientes examinados · ${data.fromCache?'Cache completo reutilizado':'Tempo de leitura '+fmtDuration(data.elapsed)} · ${data.coverage==='complete'?'Leitura completa da mesa.':'Leitura parcial ou apenas registros visíveis — confirme a cobertura.'} Nenhuma alteração foi feita no SPA.`);
       main.append(summary);
       const metrics=reportNode('div','mtprev-triage-stats');
       for(const item of [
@@ -428,6 +491,15 @@
         metrics.append(card);
       }
       main.append(metrics);
+      const missingMatter = rows.filter(x=>!x.record.assunto && !x.record.assuntoPrincipal && !x.record.subject && !x.record.actionClass && !x.record.classe).length;
+      const missingAction = rows.filter(x=>!x.record.manifestationSuggested && !x.record.manifestacaoSugerida && !x.record.lastProgress).length;
+      if (missingMatter || missingAction) {
+        const diagnostic = reportNode('p','mtprev-triage-note');
+        diagnostic.style.cssText='border-left:4px solid #d49a32;background:#fff5dc;color:#654715;padding:10px 12px;border-radius:8px;';
+        diagnostic.textContent = `Cobertura dos dados do SPA2: ${missingMatter} sem assunto/classe e ${missingAction} sem manifestação/andamento entre ${rows.length} expedientes. ` +
+          (data.fromCache?'Este resultado veio do cache: marque “Ler novamente a mesa” para verificar se há dados novos. ':'') + 'Não é possível escolher assessor apenas pelo número CNJ. Abra “Ver critérios” para conferir os dados ou informar a matéria manualmente.';
+        main.append(diagnostic);
+      }
       const toolbar=reportNode('div','mtprev-triage-tools');
       const search=reportNode('input');search.type='search';search.placeholder='Buscar número, assunto ou assessor…';search.setAttribute('aria-label','Buscar no relatório');
       const select=reportNode('select');select.setAttribute('aria-label','Filtrar situação');
@@ -479,7 +551,8 @@
           x.people.forEach((person,index)=>{if(index)ownersLine.append(document.createTextNode(' ou '));ownersLine.append(assessorLabel(person.name));});
         } else ownersLine.textContent='Responsável não identificado';
         dest.append(ownersLine);
-        dest.append(reportNode('small','',owners?`Procurador: ${owners}`:'Conferir matéria e tipo de peça'));
+        const noMetadata=!(x.record.assunto || x.record.assuntoPrincipal || x.record.subject || x.record.actionClass || x.record.classe || x.record.manifestationSuggested || x.record.manifestacaoSugerida || x.record.lastProgress);
+        dest.append(reportNode('small','',x.manualLabel?`Matéria informada para conferência: ${x.manualLabel}`:(owners?`Procurador: ${owners}`:noMetadata?'SPA não forneceu matéria nem manifestação':'Conferir matéria e tipo de peça')));
         strip.append(dest);
         const badgeLabel=x.kind==='matched'?'✓ Sugestão encontrada':x.kind==='review'?'◇ Escolha necessária':'? Sem classificação';
         strip.append(reportNode('span','mtprev-triage-badge',badgeLabel));article.append(strip);
@@ -487,7 +560,8 @@
         details.append(reportNode('summary','','Ver critérios e registrar conferência'));
         const info=reportNode('div','mtprev-triage-detail-grid');
         function detailField(label,value){const s=reportNode('section');s.append(reportNode('b','',label));s.append(document.createTextNode(value||'Não informado'));info.append(s);}
-        detailField('Assunto',x.record.assunto);
+        detailField('Assunto informado pelo SPA',x.record.assunto || x.record.assuntoPrincipal || x.record.subject);
+        detailField('Classe informada pelo SPA',x.record.actionClass || x.record.classe);
         detailField('Tipo de peça / manifestação',x.record.manifestationSuggested);
         detailField('Matéria e justificativa',x.candidates.map(c=>`${c.category}: ${c.reason}`).join(' | ')||'Não enquadrado na proposta.');
         detailField('Regras e ressalvas',x.distribution.notes?.join(' | ')||'Conferir se a proposta está vigente e aplicável.');
@@ -495,6 +569,27 @@
         detailField('Fonte e cobertura',`${x.distribution.source||'Proposta do organograma'}; ${x.record.metadataSource||'Metadados do SPA'}`);
         details.append(info);
         const origin=reportNode('div');openAllowedLink(origin,x.record);details.append(origin);
+        const manualBox=reportNode('div','mtprev-triage-review');
+        manualBox.append(reportNode('strong','','Enquadramento assistido pelo organograma'));
+        manualBox.append(reportNode('p','','Após conferir o expediente, escolha a matéria ou peça. A sugestão será marcada para revisão humana e salva apenas neste navegador.'));
+        const manualSelect=reportNode('select');manualSelect.setAttribute('aria-label','Matéria conferida manualmente');
+        const emptyOption=reportNode('option','','Usar somente os dados recebidos do SPA');emptyOption.value='';manualSelect.append(emptyOption);
+        for (const [value,label] of manualCategories) {
+          const option=reportNode('option','',label);option.value=value;manualSelect.append(option);
+        }
+        manualSelect.value=x.manualChoice || '';
+        manualSelect.addEventListener('change',()=>{
+          try {
+            const key=manualStorageKey(x.key);
+            if (manualSelect.value) localStorage.setItem(key,manualSelect.value);
+            else localStorage.removeItem(key);
+          } catch (_) {}
+          applyTriageSuggestion(x,manualSelect.value);
+          const from=main.scrollTop;
+          render();
+          main.scrollTop=from;
+        });
+        manualBox.append(manualSelect);details.append(manualBox);
         const rev=reportNode('div','mtprev-triage-review');
         rev.append(reportNode('strong','','Registro local de conferência (não altera o SPA)'));
         const revStatus=reportNode('select');
@@ -513,6 +608,8 @@
       }
       function render(){
         setButtons();list.replaceChildren();pager.replaceChildren();
+        const metricNumbers=[rows.length, rows.filter(x=>x.kind==='matched').length, rows.filter(x=>x.kind==='review').length, rows.filter(x=>x.kind==='unknown').length];
+        [...metrics.children].forEach((card,i)=>{const label=card.querySelector('strong');if(label)label.textContent=String(metricNumbers[i]);});
         const matching=filtered();
         if(!matching.length){list.append(reportNode('div','mtprev-triage-empty','Nenhum processo encontrado para essa pesquisa.'));return;}
         const shown=matching.slice(0,pageSize);
@@ -536,8 +633,8 @@
       selectAll.addEventListener('click',()=>{filtered().slice(0,100).forEach(x=>selected.add(x.key));render();});
       exportCsv.addEventListener('click',()=>{
         const csvValue=value=>{let text=String(value??'');if(/^[\t\r\n=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
-        const dataRows=[['Processo','Expediente','Assunto','Situação','Assessor(es) sugerido(s)','Procurador(es)','Justificativa'],
-          ...filtered().map(x=>[x.record.processNumber,x.record.expedienteId,x.record.assunto,x.kind,x.people.map(p=>p.name).join(' / '),[...new Set(x.people.map(p=>p.procuradores))].join(' / '),x.candidates.map(c=>c.reason).join(' | ')])];
+        const dataRows=[['Processo','Expediente','Assunto informado pelo SPA','Enquadramento manual','Situação','Assessor(es) sugerido(s)','Procurador(es)','Justificativa'],
+          ...filtered().map(x=>[x.record.processNumber,x.record.expedienteId,x.record.assunto || x.record.assuntoPrincipal || x.record.subject,x.manualLabel || '',x.kind,x.people.map(p=>p.name).join(' / '),[...new Set(x.people.map(p=>p.procuradores))].join(' / '),x.candidates.map(c=>c.reason).join(' | ')])];
         const content='\uFEFF'+dataRows.map(row=>row.map(csvValue).join(';')).join('\r\n');
         const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
         const a=reportNode('a');a.href=url;a.download='mtprev-triagem-revisao.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);

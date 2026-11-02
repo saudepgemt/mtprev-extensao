@@ -34,13 +34,11 @@ function validateRuntime(root, manifest) {
   }
 }
 
-function buildChromeStore(sourceRoot = path.resolve(__dirname, ".."), distRoot = path.join(sourceRoot, "dist")) {
+function buildChromeRuntime(sourceRoot, output) {
   const manifest = JSON.parse(fs.readFileSync(path.join(sourceRoot, "manifest.json"), "utf8"));
   validateRuntime(sourceRoot, manifest);
-  const output = path.join(distRoot, "chrome-store");
-  fs.mkdirSync(distRoot, { recursive: true });
   fs.rmSync(output, { recursive: true, force: true });
-  fs.mkdirSync(output);
+  fs.mkdirSync(output, { recursive: true });
   const expectedContents = new Map();
   for (const file of RUNTIME_FILES) {
     fs.mkdirSync(path.dirname(path.join(output, file)), { recursive: true });
@@ -58,6 +56,11 @@ function buildChromeStore(sourceRoot = path.resolve(__dirname, ".."), distRoot =
       throw new Error(`Arquivo alterado durante o build; gere novamente: ${file}`);
     }
   }
+  return { manifest, output };
+}
+
+function buildChromeStore(sourceRoot = path.resolve(__dirname, ".."), distRoot = path.join(sourceRoot, "dist")) {
+  const { manifest, output } = buildChromeRuntime(sourceRoot, path.join(distRoot, "chrome-store"));
   const archive = path.join(distRoot, `mtprev-${manifest.version}-chrome-web-store.zip`);
   fs.rmSync(archive, { force: true });
   execFileSync("zip", ["-q", "-X", archive, "manifest.json", ...RUNTIME_FILES.slice().sort()], { cwd: output });
@@ -67,4 +70,4 @@ function buildChromeStore(sourceRoot = path.resolve(__dirname, ".."), distRoot =
 }
 
 if (require.main === module) console.log(JSON.stringify(buildChromeStore(), null, 2));
-module.exports = { buildChromeStore, validateRuntime };
+module.exports = { buildChromeStore, buildChromeRuntime, validateRuntime };

@@ -4,3 +4,12 @@
 
 #watch-mail-form input[type="text"],#watch-mail-form input[type="email"]{width:100%;font:inherit;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 14px;}
 #watch-mail-status{min-height:26px;font-weight:600;}#watch-mail-status[data-error=true]{color:#cc4152;}
+#watch-mail-form textarea {width:100%;min-height:115px;resize:vertical;box-sizing:border-box;font:inherit;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 14px;}
+
+/* Navegação das integrações pela opção inicial do menu MTPrev. */
+.settings-nav {display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 24px}
+.settings-nav a {text-decoration:none;display:inline-flex;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:14px;font-weight:700}
+.settings-nav a:hover {border-color:var(--focus);background:var(--bg)}
+.settings-section {scroll-margin-top:20px}
+.settings-category {font-size:11px;letter-spacing:.11em;font-weight:800;color:var(--muted);margin:0 0 6px}
+.settings-recipient-note {padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);font-size:14px}

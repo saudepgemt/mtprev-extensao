@@ -73,7 +73,12 @@ manifest['host_permissions'].append('http://127.0.0.1/*')
 manifest['content_scripts'][0]['matches'].append('http://127.0.0.1/*')
 manifest['web_accessible_resources'][0]['matches'].append('http://127.0.0.1/*')
 (extension / 'manifest.json').write_text(json.dumps(manifest))
-(profile / 'user.js').write_text(f'user_pref("marionette.port", {marionette_port});\nuser_pref("browser.shell.checkDefaultBrowser", false);\nuser_pref("browser.startup.homepage_override.mstone", "ignore");\n')
+(profile / 'user.js').write_text(f'user_pref("marionette.port", {marionette_port});\nuser_pref("browser.shell.checkDefaultBrowser", false);\nuser_pref("browser.startup.homepage_override.mstone", "ignore");\n'
+    + 'user_pref("browser.download.folderList", 2);\n'
+    + f'user_pref("browser.download.dir", {json.dumps(str(profile))});\n'
+    + 'user_pref("browser.download.useDownloadDir", true);\n'
+    + 'user_pref("browser.download.alwaysOpenPanel", false);\n'
+    + 'user_pref("browser.helperApps.neverAsk.saveToDisk", "application/json");\n')
 log = (profile / 'firefox.log').open('w')
 proc = subprocess.Popen([args.firefox, '--headless', '--no-remote', '--profile', str(profile), '--marionette', '--remote-allow-system-access', 'about:blank'], stdout=log, stderr=log)
 client = None
@@ -302,6 +307,21 @@ try:
     command('WebDriver:Navigate', {'url':options_url})
     time.sleep(.3)
     assert execute("return document.getElementById('status').textContent;") == 'Serviço de andamentos desativado.'
+    execute("document.getElementById('export-service').click();")
+    time.sleep(.1)
+    assert execute("return document.getElementById('status').textContent;") == 'Salve e autorize uma configuração antes de exportar.'
+    execute("""
+      const file = new File([JSON.stringify({format:'mtprev-mcp-settings',version:1,endpoint:'https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/demo-only',consent:true})], 'mtprev-mcp-settings.json', {type:'application/json'});
+      const files = new DataTransfer(); files.items.add(file);
+      const input = document.getElementById('import-service-file');
+      input.files = files.files; input.dispatchEvent(new Event('change'));
+    """)
+    time.sleep(.2)
+    assert execute("return [document.getElementById('endpoint').value,document.getElementById('consent').checked];") == ['https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/demo-only',False]
+    command('WebDriver:Refresh')
+    time.sleep(.3)
+    assert execute("return [document.getElementById('endpoint').value,document.getElementById('consent').checked];") == ['',False]
+    print('PASS importar MCP preenche o endereço e exige nova autorização antes de salvar')
     execute("document.getElementById('endpoint').value='https://example.org/';document.getElementById('consent').checked=true;document.getElementById('service-form').requestSubmit();")
     assert execute("return document.getElementById('status').dataset.error;") == 'true'
     execute("document.getElementById('endpoint').value='https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/demo-only';document.getElementById('service-form').requestSubmit();")
@@ -309,6 +329,15 @@ try:
     command('WebDriver:Refresh')
     time.sleep(.3)
     assert execute("return document.getElementById('consent').checked;")
+    execute("document.getElementById('export-service').click();")
+    backup_file = profile / 'mtprev-mcp-settings.json'
+    for _ in range(100):
+        if backup_file.exists() and backup_file.stat().st_size: break
+        time.sleep(.1)
+    assert backup_file.exists(), execute("return document.getElementById('status').textContent;")
+    exported = json.loads(backup_file.read_text())
+    assert exported == {'format':'mtprev-mcp-settings','version':1,'endpoint':'https://pje-mcp-worker-tjmt.joaooliveira.workers.dev/demo-only'}, exported
+    print('PASS exportar MCP gera arquivo JSON importável, sem dados de processos ou senhas de assinatura')
     execute("document.getElementById('disable-service').click();")
     time.sleep(.2)
     command('WebDriver:Refresh')

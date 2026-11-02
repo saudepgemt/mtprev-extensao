@@ -1,9 +1,16 @@
 *.zip
+*.zip.sha256
 outputs/
-dist/
 *.crx
 *.pem
 .DS_Store
 Thumbs.db
 node_modules/
 .local/
+
+# Somente os pacotes sem credenciais entram no GitHub.
+dist/*
+!dist/chrome-store/
+!dist/firefox/
+!dist/README.md
+mtprev-mcp-settings*.json

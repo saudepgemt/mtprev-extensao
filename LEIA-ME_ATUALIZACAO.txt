@@ -1,0 +1,31 @@
+MTPrev — Atualização do menu Configurações e dos destinatários do Acompanhamento Especial
+
+PACOTE INCREMENTAL — copie os arquivos e as pastas deste ZIP para a raiz do projeto MTPrev, substituindo os arquivos homônimos. Não é um projeto completo, nem contém a pasta .git.
+
+ALTERAÇÕES
+- Botão Configurações do menu inicial: usa a página options.html, com navegação Gmail/OAuth, MCP/PJe e Segurança. O ID mostrado é o da extensão atualmente instalada, e não um ID fixo de exemplo.
+- Configurações Gmail: remetente, OAuth, consentimento, ativação e teste de envio permanecem na página de Opções.
+- Acompanhamento Especial: seção de destinatários padrão com edição manual, lista de contas extraídas dos controles de usuário já presentes no DOM do SPA, busca e escolha de e-mail. Não acessa API nova do SPA nem supõe e-mails por nome.
+- Destinatários padrão: somente gerenciados no Acompanhamento Especial. Configurações Gmail preservam a lista existente ao salvar, sem sobrescrevê-la.
+- A seleção de um usuário cujo e-mail não aparece no SPA exige informar manualmente um e-mail confirmado.
+- Inclusões/exclusões por processo continuam funcionando.
+- Lista de runtime corrigida para incluir o módulo de cache e capa PDF, além do novo seletor de contatos, evitando duas falhas de empacotamento existentes na base recebida.
+
+COMO APLICAR
+1. Faça backup ou commit das suas alterações locais antes de copiar arquivos.
+2. Extraia este ZIP dentro da raiz do seu projeto (onde está manifest.json) e permita substituir arquivos.
+3. Execute: node --test tests/spa_mail_contacts.test.cjs tests/watch_mail_oauth.test.cjs tests/mcp_portability.test.cjs tests/store_release.test.cjs
+4. Para gerar o pacote do Chrome: node scripts/build-chrome-store.js
+5. Se estiver usando a pasta dist/chrome-store em chrome://extensions, clique Recarregar na extensão e atualize a aba SPA.
+6. No SPA, abra o menu inicial -> Configurações para conectar/autorizar Gmail e MCP/PJe. Em Acompanhar, abra Destinatários padrão dos avisos e salve os endereços.
+
+TESTES REALIZADOS SOBRE O ZIP ENVIADO
+- 94 testes totais; 88 aprovados; 6 falhas remanescentes em tests/autos_features.test.cjs (Autos/PDF), preexistentes na base enviada e não relacionadas à reorganização.
+- Os testes de empacotamento Chrome e portabilidade MCP passaram após a correção da lista de runtime.
+- Builds Chrome e Firefox executados com sucesso.
+
+LIMITAÇÃO DA SELEÇÃO SPA
+A lista de contas é obtida apenas dos campos de usuários já disponíveis no HTML do SPA aberto. Não foi identificada no código fornecido uma API SPA documentada que forneça a agenda completa e e-mails dos usuários. Se o SPA não mostrar contas ou não divulgar seus endereços, use o cadastro manual. O botão Atualizar permite reler os controles após abrir uma lista no SPA.
+
+NÃO INCLUÍDOS
+- .git, dist, arquivos .pem, credenciais locais e pacotes anteriores.

@@ -45,11 +45,16 @@
     anaJulia: { name: 'Ana Julia Basei de Paula', procuradores: 'Lucas', pecas: '100%' },
     yuri: { name: 'Yuri de Freitas Vezaro', procuradores: 'Lucas e Diego', pecas: 'Contestação, contrarrazões e petição simples' },
   });
+  const RULESET_VERSION = 'organograma-mtprev-2026-10-29-v2';
   function suggestDistribution(record = {}, documentText = '') {
     // Só metadados de assunto/classe fundamentam o encaminhamento por matéria.
     // Documentos podem reforçar a conferência, mas não gerar um destinatário por si só.
-    const matter = norm([record.assunto, record.actionClass].filter(Boolean).join(' '));
-    const action = norm([record.manifestationSuggested, record.lastProgress].filter(Boolean).join(' '));
+    // O SPA2 nem sempre usa os mesmos nomes nas colunas. Ler apenas
+    // campos que descrevem assunto/classe/peça, nunca inferir matéria pelo CNJ.
+    const matter = norm([record.assunto || record.assuntoPrincipal || record.subject || record.mainSubject,
+      record.actionClass || record.classe || record.classeProcessual].filter(Boolean).join(' '));
+    const action = norm([record.manifestationSuggested || record.manifestacaoSugerida || record.suggestedAction,
+      record.lastProgress].filter(Boolean).join(' '));
     const document = norm(documentText).slice(0, 1500);
     const raw = [matter, action].filter(Boolean).join(' ');
     const candidates = [];
@@ -62,7 +67,8 @@
     const has = (scope, re) => re.test(scope);
     const execution = has(matter, /\bexecuc(?:ao|oes)\b|\bcumprimento individual\b/);
     const collective = has(matter, /\bcoletiv[ao]s?\b|\bsentenca coletiva\b/);
-    const appeal = has(raw, /\brecurso(?:s)?\b|\bagrav[os]\b|\bapelac(?:ao|oes)\b|\bembarg[os]\b/);
+    const appeal = has(norm([matter, record.manifestationSuggested || record.manifestacaoSugerida].filter(Boolean).join(' ')),
+      /\brecurso(?:s)?\b|\bagrav(?:o|os)\b|\bapelac(?:ao|oes)\b|\bembarg(?:o|os)\b/);
     const honorary = has(matter, /\bhonorari(?:o|os)\b/) && has(matter, /\bexecuc(?:ao|oes)\b|\bcumprimento\b/);
     const pensionDeath = has(matter, /\bpensao por morte\b/);
     const pensionSpecial = pensionDeath && has(matter, /\bsubsidio\b|\bvida funcional\b|\binstituidor\b/);
@@ -88,8 +94,9 @@
     if (nonSickContrib && appeal) add('contrib_nao_doente_recurso', ['gabrielle'], 'Matéria / peça', 'Recurso de contribuição não doente.', 'Assunto/classe e manifestação do SPA');
     else if (nonSickContrib) add('contrib_nao_doente', ['yuri'], 'Matéria / peça', 'Contribuição não doente (civil ou militar).', 'Assunto ou classe do SPA');
     else if (sickContrib || retirement || residual) add('materias_maria_ana', ['maria', 'anaJulia'], 'Matéria / peça', 'Aposentadoria, residual civil/militar ou contribuição doente.', 'Assunto ou classe do SPA');
-    else if (incomeTax) add('ir', ['clarissa'], 'Matéria / peça', 'Imposto de Renda.', 'Assunto ou classe do SPA',
-      judgementAppeal ? 'O organograma exclui recursos de acórdãos da cobertura de peças. Conferir responsável.' : 'Peças: todas, inclusive recurso de decisão monocrática; exceto recurso de acórdão.');
+    else if (incomeTax && !sickContrib && !judgementAppeal) add('ir', ['clarissa'], 'Matéria / peça', 'Imposto de Renda.', 'Assunto ou classe do SPA',
+      'Peças: todas, inclusive recurso de decisão monocrática; exceto recurso de acórdão.');
+    if (incomeTax && judgementAppeal) notes.push('A proposta exclui recursos de acórdãos da distribuição de Imposto de Renda para Clarissa; conferir o responsável antes de encaminhar.');
     if (incomeTax && sickContrib) {
       notes.push('Contribuição doente com IR: priorizar o enquadramento específico de matéria compartilhada; conferir eventual atuação separada em IR.');
     }
@@ -98,7 +105,7 @@
       if (confirmAgenda) add('confirmar_pauta', ['anaClara'], 'Triagem / providência', 'Confirmar pauta de julgamento.', 'Manifestação ou último andamento do SPA');
       // O organograma prevê pauta como matéria para duas assessoras, mas
       // confirmação da pauta é providência de triagem distinta.
-      if (!pensionDeath && !execution && !nonSickContrib && !sickContrib && !incomeTax)
+      if (!confirmAgenda && !pensionDeath && !execution && !nonSickContrib && !sickContrib && !incomeTax)
         add('pauta_materia', ['maria', 'anaJulia'], 'Matéria / peça', 'Pauta de julgamento.', 'Assunto/manifestações do SPA', 'Distinguir elaboração de peça da mera confirmação da pauta.');
     }
     if (has(matter, /\bmandado de seguranca\b|\b ms\b/)) add('mandado_seguranca', ['yuri'], 'Matéria / peça', 'Mandado de segurança (MS).', 'Assunto ou classe do SPA');
@@ -113,12 +120,14 @@
     if (has(action, /\btriagem\b/) && !candidates.length) {
       notes.push('Triagem genérica consta para Diego Metello, Ana Clara Ramos e Thais Pereira; o organograma não estabelece divisão exclusiva entre eles.');
     }
+    if (!matter && !action) notes.push('O SPA2 não forneceu assunto, classe ou manifestação: número CNJ e ID do expediente não bastam para distribuir. Confira os dados do processo.');
     if (!matter && document) notes.push('Há texto documental, mas assunto/classe não constam nos metadados do SPA: encaminhamento automático não sugerido. Conferir o documento.');
     if (!candidates.length) notes.push('Matéria ou tipo de peça não enquadrados de forma suficiente na proposta. Revisar manualmente.');
     if (candidates.length > 1) notes.push('Mais de uma regra foi acionada. Conferir matéria, peça e etapa antes de escolher o destino.');
     if (candidates.some(item => item.assessores.length > 1)) notes.push('A matéria aparece para mais de uma assessora. O organograma não define critério de divisão de carga; não foi escolhido um nome automaticamente.');
     return { source: 'Proposta — Organograma Diretoria Jurídica MTPrev — TRIAGEM, p. 1',
-      candidates, notes, requiresHumanReview: true, writesToSpa: false };
+      candidates, notes, input: {hasMatter: Boolean(matter), hasAction: Boolean(action), matter: matter.slice(0,300), action: action.slice(0,300)},
+      rulesetVersion: RULESET_VERSION, requiresHumanReview: true, writesToSpa: false };
   }
   function diagnose(record = {}, documentText = '') {
     const evidence = [];
@@ -178,5 +187,5 @@
       suggestedPiece: hasSpaPiece ? `Informada no SPA: ${spaPiece} — conferir adequação ao expediente` : 'Necessita conferência humana; não definida por palavras-chave', priorities, evidence, manualChecks, requiresHumanReview: true,
       deadline: record.pjeDeadline || 'Não informado; conferir SPA/PJe', deadlineStatus: record.deadlineStatus || 'Não identificado; conferir SPA/PJe', documentRead: Boolean(documentText), distribution: suggestDistribution(record, documentText) };
   }
-  globalThis.MTPrevTriageRules = Object.freeze({ norm, recipient, diagnose, suggestDistribution, procedures: PROCEDURES.map(([name,,stages]) => ({ name, stages })) });
+  globalThis.MTPrevTriageRules = Object.freeze({ version: RULESET_VERSION, norm, recipient, diagnose, suggestDistribution, procedures: PROCEDURES.map(([name,,stages]) => ({ name, stages })) });
 })();
