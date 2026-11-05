@@ -144,13 +144,14 @@ test('Triagem sem adaptador preserva confirmacao, cancelamento e verificacao do 
   await assert.rejects(context.confirmTriageAction('Classificar', records, () => false), /O processo mudou/);
 });
 
-test('Firefox inicia mensagens e armazenamento sem alarme periódico', async () => {
+test('Firefox inicia mensagens, armazenamento e alarme de consulta diaria', async () => {
   const { run, context, listeners, alarms } = backgroundContext();
   run('js/shared/mtprev_triage_rules.js');
   run('js/background.js');
   run('js/process_watch_background.js');
   await new Promise(setImmediate);
-  assert.equal(alarms.has('cdsp-process-watch'), false);
+  assert.equal(alarms.has('cdsp-process-watch'), true);
+  assert.equal(alarms.get('cdsp-process-watch').periodInMinutes, 1440);
   const config = await context.getRoutineConfig();
   assert.equal(config.active, false);
   const reply = await new Promise((resolve) => {
@@ -167,7 +168,7 @@ test('Chrome continua importando as dependencias pelo service worker', () => {
   const imported = [];
   context.importScripts = (file) => { imported.push(file); run(`js/${file}`); };
   run('js/background.js');
-  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'vendor/pdf.min.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
+  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'vendor/pdf.min.js', 'watch_mail_template.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
   assert.equal(listeners.length, 3);
   assert.ok(context.pdfjsLib.getDocument);
 });

@@ -1,101 +1,200 @@
-/* MTPrev - alertas do acompanhamento por Microsoft Graph (OAuth 2.0 PKCE).
- * Opcional. Sem client secret. Token em chrome.storage.session, nunca em pagina SPA.
- * Registro do aplicativo Microsoft Entra e consentimento Mail.Send obrigatorios.
+/* MTPrev — Gmail API para alertas processuais.
+ * OAuth da extensão Chrome (chrome.identity): nenhuma senha nem token no SPA.
+ * ATENÇÃO: execução apenas no perfil que autorizou o remetente; sem backend 24h.
  */
 (() => {
   'use strict';
-  const CONFIG_KEY = 'MTPREV_WATCH_MAIL_OAUTH_CONFIG_V1';
-  const SESSION_KEY = 'MTPREV_WATCH_MAIL_OAUTH_SESSION_V1';
-  const scopes = 'openid offline_access Mail.Send';
-  const settingsUrl = chrome.runtime.getURL('options.html');
-  const authRedirect = () => chrome.identity.getRedirectURL('mtprev-mail');
-  const enc64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
-  const safeId = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
-  const emailValid = value => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(value||'')) && String(value).length < 255;
-  async function config() {
-    return (await chrome.storage.local.get(CONFIG_KEY))[CONFIG_KEY] || {};
+  const CONFIG_KEY = 'MTPREV_WATCH_GMAIL_CONFIG_V1';
+  const SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+  const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
+  const EMAIL_RE = /^[^\s@<>;,\r\n]+@[^\s@<>;,\r\n]+\.[^\s@<>;,\r\n]+$/;
+  const maxRecipients = 40;
+  const cleanEmail = value => String(value || '').trim().toLowerCase();
+  function parseEmails(value) {
+    const values = Array.isArray(value) ? value : String(value || '').split(/[\n,;]+/);
+    const unique = new Set();
+    for (const raw of values) {
+      const mail = cleanEmail(raw);
+      if (!mail) continue;
+      if (!EMAIL_RE.test(mail) || mail.length > 254) throw new Error('Endereço de e-mail inválido: ' + mail.slice(0, 100));
+      unique.add(mail);
+    }
+    if (unique.size > maxRecipients) throw new Error(`Limite de ${maxRecipients} destinatários por grupo.`);
+    return [...unique];
   }
-  async function session() {
-    return (await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY] || {};
+  async function config() { return (await chrome.storage.local.get(CONFIG_KEY))[CONFIG_KEY] || {}; }
+  function clientReady() {
+    const clientId = chrome.runtime.getManifest()?.oauth2?.client_id || '';
+    return /^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId);
   }
-  async function setSession(data) {await chrome.storage.session.set({[SESSION_KEY]: data});}
-  function requireConfig(c) {
-    if(!safeId(c.clientId) || !(safeId(c.tenant) || c.tenant === 'organizations')) throw new Error('Informe o Client ID e o Tenant ID do registro Microsoft Entra.');
-    if(!emailValid(c.recipient)) throw new Error('Informe um destinatário de e-mail válido.');
-    return c;
+  function requireSender(c) {
+    const sender = cleanEmail(c.sender);
+    if (!EMAIL_RE.test(sender)) throw new Error('Informe o e-mail institucional remetente nas configurações.');
+    if (!clientReady()) throw new Error('Falta inserir o Client ID OAuth do Google Cloud em manifest.json (campo oauth2.client_id).');
+    return sender;
   }
-  async function requestToken(tenant, data) {
-    const response=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`, {
-      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams(data),cache:'no-store'
+  async function getToken(interactive = false) {
+    const result = await chrome.identity.getAuthToken({ interactive });
+    const token = typeof result === 'string' ? result : result?.token;
+    if (!token) throw new Error('O Google não forneceu token. Confira o OAuth e o ID da extensão.');
+    return token;
+  }
+  async function profileEmail(token) {
+    const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: {Authorization: `Bearer ${token}`}, cache: 'no-store'
     });
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok || !result.access_token) throw new Error('Autenticação Microsoft não concluída: '+String(result.error_description||result.error||response.status).slice(0,260));
-    return result;
+    if (!response.ok) throw new Error('Não foi possível verificar a identidade do remetente Google (HTTP ' + response.status + ').');
+    const info = await response.json();
+    if (!info.email || info.email_verified !== true) throw new Error('Google não confirmou o endereço do remetente.');
+    return cleanEmail(info.email);
+  }
+  async function authorizedToken(c, interactive = false) {
+    const expected = requireSender(c);
+    const token = await getToken(interactive);
+    const actual = await profileEmail(token);
+    if (actual !== expected) {
+      await chrome.identity.removeCachedAuthToken({token}).catch(() => {});
+      throw new Error(`A conta Google conectada (${actual}) difere do remetente configurado (${expected}).`);
+    }
+    return token;
   }
   async function connect() {
-    const c=requireConfig(await config());
-    const verifier=enc64url(crypto.getRandomValues(new Uint8Array(32)));
-    const challenge=enc64url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
-    const state=enc64url(crypto.getRandomValues(new Uint8Array(20)));
-    const redirect=authRedirect();
-    const authorization=new URL(`https://login.microsoftonline.com/${encodeURIComponent(c.tenant)}/oauth2/v2.0/authorize`);
-    for(const [key,value] of Object.entries({client_id:c.clientId,response_type:'code',redirect_uri:redirect,response_mode:'query',scope:scopes,state,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'})) authorization.searchParams.set(key,value);
-    const result=await chrome.identity.launchWebAuthFlow({url:authorization.toString(),interactive:true});
-    if(!result) throw new Error('Autorização cancelada.');
-    const url=new URL(result);
-    if(url.origin!==new URL(redirect).origin || url.pathname!==new URL(redirect).pathname || url.searchParams.get('state')!==state) throw new Error('Redirecionamento OAuth ou estado inválido.');
-    const code=url.searchParams.get('code');
-    if(!code) throw new Error('A Microsoft não autorizou a conexão: '+String(url.searchParams.get('error_description')||'sem código').slice(0,260));
-    const token=await requestToken(c.tenant,{client_id:c.clientId,scope:scopes,code,redirect_uri:redirect,grant_type:'authorization_code',code_verifier:verifier});
-    await setSession({accessToken:token.access_token,refreshToken:token.refresh_token||'',expiresAt:Date.now()+Math.max(0,(Number(token.expires_in)||3600)-90)*1000,clientId:c.clientId,tenant:c.tenant});
-    return {ok:true,message:'Conta Microsoft conectada. Os tokens são mantidos somente na sessão deste navegador.'};
+    const c = await config();
+    await authorizedToken(c, true);
+    return {ok: true, message: `Google autorizado para envio como ${cleanEmail(c.sender)}. O acesso fica neste perfil do Chrome.`};
   }
-  async function tokenFor(c) {
-    const s=await session();
-    if(s.clientId!==c.clientId || s.tenant!==c.tenant) throw new Error('Conecte novamente a conta Microsoft nas opções.');
-    if(s.accessToken && Number(s.expiresAt)>Date.now()+30000) return s.accessToken;
-    if(!s.refreshToken) throw new Error('Sessão Microsoft expirada. Reconecte nas opções.');
-    const token=await requestToken(c.tenant,{client_id:c.clientId,scope:scopes,refresh_token:s.refreshToken,grant_type:'refresh_token'});
-    await setSession({accessToken:token.access_token,refreshToken:token.refresh_token||s.refreshToken,expiresAt:Date.now()+Math.max(0,(Number(token.expires_in)||3600)-90)*1000,clientId:c.clientId,tenant:c.tenant});
-    return token.access_token;
+  async function disconnect() {
+    await chrome.identity.clearAllCachedAuthTokens();
+    return {ok:true, message:'Autorização do Google desconectada neste perfil do Chrome.'};
   }
-  async function sendMail(subject,body,{manual=false}={}) {
-    const c=requireConfig(await config());
-    if(!manual && !(c.enabled===true && c.consent===true)) return {skipped:true,reason:'Alertas automáticos desativados.'};
-    const bearer=await tokenFor(c);
-    const response=await fetch('https://graph.microsoft.com/v1.0/me/sendMail',{
-      method:'POST',headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json'},
-      body:JSON.stringify({message:{subject:String(subject).slice(0,200),body:{contentType:'Text',content:String(body).slice(0,10000)},toRecipients:[{emailAddress:{address:c.recipient}}]},saveToSentItems:true}),
-      cache:'no-store'
-    });
-    if(response.status!==202) {
-      const error=await response.text().catch(()=> '');
-      throw new Error(`Microsoft Graph HTTP ${response.status}: `+error.replace(/Bearer\s+\S+/ig,'[oculto]').slice(0,260));
+  function recipientsFor(c, record) {
+    const defaults = parseEmails(c.defaults || []);
+    const extra = parseEmails(record?.mail?.extra || []);
+    const excluded = new Set(parseEmails(record?.mail?.excluded || []));
+    if (record?.mail?.enabled === false) return [];
+    const result = [...new Set([...defaults, ...extra])].filter(address => !excluded.has(address));
+    if (result.length > maxRecipients) throw new Error(`No máximo ${maxRecipients} destinatários por processo.`);
+    return result;
+  }
+  function base64url(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
     }
-    return {ok:true,accepted:true}; // HTTP 202 = aceito para envio, não entrega confirmada.
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
-  async function notify(record,items) {
-    const c=await config();
-    if(!c.enabled || !c.consent || !Array.isArray(items) || !items.length) return {skipped:true};
-    const content=[`Processo judicial: ${String(record.number||'').replace(/\D/g,'')}`,`Verificação: ${new Date().toLocaleString('pt-BR')}`,'',...items.slice(0,20).map(item=>String(item).slice(0,500)),'','Notificação automática MTPrev. Verifique os autos oficiais antes de qualquer providência.'].join('\n');
-    return sendMail(`MTPrev | ${items.length} nova(s) movimentação(ões) no processo ${String(record.number||'')}`,content);
+  function mime64(value) {
+    const bytes = new TextEncoder().encode(String(value).slice(0, 75000));
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return btoa(binary).match(/.{1,76}/g)?.join('\r\n') || '';
+  }
+  function buildRaw(sender, to, subject, payload) {
+    const safeSubject = String(subject).replace(/[\r\n]/g, ' ').slice(0, 240);
+    // RFC 2047: encoded-words curtas para nomes/assuntos longos com acentos.
+    const parts = [];
+    let word = '';
+    for (const char of safeSubject) {
+      const trial = word + char;
+      if (new TextEncoder().encode(trial).length > 36 && word) {parts.push(word); word = char;}
+      else word = trial;
+    }
+    if (word) parts.push(word);
+    const subj = parts.map(part => '=?UTF-8?B?' + btoa(String.fromCharCode(...new TextEncoder().encode(part))) + '?=').join('\r\n ');
+    const text = typeof payload === 'object' ? payload.plain : String(payload);
+    const html = typeof payload === 'object' ? payload.html : null;
+    const boundary = 'mtprev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+    const message = [
+      `To: ${sender}`,
+      `Bcc: ${to.join(', ')}`,
+      `Subject: ${subj}`,
+      'MIME-Version: 1.0',
+      ...(html ? [`Content-Type: multipart/alternative; boundary="${boundary}"`, '',
+        `--${boundary}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', mime64(text),
+        `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', mime64(html),
+        `--${boundary}--`, '']
+      : ['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', mime64(text), ''])
+    ].join('\r\n');
+    return base64url(new TextEncoder().encode(message));
+  }
+  async function send(c, recipients, subject, payload, {manual = false} = {}) {
+    if (!manual && !(c.enabled === true && c.consent === true)) return {skipped:true, reason:'Alertas automáticos desativados.'};
+    if (c.consent !== true) throw new Error('Confirme a autorização para transmitir informações via Gmail API antes do envio.');
+    if (!recipients.length) return {skipped:true, reason:'Nenhum destinatário habilitado para este processo.'};
+    const raw = buildRaw(requireSender(c), recipients, subject, payload);
+    let token = await authorizedToken(c, false);
+    const post = () => fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method:'POST', headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json'},
+      body:JSON.stringify({raw}), cache:'no-store'
+    });
+    let response = await post();
+    if (response.status === 401) {
+      await chrome.identity.removeCachedAuthToken({token});
+      token = await authorizedToken(c, false);
+      response = await post();
+    }
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(`Gmail API HTTP ${response.status}: ${String(error?.error?.message || 'verifique permissões e conta remetente').slice(0, 180)}`);
+    }
+    const sent = await response.json().catch(() => ({}));
+    if (!sent.id) throw new Error('A Gmail API não confirmou o identificador da mensagem enviada.');
+    return {ok:true, accepted:true, provider:'Gmail', messageId:sent.id, count:recipients.length};
+  }
+  function template(record, items, test = false) {
+    const builder = globalThis.MTPrevMailTemplate?.build;
+    if (!builder) throw new Error('Modelo HTML de notificações não foi carregado.');
+    return builder(record, items, {test});
+  }
+  async function notify(record, items) {
+    const c = await config();
+    if (!c.enabled || !c.consent || !Array.isArray(items) || !items.length) return {skipped:true};
+    const to = recipientsFor(c, record);
+    const content = template(record, items);
+    return send(c, to, content.subject, content);
+  }
+  async function preview(record) {
+    const c = await config();
+    const content = record ? template(record, [], true) : null;
+    return {ok:true, recipients:recipientsFor(c, record), sender:cleanEmail(c.sender), consent:c.consent === true,
+      enabled:c.enabled === true, clientReady:clientReady(), processNumber:record?.number || null,
+      movementAvailable:content?.hasMovement || false, subject:content?.subject || ''};
+  }
+  async function test(record) {
+    const c = await config();
+    const to = recipientsFor(c, record);
+    let subject = '[Acompanhamento Especial] Teste de envio Gmail';
+    let payload = 'Teste de conexão solicitado manualmente nas configurações da MTPrev. Nenhum dado processual foi incluído.';
+    if (record) {
+      const content = template(record, [], true);
+      if (!content.hasMovement) throw new Error('Este processo ainda não possui movimentação salva. Execute Verificar agora antes de testar.');
+      subject = '[TESTE] ' + content.subject;
+      payload = content;
+    }
+    const result = await send(c, to, subject, payload, {manual:true});
+    if (result.skipped) throw new Error(result.reason);
+    return {ok:true, message:`A Gmail API aceitou o teste para ${result.count} destinatário(s). Isso não garante a entrega.`, recipients:to};
   }
   async function status() {
-    const c=await config(),s=await session();
-    return {ok:true,configured:safeId(c.clientId)&&!!c.recipient,connected:s.clientId===c.clientId&&s.tenant===c.tenant&&!!(s.accessToken||s.refreshToken),enabled:c.enabled===true,redirect:authRedirect()};
+    const c = await config();
+    return {ok:true, clientReady:clientReady(), sender:cleanEmail(c.sender), configured:clientReady() && EMAIL_RE.test(cleanEmail(c.sender)), enabled:c.enabled === true, consent:c.consent === true,
+      message:clientReady() ? 'OAuth configurado no manifesto. Conecte o Gmail para autorizar.' : 'Informe o Client ID OAuth no manifest.json antes de conectar.'};
   }
-  chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-    if(!message?.type?.startsWith('MTPREV_MAIL_OAUTH_')) return false;
-    if(sender.id!==chrome.runtime.id || sender.url!==settingsUrl) {respond({ok:false,error:'Acesso restrito às opções da extensão.'});return false;}
-    const op=async()=>{
-      if(message.type==='MTPREV_MAIL_OAUTH_CONNECT') return connect();
-      if(message.type==='MTPREV_MAIL_OAUTH_STATUS') return status();
-      if(message.type==='MTPREV_MAIL_OAUTH_DISCONNECT') {await chrome.storage.session.remove(SESSION_KEY);return {ok:true,message:'Sessão de e-mail desconectada.'};}
-      if(message.type==='MTPREV_MAIL_OAUTH_TEST') {await sendMail('MTPrev | teste de notificação','Esta mensagem foi enviada por solicitação explícita nas opções do MTPrev.',{manual:true});return{ok:true,message:'Microsoft Graph aceitou a mensagem (HTTP 202). Confira a caixa de destino.'};}
-      throw new Error('Ação desconhecida.');
+  const settingsUrl = chrome.runtime.getURL('options.html');
+  chrome.runtime.onMessage.addListener((message, sender, respond) => {
+    if (!message?.type?.startsWith('MTPREV_MAIL_OAUTH_')) return false;
+    if (sender.id !== chrome.runtime.id || sender.url !== settingsUrl) {
+      respond({ok:false,error:'Acesso permitido somente na página de opções da extensão.'});return false;
+    }
+    const op = async () => {
+      if (message.type === 'MTPREV_MAIL_OAUTH_CONNECT') return connect();
+      if (message.type === 'MTPREV_MAIL_OAUTH_DISCONNECT') return disconnect();
+      if (message.type === 'MTPREV_MAIL_OAUTH_STATUS') return status();
+      if (message.type === 'MTPREV_MAIL_OAUTH_TEST') return test(null);
+      throw new Error('Ação OAuth desconhecida.');
     };
-    op().then(respond,e=>respond({ok:false,error:e?.message||'Falha na autenticação OAuth.'}));return true;
+    op().then(respond, err => respond({ok:false,error:err?.message || 'Falha na conexão Google.'}));
+    return true;
   });
-  globalThis.MTPrevWatchMail={notify,CONFIG_KEY};
+  globalThis.MTPrevWatchMail = {notify, test, preview, status, parseEmails, recipientsFor, CONFIG_KEY, SCOPE, EMAIL_SCOPE};
 })();

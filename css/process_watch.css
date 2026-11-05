@@ -182,3 +182,37 @@
 #cdsp-process-watch .cdsp-watch-source-slot > #spa-cdsp-external-docs-panel {width:100%!important;max-width:100%!important;margin:0!important;}
 /* Placa de fundo para garantir contraste da logomarca. */
 #cdsp-process-watch .cdsp-watch-header img {object-fit:contain;background:#102d43;border:1px solid rgba(96,202,229,.48);border-radius:12px;padding:5px 7px;box-sizing:border-box;width:82px;height:50px;}
+
+/* Gmail: configurações globais e exceções por processo, sem fundos nos ícones. */
+#cdsp-process-watch .cdsp-watch-mail-fields textarea,
+#cdsp-process-watch .cdsp-watch-mail-per-process textarea {
+  box-sizing:border-box;width:100%;min-height:66px;padding:9px 11px;resize:vertical;
+  border-radius:8px;border:1px solid #9cb5c8;background:#fff;color:#18334b;
+  font:12px/1.5 system-ui,sans-serif;
+}
+#cdsp-process-watch .cdsp-watch-mail-per-process {margin:13px 0;border:1px solid #abc3d3;border-radius:10px;background:#eef5f9;}
+#cdsp-process-watch .cdsp-watch-mail-per-process > summary {cursor:pointer;padding:10px 12px;font-size:12px;font-weight:750;color:#24455d;}
+#cdsp-process-watch .cdsp-watch-mail-per-process-body {padding:0 12px 12px;display:grid;gap:9px;color:#25465e;}
+#cdsp-process-watch .cdsp-watch-mail-label {font-size:12px;font-weight:700;color:#25465e;display:block;}
+#cdsp-process-watch .cdsp-watch-mail-exclusions {border:1px solid #c9d9e5;border-radius:9px;margin:0;padding:9px 10px;display:grid;gap:6px;min-width:0;}
+#cdsp-process-watch .cdsp-watch-mail-exclusions legend {font-size:11px;font-weight:650;padding:0 6px;color:#365972;}
+#cdsp-process-watch .cdsp-watch-mail-check {display:flex;align-items:center;gap:8px;font-size:12px;color:#29465e;overflow-wrap:anywhere;cursor:pointer;}
+#cdsp-process-watch .cdsp-watch-mail-check input {width:auto;flex:0 0 auto;accent-color:#1878a1;}
+#cdsp-process-watch .cdsp-watch-mail-help {font-size:11px;line-height:1.5;color:#406078;margin:2px 0;}
+#cdsp-process-watch .cdsp-watch-mail-fields .cdsp-watch-card-actions,
+#cdsp-process-watch .cdsp-watch-mail-per-process .cdsp-watch-card-actions {display:flex;flex-wrap:wrap;gap:7px;margin:2px 0;}
+
+/* Progresso do envio: estados reais; sem porcentagem inventada durante a rede. */
+#cdsp-process-watch .cdsp-watch-send-progress {margin:8px 0;padding:11px 12px;border-radius:9px;border:1px solid #c4d9e7;background:#edf6fb;color:#24475f;}
+#cdsp-process-watch .cdsp-watch-send-progress[hidden] {display:none!important;}
+#cdsp-process-watch .cdsp-watch-send-caption {font-size:12px;line-height:1.5;font-weight:650;margin-bottom:7px;overflow-wrap:anywhere;}
+#cdsp-process-watch .cdsp-watch-send-bar {display:block;appearance:auto;width:100%;height:12px;accent-color:#147b97;}
+#cdsp-process-watch .cdsp-watch-send-progress[data-state="error"] {border-color:#dfaab1;background:#fff1f3;color:#982e47;}
+#cdsp-process-watch .cdsp-watch-send-progress[data-state="success"] {border-color:#8abeb4;background:#ecf8f3;color:#175c50;}
+#cdsp-process-watch .cdsp-watch-send-progress[data-state="idle"] {border-color:#d6e0e8;background:#f5f7fa;}
+
+/* Escolha de destinatários a partir dos controles de usuários realmente visíveis no SPA. */
+#cdsp-process-watch .cdsp-watch-spa-contacts {display:grid;gap:8px;padding:11px;background:#edf5fa;border:1px solid #cbdde9;border-radius:10px;min-width:0;}
+#cdsp-process-watch .cdsp-watch-spa-contacts input,
+#cdsp-process-watch .cdsp-watch-spa-contacts select {width:100%;min-width:0;box-sizing:border-box;border:1px solid #9cb5c8;border-radius:8px;background:#fff;color:#18334b;padding:9px 11px;font:12px/1.5 system-ui,sans-serif;}
+#cdsp-process-watch .cdsp-watch-spa-contacts .cdsp-watch-mail-help {margin:0;}

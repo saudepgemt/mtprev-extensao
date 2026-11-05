@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.72",
-  "version_name": "2.72",
+  "version": "2.0.73",
+  "version_name": "2.73",
   "minimum_chrome_version": "116",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
@@ -26,8 +26,8 @@
     "https://www.sigadoc.mt.gov.br/*",
     "https://sigadoc.mt.gov.br/*",
     "https://docs.google.com/*",
-    "https://login.microsoftonline.com/*",
-    "https://graph.microsoft.com/*"
+    "https://gmail.googleapis.com/*",
+    "https://openidconnect.googleapis.com/*"
   ],
   "background": {
     "service_worker": "js/background.js"
@@ -55,6 +55,7 @@
         "js/shared/spa_adapter.js",
         "js/radial_menu.js",
         "js/content_bridge.js",
+        "js/shared/spa_mail_contacts.js",
         "js/process_watch_panel.js",
         "js/extrator/content.js"
       ],
@@ -115,5 +116,12 @@
       "48": "images/icon-mtprev48.png",
       "128": "images/icon-mtprev128.png"
     }
+  },
+  "oauth2": {
+    "client_id": "561685887068-u6cu081kjuolflgnn09cmitktqk7cigl.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/userinfo.email"
+    ]
   }
 }

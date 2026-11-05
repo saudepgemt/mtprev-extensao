@@ -1,37 +1,83 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const vm=require('node:vm');
-const {webcrypto}=require('node:crypto');
-const script=fs.readFileSync(path.resolve(__dirname,'../js/watch_mail_oauth.js'),'utf8');
-test('OAuth prepara PKCE, guarda somente tokens de sessão e só envia mediante opt-in',async()=>{
-  const CONFIG='MTPREV_WATCH_MAIL_OAUTH_CONFIG_V1';
-  let urlCalled='', graphCalls=0, local={}, inSession={};
-  let listener;
-  const chrome={runtime:{id:'abcde',getURL:file=>`chrome-extension://abcde/${file}`,onMessage:{addListener:fn=>listener=fn}},
-    identity:{getRedirectURL:path=>`https://abcde.chromiumapp.org/${path}`,launchWebAuthFlow:async({url})=>{urlCalled=url;const request=new URL(url);assert.equal(request.searchParams.get('code_challenge_method'),'S256');return `https://abcde.chromiumapp.org/mtprev-mail?code=fake-code&state=${request.searchParams.get('state')}`;}},
-    storage:{local:{get:async key=>({[key]:local[key]}),set:async value=>Object.assign(local,value)},session:{get:async key=>({[key]:inSession[key]}),set:async value=>Object.assign(inSession,value),remove:async key=>delete inSession[key]}}
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const source = fs.readFileSync(path.join(__dirname, '../js/watch_mail_oauth.js'), 'utf8');
+const templateSource = fs.readFileSync(path.join(__dirname, '../js/watch_mail_template.js'), 'utf8');
+const validClient = '123456789-testclient.apps.googleusercontent.com';
+function setup(initial = {}, opts = {}) {
+  let tokenCalls = 0;
+  const store = {'MTPREV_WATCH_GMAIL_CONFIG_V1': initial};
+  const sent = [];
+  const browser = {
+    runtime: {id: 'hlmpphdngoibhfhlgheobekbkhabcgpj',getManifest:() => ({oauth2:{client_id:opts.clientId || validClient}}),getURL: s => 'chrome-extension://hlmpphdngoibhfhlgheobekbkhabcgpj/'+s,onMessage:{addListener() {}}},
+    storage:{local:{get:async key=>({[key]:store[key]}),set:async obj=>Object.assign(store,obj)}},
+    identity:{getAuthToken:async()=>{tokenCalls++;return {token:'token-test'};},removeCachedAuthToken:async()=>{},clearAllCachedAuthTokens:async()=>{}}
   };
-  const fetch=async url=>{
-    if(String(url).includes('/token'))return {ok:true,json:async()=>({access_token:'FAKE_TOKEN',refresh_token:'FAKE_REFRESH',expires_in:3600})};
-    if(String(url).includes('/sendMail')){graphCalls++;return {status:202};}
-    throw new Error('Unexpected URL '+url);
-  };
-  const context=vm.createContext({chrome,crypto:webcrypto,URL,URLSearchParams,Uint8Array,TextEncoder,fetch,btoa,Date,console});
-  vm.runInContext(script,context);
-  local[CONFIG]={clientId:'00000000-1111-2222-3333-444444444444',tenant:'00000000-1111-2222-3333-444444444444',recipient:'alerta@example.org',enabled:false,consent:false};
-  const message=(type)=>new Promise(resolve=>listener({type},{id:'abcde',url:'chrome-extension://abcde/options.html'},resolve));
-  const connected=await message('MTPREV_MAIL_OAUTH_CONNECT');
-  assert.equal(connected.ok,true);
-  assert.match(urlCalled,/code_challenge=/);
-  assert.equal(!!inSession.MTPREV_WATCH_MAIL_OAUTH_SESSION_V1.accessToken,true);
-  assert.equal(JSON.stringify(local).includes('FAKE_TOKEN'),false);
-  const skipped=await context.MTPrevWatchMail.notify({number:'12345678901234567890'},['Novo andamento']);
-  assert.equal(skipped.skipped,true);
-  assert.equal(graphCalls,0);
-  local[CONFIG].enabled=true;local[CONFIG].consent=true;
-  const sent=await context.MTPrevWatchMail.notify({number:'12345678901234567890'},['Novo andamento']);
-  assert.equal(sent.accepted,true);
-  assert.equal(graphCalls,1);
+  const context = {chrome: browser, globalThis:null,TextEncoder, btoa, Date, console,
+    fetch: async (url, args) => {
+      if (url.includes('userinfo')) return {ok:true,json:async()=>({email: opts.actual || 'remetente@org.gov.br',email_verified:true})};
+      if (url.includes('/messages/send')) {sent.push(JSON.parse(args.body));return {ok:true,json:async()=>({id:'gmail-message-abc'})};}
+      throw new Error('URL não reconhecida');
+    }};
+  context.globalThis = context;
+  vm.runInNewContext(templateSource, context);
+  vm.runInNewContext(source, context);
+  return {api:context.MTPrevWatchMail, sent, getTokenCalls:()=>tokenCalls,store};
+}
+const base = {sender:'remetente@org.gov.br',defaults:['a@org.gov.br','b@org.gov.br'],enabled:true,consent:true};
+test('destinatários padrão: cada processo pode excluir e acrescentar sem alterar padrões', async()=>{
+  const {api,store}=setup(base);
+  const item={number:'12345678901234567890',mail:{enabled:true,extra:['c@gmail.com','a@org.gov.br'],excluded:['b@org.gov.br']}};
+  const preview=await api.preview(item);
+  assert.equal(preview.recipients.join(','),'a@org.gov.br,c@gmail.com');
+  assert.equal(store.MTPREV_WATCH_GMAIL_CONFIG_V1.defaults.join(','),'a@org.gov.br,b@org.gov.br');
+  assert.equal((await api.preview({mail:{enabled:false}})).recipients.length,0);
+});
+test('e-mail inválido ou excesso de destinatários são rejeitados',()=>{
+  const {api}=setup();
+  assert.throws(()=>api.parseEmails('alguem@gmail.com\r\nBcc: malicioso'), /inválido/);
+  assert.throws(()=>api.parseEmails(Array.from({length:41},(_,i)=>`test${i}@org.gov.br`)),/Limite/);
+});
+test('primeira conexão do Gmail verifica que o remetente é o mesmo autorizado',async()=>{
+  const {api,getTokenCalls}=setup(base,{actual:'outro@org.gov.br'});
+  await assert.rejects(()=>api.test(null),/difere do remetente/);
+  assert.equal(getTokenCalls(),1);
+});
+test('teste explícito de processo envia a ultima movimentação em HTML e Bcc',async()=>{
+  const {api,sent}=setup(base);
+  const result=await api.test({number:'12345678901234567890',subject:'Aposentadoria', parties:'Pessoa A e MTPrev',expedienteId:'41858970',latestMovement:{date:'20261029',description:'Juntada de petição',code:'202'},mail:{extra:['extra@gmail.com'],excluded:['b@org.gov.br']}});
+  assert.equal(result.recipients.length,2);
+  assert.equal(sent.length,1);
+  const mime=Buffer.from(sent[0].raw.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');
+  assert.match(mime,/To: remetente@org.gov.br/);
+  assert.match(mime,/Bcc: a@org.gov.br, extra@gmail.com/);
+  assert.match(mime,/multipart\/alternative/);
+  assert.match(mime,/text\/html; charset=UTF-8/);
+  const html64 = mime.match(/Content-Type: text\/html; charset=UTF-8\r?\nContent-Transfer-Encoding: base64\r?\n\r?\n([A-Za-z0-9+\/=\r\n]+)/)?.[1];
+  assert.ok(html64);
+  const html=Buffer.from(html64.replace(/\s/g,''),'base64').toString('utf8');
+  assert.match(html,/Juntada de petição/);
+  assert.match(html,/Aposentadoria/);
+  assert.match(html,/\/procedures\/41858970/);
+  assert.match(html,/Localizar processo no SPA/);
+});
+test('envio automático requer consentimento e ativação; sem OAuth não envia',async()=>{
+  const {api,sent}=setup({...base,enabled:false});
+  const result=await api.notify({number:'12345678901234567890'},['Movimentação']);
+  assert.equal(result.skipped,true);
+  assert.equal(sent.length,0);
+});
+
+test('HTML escapa dados do processo e impede links fornecidos sem ID autorizado',()=>{
+  const {api}=setup(base);
+  const ctx={globalThis:null};ctx.globalThis=ctx;vm.runInNewContext(templateSource,ctx);
+  const item={number:'12345678901234567890',subject:'<script>alert(1)</script>',parties:'A & B',expedienteId:'https://site-falso.com',latestMovement:{date:'20261029',description:'Petição <img src=x>'}};
+  const tpl=ctx.MTPrevMailTemplate.build(item,[],{test:true});
+  assert.doesNotMatch(tpl.html,/<script>|<img src=x>/);
+  assert.match(tpl.html,/&lt;script&gt;/);
+  assert.match(tpl.html,/A &amp; B/);
+  assert.doesNotMatch(tpl.html,/site-falso/);
+  assert.match(tpl.html,/procedures\/search/);
 });

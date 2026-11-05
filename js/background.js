@@ -4791,7 +4791,7 @@ async function injectManagementPanel(sender) {
     // do painel, sem criar uma segunda implementacao da coleta/consultas.
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js"],
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js", "js/shared/mtprev_workspace_cache.js"],
       world: "MAIN"
     });
     await ensureSharedReportLibraries(tabId);
@@ -4834,6 +4834,14 @@ async function injectDeadlinePanel(sender) {
       ]
     });
 
+    // A leitura da mesa SPA2 depende do adaptador no MAIN world.
+    // Sem ele, o relatório tenta a tabela legada e exige colunas inexistentes
+    // na rota /workspace (ex.: "Manifestação Sugerida").
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js", "js/shared/mtprev_workspace_cache.js"],
+      world: "MAIN"
+    });
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
@@ -5202,7 +5210,7 @@ async function injectPanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await cdspGeneralExecuteScript({
       target: { tabId },
-      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js", CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
+      files: ["js/shared/spa_selectors.js", "js/shared/spa_adapter.js", "js/shared/mtprev_workspace_cache.js", CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, "js/shared/mtprev_triage_rules.js", "js/triagem/mtprev_pop_panel.js", CDSP_GENERAL_TRIAGEM_PANEL_FILE],
       world: "MAIN"
     });
 
@@ -5263,7 +5271,7 @@ async function injectAutosIframe(sender) {
     });
     await cdspGeneralExecuteScript({
       target, world: 'MAIN',
-      files: ['js/shared/spa_selectors.js', 'js/shared/spa_adapter.js',
+      files: ['js/shared/spa_selectors.js', 'js/shared/spa_adapter.js', 'js/shared/mtprev_workspace_cache.js',
         CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, 'js/shared/mtprev_triage_rules.js',
         'js/triagem/mtprev_pop_panel.js', CDSP_GENERAL_TRIAGEM_PANEL_FILE]
     });
@@ -5324,6 +5332,31 @@ async function handleDuplicateCacheMessage(message, sender) {
   return {ok:false,error:'Operação não permitida.'};
 }
 
+// Cache compartilhado: apenas leituras completas da mesa atual, privado da extensao.
+async function handleWorkspaceCacheMessage(message, sender) {
+  const scope = message.scope;
+  if (typeof scope !== 'string' || scope.length < 20 || scope.length > 12000) return {ok:false,error:'Escopo invalido'};
+  let details, senderUrl;
+  try { details=JSON.parse(scope);senderUrl=new URL(sender.tab?.url||sender.url||''); }
+  catch (_) { return {ok:false,error:'Origem nao identificada'}; }
+  if (senderUrl.protocol!=='https:' || !['pge.mt.spa.coreplan.com.br','spa.pge.mt.gov.br'].includes(senderUrl.hostname) ||
+      details?.origin!==senderUrl.origin || details?.path!=='/workspace' || details?.version!==1 ||
+      details.userId!==(senderUrl.searchParams.get('user_id')||'')) return {ok:false,error:'Mesa ou usuario divergente'};
+  const key='MTPREV_WORKSPACE_CACHE_V1_'+duplicateCacheStorageKey(scope).slice(-8);
+  if (message.type==='SPA_CDSP_WORKSPACE_CACHE_GET') {
+    const data=(await chrome.storage.local.get(key))[key];
+    return {ok:true,collection:data?.scope===scope?data.collection:null};
+  }
+  const data=message.payload;
+  if(data?.version!==1||data?.scope!==scope||data?.coverage?.reason!=='complete'||
+     !Number.isSafeInteger(data.coverage.total)||data.coverage.total<1||
+     !Array.isArray(data.records)||data.records.length!==data.coverage.total||
+     !Number.isFinite(data.savedAt))return {ok:false,error:'Leitura incompleta ou invalida'};
+  if(JSON.stringify(data).length>2500000)return {ok:false,error:'Cache excede 2,5 MB'};
+  await chrome.storage.local.set({[key]:{scope,collection:data}});
+  return {ok:true,saved:true};
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
 
@@ -5338,6 +5371,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       : message.type === "MTPREV_SERVICE_TEST" ? testMniServiceConnection()
       : getMniServiceEndpoint().then(() => ({ ok: true }));
     action.then(sendResponse, error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === 'SPA_CDSP_WORKSPACE_CACHE_GET' || message.type === 'SPA_CDSP_WORKSPACE_CACHE_SAVE') {
+    handleWorkspaceCacheMessage(message, _sender).then(sendResponse).catch(error => sendResponse({ok:false,error:error?.message||String(error)}));
     return true;
   }
 
@@ -5676,6 +5714,7 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 if (typeof importScripts === "function") {
+  importScripts("watch_mail_template.js");
   importScripts("watch_mail_oauth.js");
   importScripts("process_watch_background.js");
 }

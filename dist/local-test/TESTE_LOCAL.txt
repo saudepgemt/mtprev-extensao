@@ -1,2 +1,0 @@
-Cópia de testes com credenciais locais. Não publicar nem compartilhar.
-A versão da loja continua separada em dist/chrome-store.
