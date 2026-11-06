@@ -17,7 +17,7 @@ const RUNTIME_FILES = [
   "js/vendor/pdf.min.js", "js/vendor/pdf.worker.min.js",
   "css/extrator.css", "css/menu.css", "css/radial_menu.css",
   "css/process_watch.css", "css/theme.css", "css/options.css",
-  "data/equipe.xlsx", "images/logo-mtprev.png",
+  "images/logo-mtprev.png",
   "images/icon-mtprev16.png", "images/icon-mtprev48.png", "images/icon-mtprev128.png",
   ...[
     "account_tree", "calendar_month", "check_circle", "close", "content_copy",

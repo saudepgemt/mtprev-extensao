@@ -1,0 +1,42 @@
+MTPrev 2.0.74 — CORREÇÃO MENU / RELATÓRIO / MCP-PJe — CHROME
+05/11/2026
+
+CAUSA DO ERRO
+O arquivo js/triagem/spa_extension_panel.js no projeto estava com o conteúdo do
+relatório de triagem, e não com o código operacional que instala o painel
+#spa-cdsp-panel. Assim os botões Triagem, Duplicados e Peças não tinham destino.
+
+CORREÇÃO
+1. Restaurado o painel operacional completo em js/triagem/spa_extension_panel.js.
+2. O relatório moderno, com revisão, assunto SPA, abertura de processo e consulta
+   de decisão, permanece no lugar correto: js/triagem/mtprev_pop_panel.js.
+3. Mantidos relatório de duplicados, busca/leitura PDF e opções da MTPrev.
+4. PJe/MCP: alternativa opcional de autenticação INDIVIDUAL na página Configurações,
+   herdada da lógica pública de integração da CDSP, SEM credenciais da CDSP.
+   O modo anterior de configurar URL do servidor MCP continua sendo o padrão.
+5. Peças: não atribui pessoas da antiga CDSP. Abrir peças e preencher os demais
+   campos é permitido, mas o responsável deve ser conferido/definido no SPA.
+   Esta mudança NÃO faz designações reais automaticamente.
+6. Manifest Chrome versão 2.0.74. Firefox fora do escopo da distribuição.
+
+INSTALAÇÃO (PACOTE INCREMENTAL)
+- Faça backup do projeto atual, principalmente se tiver alterações locais.
+- Extraia o ZIP incremental NA RAIZ do projeto MTPrev, substituindo os caminhos
+  relativos sem apagar os arquivos que não constam do ZIP.
+- Execute, dentro do projeto:
+    node --check js/triagem/spa_extension_panel.js
+    node --check js/background.js
+    node --test tests/mtprev_menu_cdsp_comparison.test.cjs
+    node scripts/build-chrome-store.js
+- Em chrome://extensions, recarregue a extensão da pasta dist/chrome-store.
+- Atualize a guia do SPA (Ctrl+R); abra Menu > Triagem, Duplicados e Peças.
+- Em Configurações, use o MCP atual; a opção individual PJe só funciona se o
+  servidor aceitar este novo cliente MTPrev. Gmail/OAuth não foi alterado.
+
+OBSERVAÇÕES
+- Os testes de integração na sessão real e a autorização PJe NÃO foram executados.
+- Última suíte de testes do projeto: 127 aprovados / 133 executados, 6 falhas
+  antigas de Autos/PDF (capa, leitura e redirecionamento).
+- O ZIP compilado Chrome é PARA TESTES; não publicar na loja antes de resolver as
+  falhas pendentes e rever permissões, política de privacidade e OAuth Gmail.
+- Não copie IDs de usuários, segredos ou configurações privadas da CDSP.

@@ -1,0 +1,34 @@
+MTPrev — Menu, Configurações MCP/PJe e e-mail sem OAuth (modo manual)
+Data: 05/11/2026
+
+ATUALIZAÇÃO INCREMENTAL — são arquivos COMPLETOS, mas apenas os modificados.
+
+1. Faça backup do projeto.
+2. Extraia este ZIP na RAIZ de mtprev-extensao, permitindo a substituição dos arquivos.
+3. Execute:
+   node --test tests/radial_settings.test.cjs tests/mcp_portability.test.cjs tests/watch_mail_oauth.test.cjs tests/settings_email_manual.test.cjs tests/spa_mail_contacts.test.cjs
+   node scripts/build-chrome-store.js
+4. No chrome://extensions, recarregue a MTPrev; no SPA, pressione Ctrl+R.
+5. No menu inicial, clique na engrenagem Configurações.
+
+AJUSTES:
+- O botão Configurações envia MTPREV_OPEN_OPTIONS ao service worker em vez de chamar openOptionsPage no content script.
+- Na página Configurações, a seção PJe/MCP explica a integração, apresenta 1º/2º grau, importa/exporta e testa a conexão.
+- O botão Usar endereço-base conhecido preenche o domínio autorizado (pode exigir caminho/chave do administrador).
+- Notificações: escolher Gmail API + OAuth (automático) OU Aplicativo de e-mail (manual, sem OAuth).
+- No modo manual, Acompanhamento Especial > dados de cada processo oferece Preparar aviso no aplicativo de e-mail.
+  A MTPrev NÃO envia em segundo plano; abre um RASCUNHO que depende da confirmação do usuário no cliente de e-mail.
+- O modo manual não usa o token OAuth, embora o manifesto deste pacote mantenha OAuth para permitir o modo automático opcional.
+
+IMPORTANTE:
+- Não armazene credenciais SMTP, tokens, senhas ou chaves privadas no JavaScript nem no manifesto.
+- Envio 100% automático sem OAuth na EXTENSÃO exige um backend de e-mail institucional autenticado.
+  Esse backend NÃO está incluído neste pacote.
+- No modo manual, o programa de e-mail precisa ter uma conta configurada. Revise o remetente e o sigilo.
+- O teste MCP local não acessa os processos: valida apenas a conexão com o servidor externo.
+- O módulo Autos/PDF e algumas rotinas legadas continuam com testes pendentes; não publicar na Chrome Web Store sem revisão.
+
+TESTES:
+- Testes críticos de menu/configurações/MCP/Gmail/manual: aprovados.
+- Bateria completa do projeto: 103/120 aprovados; 17 falhas em módulos existentes não incluídos nesta correção.
+- Verificação de opções em Chromium com integração simulada: aprovada.

@@ -37,13 +37,13 @@ test('pensão por morte usual → Gabrielle', () => {
   assert.ok(contains(result,'Gabrielle'));
   assert.ok(!contains(result,'Maria Fernanda'));
 });
-test('pensão por morte ligada à vida funcional → Maria e Ana Julia', () => {
+test('pensão por morte ligada à vida funcional → Maria e Luma', () => {
   const result = suggest('Pensão por morte - vida funcional do instituidor');
   assert.ok(contains(result,'Maria Fernanda'));
-  assert.ok(contains(result,'Ana Julia'));
+  assert.ok(contains(result,'Luma'));
   assert.ok(!contains(result,'Gabrielle'));
   const c = result.candidates.find(item=>item.id==='pensao_vida_funcional');
-  assert.deepEqual([...c.assessores].map(p=>p.procuradores),['Diego','Lucas']);
+  assert.deepEqual([...c.assessores].map(p=>p.procuradores),['Dorigatti','Miyoshi']);
 });
 test('contribuição não doente recurso → Gabrielle', () => {
   const result=suggest('Contribuição não doente - civil','Recurso ordinário');
@@ -55,10 +55,10 @@ test('contribuição não doente sem recurso → Yuri', () => {
   assert.ok(contains(result,'Yuri'));
   assert.ok(!contains(result,'Gabrielle'));
 });
-test('contribuição doente + IR → Maria e Ana Julia, não Clarissa automática', () => {
+test('contribuição doente + IR → Maria e Luma, não Clarissa automática', () => {
   const result=suggest('Contribuição doente + IR');
   assert.ok(contains(result,'Maria Fernanda'));
-  assert.ok(contains(result,'Ana Julia'));
+  assert.ok(contains(result,'Luma'));
   assert.ok(!contains(result,'Clarissa'));
 });
 test('imposto de renda → Clarissa', () => {
@@ -68,7 +68,7 @@ test('imposto de renda → Clarissa', () => {
 test('aposentadoria → responsáveis compartilhadas', () => {
   const result=suggest('Aposentadoria');
   assert.ok(contains(result,'Maria Fernanda'));
-  assert.ok(contains(result,'Ana Julia'));
+  assert.ok(contains(result,'Luma'));
   assert.ok(result.notes.some(n=>n.includes('não define critério')));
 });
 test('mandado de segurança → Yuri', () => {

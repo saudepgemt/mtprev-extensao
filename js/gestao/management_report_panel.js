@@ -16,8 +16,8 @@
       headerImageUrl: (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL ? chrome.runtime.getURL("images/logo-mtprev.png") : ""),
       iconImageUrl: "",
       teamDatabase: {
-        file: "data/equipe.xlsx",
-        mode: "base interna"
+        file: "TRIAGEM.pdf (MTPrev)",
+        mode: "referência de triagem MTPrev — setores não informados"
       },
       teamRequestTimeoutMs: 60000,
       version: "0.2.12"

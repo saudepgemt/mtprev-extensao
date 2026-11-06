@@ -3,6 +3,7 @@
 // Firefox loads these dependencies in order through background.scripts.
 if (typeof importScripts === "function") {
   importScripts("shared/mtprev_triage_rules.js");
+  importScripts("shared/mtprev_pje_individual_oauth.js");
 }
 
 // Imported after initialization below so the watcher can reuse the PJe query.
@@ -34,6 +35,7 @@ const PDF_RENDER_TEXT_TIMEOUT_MS = 9000;
 const PDF_RENDER_TEXT_POLL_MS = 600;
 const MNI_MOVEMENTS_TIMEOUT_MS = 60000;
 const MNI_SERVICE_SETTINGS_KEY = "MTPREV_SERVICE_SETTINGS";
+const MNI_INDIVIDUAL_MODE_KEY = "MTPREV_PJE_ACCESS_MODE";
 // Recurso privado disponível somente no checkout local. O build da loja desativa este caminho.
 const LOCAL_MNI_SETTINGS_PATH = ".local/test-credentials.json";
 const MNI_MCP_CONSULT_PROCESS_TOOL = "tjmt_mni_consultar_processo";
@@ -54,7 +56,7 @@ const CDSP_GENERAL_MANAGEMENT_PANEL_FILE = "js/gestao/management_report_panel.js
 const CDSP_GENERAL_DEADLINE_PANEL_FILE = "js/prazos/deadline_report_panel.js";
 const CDSP_GENERAL_TRIAGEM_PANEL_FILE = "js/triagem/spa_extension_panel.js";
 const CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE = "js/shared/active_team_database.js";
-const CDSP_GENERAL_TEAM_DATABASE_FILE = "data/equipe.xlsx";
+const CDSP_GENERAL_TEAM_DATABASE_FILE = "TRIAGEM.pdf (MTPrev; setores não informados)";
 const SIMPLE_CLOSURE_GOOGLE_DOCS_ORIGIN = "https://docs.google.com/*";
 const SIMPLE_CLOSURE_PLACEHOLDER = "INSERIR O TEXTO DO SIMPLES ENCERRAMENTO";
 const SCHEDULE_DEFAULT_INBOX_URL = "https://pge.mt.spa.coreplan.com.br/procedures";
@@ -80,28 +82,9 @@ const CDSP_OFICIOS_DB_NAME = "cdspExtratorSigadoc";
 const CDSP_OFICIOS_DB_VERSION = 1;
 const CDSP_OFICIOS_STORE_PDFS = "oficiosAssinados";
 const CDSP_OFICIOS_REMOTE_EXTRACT_TIMEOUT_MS = 45000;
-const PIECE_INTERNS = {
-  beatriz: {
-    name: "Beatriz Vitoria Miranda Silva Cerqueira",
-    value: "gid://spa/User/1379"
-  },
-  tacita: {
-    name: "Tácita Vitória Pereira Gomes",
-    value: "gid://spa/User/1307"
-  },
-  matheus: {
-    name: "Matheus Augusto Ferreira Brandão",
-    value: "gid://spa/User/1161"
-  },
-  enzo: {
-    name: "Enzo Luiz Sawiski lamin",
-    value: "gid://spa/User/1293"
-  },
-  gabrielle: {
-    name: "Gabrielle Rodrigues Silva Espindola",
-    value: "gid://spa/User/953"
-  }
-};
+// Sem IDs de profissionais validados do MTPrev para a atribuição automática de peças.
+// O preenchimento dos demais campos é mantido; o destinatário deve ser definido no SPA.
+const PIECE_INTERNS = Object.freeze({});
 
 function cdspOficiosAbrirBanco() {
   return new Promise((resolve, reject) => {
@@ -365,17 +348,38 @@ function mniHttpError(status) {
   return "Serviço PJe indisponível (HTTP " + status + "). Tente novamente mais tarde.";
 }
 
+// A conexão MCP existente continua sendo o padrão. O OAuth individual do PJe
+// é opt-in: nunca convertemos uma instalação existente automaticamente.
+async function getMniAccessMode() {
+  const value = await chrome.storage.local.get(MNI_INDIVIDUAL_MODE_KEY);
+  return value[MNI_INDIVIDUAL_MODE_KEY] === "individual" ? "individual" : "endpoint";
+}
+async function fetchMniRpc(body, signal) {
+  const options = {method:"POST",signal,
+    headers:{"Content-Type":"application/json",Accept:"application/json, text/event-stream"},
+    body:JSON.stringify(body)};
+  if (await getMniAccessMode() !== "individual") {
+    return fetch(await getMniServiceEndpoint(), options);
+  }
+  const oauth=globalThis.MTPrevPjeIndividualAuth;
+  if (!oauth) throw new Error("Módulo de autenticação individual do PJe indisponível.");
+  const execute = token => fetch(oauth.resource, {
+    ...options,headers:{...options.headers,Authorization:`Bearer ${token}`}
+  });
+  let response=await execute(await oauth.access());
+  if (response.status===401) {
+    await oauth.invalidate();
+    response=await execute(await oauth.access({forceRefresh:true}));
+  }
+  return response;
+}
+
 async function testMniServiceConnection() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const endpoint = await getMniServiceEndpoint();
     const id = "mtprev-connection-test";
-    const response = await fetch(endpoint, {
-      method: "POST", signal: controller.signal,
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/list", params: {} })
-    });
+    const response = await fetchMniRpc({jsonrpc:"2.0",id,method:"tools/list",params:{}},controller.signal);
     if (!response.ok) return { ok: false, error: mniHttpError(response.status) };
     const message = parseMcpResponse(await response.text(), id);
     if (message.error) return { ok: false, error: "O serviço respondeu, mas não foi possível confirmar a ferramenta de consulta. Confira a configuração com o administrador." };
@@ -734,32 +738,13 @@ async function fetchMniProcedureMovements(message) {
 
   try {
     const requestId = "cdsp-mni-" + Date.now();
-    const endpoint = await getMniServiceEndpoint();
-    const response = await fetch(endpoint, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream"
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: requestId,
-        method: "tools/call",
-        params: {
-          name: MNI_MCP_CONSULT_PROCESS_TOOL,
-          arguments: {
-            numeroProcesso: processNumber,
-            instancia: instance.id,
-            movimentos: true,
-            consultarExpedientes: true,
-            consultarAvisos: false,
-            incluirCabecalho: true,
-            incluirDocumentos: false
-          }
-        }
-      })
-    });
+    const response = await fetchMniRpc({
+      jsonrpc:"2.0", id:requestId, method:"tools/call",
+      params:{name:MNI_MCP_CONSULT_PROCESS_TOOL,arguments:{
+        numeroProcesso:processNumber,instancia:instance.id,movimentos:true,
+        consultarExpedientes:true,consultarAvisos:false,incluirCabecalho:true,incluirDocumentos:false
+      }}
+    },controller.signal);
     const bodyText = await response.text();
     let rpcPayload = null;
 
@@ -3913,13 +3898,12 @@ async function openPieceReportRecord(message) {
     record.classificationKey === "contestacao_possivel_agravo";
 
   if (shouldAutoFill) {
-    if (!record.internKey || !PIECE_INTERNS[record.internKey]) {
-      classification = {
-        ok: false,
-        error: "Selecione um estagiário antes de abrir/preencher contestação."
-      };
-    } else {
-      classification = await preparePieceClassificationTab(pendencyTab.id, record);
+    // A MTPrev não pode herdar automaticamente destinatários da CDSP.
+    // Preenche os demais campos compatíveis, mas exige seleção manual do usuário no SPA.
+    classification = await preparePieceClassificationTab(pendencyTab.id, record);
+    if (classification) {
+      classification.needsManualAssignee = true;
+      classification.notice = "Selecione e confirme o responsável pela tarefa no formulário do SPA.";
     }
   }
 
@@ -4745,14 +4729,17 @@ async function ensurePdfMergeLibrary(sender) {
 }
 
 function cdspGeneralTeamDatabaseDescriptor() {
+  // A planilha equipe.xlsx era da CDSP e não descreve o contencioso MTPrev.
+  // O relatório gerencial recebe somente os nomes da tabela de TRIAGEM.
+  // O PDF não contém lotação por setor; sinalizar isso explicitamente.
+  const people = globalThis.MTPrevTriageRules?.team || [];
+  if (!people.length) return { ok: false, error: "Tabela de triagem MTPrev indisponível." };
+  const csvEscape = value => '"' + String(value || '').replace(/"/g, '""') + '"';
+  const csv = ['Nome do servidor,Setor', ...people.map(person =>
+    [person.name, 'Setor não informado na tabela TRIAGEM'].map(csvEscape).join(','))].join('\n');
   return {
-    ok: true,
-    xlsxUrl: chrome.runtime.getURL(CDSP_GENERAL_TEAM_DATABASE_FILE),
-    fetchedAt: new Date().toISOString(),
-    source: {
-      file: CDSP_GENERAL_TEAM_DATABASE_FILE,
-      mode: "base interna"
-    }
+    ok: true, csv, fetchedAt: new Date().toISOString(),
+    source: { file: "TRIAGEM.pdf, página 1", mode: "referência MTPrev — setor não identificado" }
   };
 }
 
@@ -4779,7 +4766,7 @@ async function injectManagementPanel(sender) {
           iconImageUrl: chrome.runtime.getURL("images/icon-mtprev128.png"),
           teamDatabase: {
             file: CDSP_GENERAL_TEAM_DATABASE_FILE,
-            mode: "base interna"
+            mode: "referência MTPrev — setor não identificado"
           }
         }
       ]
@@ -4845,7 +4832,7 @@ async function injectDeadlinePanel(sender) {
     await ensureSharedReportLibraries(tabId);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, CDSP_GENERAL_DEADLINE_PANEL_FILE],
+      files: ["js/shared/mtprev_triage_rules.js", CDSP_GENERAL_ACTIVE_TEAM_DATABASE_FILE, CDSP_GENERAL_DEADLINE_PANEL_FILE],
       world: "MAIN"
     });
 
@@ -5357,8 +5344,90 @@ async function handleWorkspaceCacheMessage(message, sender) {
   return {ok:true,saved:true};
 }
 
+// Auxílio de leitura para um PDF de decisão já identificado por metadados.
+// Retorna apenas a quantidade de páginas, sem distribuir nem armazenar o documento.
+async function mtprevTriagePdfPageCount(rawUrl, sender) {
+  const url=normalizePdfDownloadUrl(rawUrl);
+  const senderUrl=normalizeAllowedUrl(sender?.tab?.url || sender?.url);
+  if (!url || !senderUrl || new URL(url).origin!==new URL(senderUrl).origin) {
+    return {ok:false,error:'Documento ou origem não autorizados.'};
+  }
+  if (!/\.pdf$/i.test(new URL(url).pathname)) return {ok:false,error:'O documento não é um PDF direto.'};
+  const library=pdfJsLibrary();
+  if (!library || typeof library.getDocument!=='function') return {ok:false,error:'Leitor PDF.js não disponível.'};
+  const max=32*1024*1024;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),25000);
+  let pdf=null;
+  try {
+    const response=await fetch(url,{credentials:'include',signal:controller.signal});
+    if (!response.ok || !normalizeAllowedUrl(response.url) || new URL(response.url).origin!==new URL(senderUrl).origin) {
+      throw new Error('Não foi possível obter o PDF autenticado no SPA.');
+    }
+    if (Number(response.headers.get('content-length'))>max) throw new Error('PDF excede o limite de consulta (32 MB).');
+    const chunks=[];let size=0;
+    if (response.body && typeof response.body.getReader==='function') {
+      const reader=response.body.getReader();
+      try {
+        while (true) {
+          const {value,done}=await reader.read();if(done)break;
+          size+=value.byteLength;
+          if(size>max){await reader.cancel();throw new Error('PDF excede 32 MB.');}
+          chunks.push(value);
+        }
+      } finally {reader.releaseLock();}
+    } else {
+      const bytes=new Uint8Array(await response.arrayBuffer());
+      size=bytes.byteLength;if(size>max)throw new Error('PDF excede 32 MB.');
+      chunks.push(bytes);
+    }
+    const bytes=new Uint8Array(size);let offset=0;
+    for (const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    if (bytes.length<5 || String.fromCharCode(...bytes.slice(0,5))!=='%PDF-') throw new Error('Conteúdo não corresponde a PDF válido.');
+    const task=library.getDocument({data:bytes,disableWorker:true,isEvalSupported:false,useSystemFonts:true,useWorkerFetch:false});
+    pdf=await task.promise;
+    const pages=Number(pdf.numPages);
+    if (!Number.isSafeInteger(pages)||pages<1)throw new Error('Número de páginas não confirmado.');
+    return {ok:true,pages};
+  } catch (error) {
+    return {ok:false,error:error?.message || String(error)};
+  } finally {
+    clearTimeout(timeout);
+    try {await pdf?.destroy?.();} catch (_) {}
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return false;
+
+  if (message.type === 'MTPREV_TRIAGE_PDF_PAGE_COUNT') {
+    mtprevTriagePdfPageCount(message.url, _sender).then(sendResponse,error=>sendResponse({ok:false,error:error?.message||String(error)}));
+    return true;
+  }
+
+  if (["MTPREV_PJE_INDIVIDUAL_CONNECT", "MTPREV_PJE_INDIVIDUAL_STATUS", "MTPREV_PJE_INDIVIDUAL_DISCONNECT"].includes(message.type)) {
+    // Somente a página de configurações da própria extensão pode gerir a sessão.
+    if (_sender.url !== chrome.runtime.getURL("options.html")) {
+      sendResponse({ok:false,error:"Origem não permitida."});return false;
+    }
+    const oauth=globalThis.MTPrevPjeIndividualAuth;
+    const action=(async()=>{
+      if (!oauth) throw new Error("Autenticação do PJe não está disponível nesta versão.");
+      if(message.type === "MTPREV_PJE_INDIVIDUAL_CONNECT") {
+        await oauth.access(); // O Chrome solicita autorização individual no portal do serviço.
+        await chrome.storage.local.set({[MNI_INDIVIDUAL_MODE_KEY]:"individual"});
+        return {ok:true,...await oauth.status(),mode:"individual"};
+      }
+      if(message.type === "MTPREV_PJE_INDIVIDUAL_DISCONNECT") {
+        await oauth.disconnect();
+        await chrome.storage.local.set({[MNI_INDIVIDUAL_MODE_KEY]:"endpoint"});
+        return {ok:true,connected:false,mode:"endpoint"};
+      }
+      return {ok:true,...await oauth.status(),mode:await getMniAccessMode()};
+    })();
+    action.then(sendResponse,error=>sendResponse({ok:false,error:error?.message||String(error)}));
+    return true;
+  }
 
   if (["MTPREV_SERVICE_STATUS", "MTPREV_SERVICE_TEST", "MTPREV_OPEN_OPTIONS"].includes(message.type)) {
     const ownOptions = _sender.url === chrome.runtime.getURL("options.html");
@@ -5369,7 +5438,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const action = message.type === "MTPREV_OPEN_OPTIONS"
       ? chrome.runtime.openOptionsPage().then(() => ({ ok: true }))
       : message.type === "MTPREV_SERVICE_TEST" ? testMniServiceConnection()
-      : getMniServiceEndpoint().then(() => ({ ok: true }));
+      : getMniAccessMode().then(async mode => mode === "individual"
+        ? {ok:Boolean((await globalThis.MTPrevPjeIndividualAuth.status()).connected),mode}
+        : getMniServiceEndpoint().then(() => ({ok:true,mode})));
     action.then(sendResponse, error => sendResponse({ ok: false, error: error.message }));
     return true;
   }

@@ -71,13 +71,10 @@
     { key: "peca_identificar", label: "Peças a identificar", color: "#607d8b" },
   ];
 
-  const PIECE_REPORT_INTERNS = [
-    { key: "beatriz", name: "Beatriz Vitoria Miranda Silva Cerqueira" },
-    { key: "tacita", name: "Tácita Vitória Pereira Gomes" },
-    { key: "matheus", name: "Matheus Augusto Ferreira Brandão" },
-    { key: "enzo", name: "Enzo Luiz Sawiski lamin" },
-    { key: "gabrielle", name: "Gabrielle Rodrigues Silva Espindola" },
-  ];
+  // A tabela de responsáveis da CDSP não pertence à equipe do MTPrev.
+  // Os processos de Peças continuam abrindo e preenchendo os demais campos,
+  // mas a pessoa destinatária da tarefa deve ser escolhida no SPA.
+  const PIECE_REPORT_INTERNS = [];
 
   const state = {
     running: false,
@@ -97,14 +94,10 @@
   const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED_V2";
   const TRIAGE_CLASSIFICATION_ACTION_KEY = "SPA_CDSP_TRIAGE_CLASSIFICATION_ACTION";
   const TRIAGE_CLOSURE_ACTION_KEY = "SPA_CDSP_TRIAGE_CLOSURE_ACTION";
-  const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "Yasmim Marques Nascimento";
-  const TRIAGE_OFFICE_ASSIGNEES = [
-    "Gabrielle Rodrigues Silva Espindola",
-    "Matheus Augusto Ferreira Brandão",
-    "Beatriz Vitoria Miranda Silva Cerqueira",
-    "Anna Julia Ferreira da Mata",
-    "Yasmim Marques Nascimento"
-  ];
+  // A equipe da CDSP não é uma fonte de designação para o MTPrev.
+  // O responsável pelo ofício é informado e validado no seletor do SPA.
+  const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "";
+  const TRIAGE_OFFICE_ASSIGNEES = [];
   const TRIAGE_CLOSURE_REASONS = [
     "Ciência da decisão/sentença favorável.",
     "Ciência da remessa à segunda instância.",
@@ -8688,7 +8681,8 @@
         throw new Error("Nao foi possivel selecionar a Manifestacao Sugerida informada.");
       }
       const hasAssessor = Boolean(String(action.assessor || "").trim());
-      if (hasAssessor && !(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
+      if (!hasAssessor) throw new Error("Selecione um assessor para concluir a designação no SPA.");
+      if (!(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
         throw new Error("O assessor nao foi preenchido automaticamente. Selecione-o manualmente antes de salvar.");
       }
       if (!setFormFieldValue(observation, action.processObservation || "")) {
@@ -12904,12 +12898,10 @@
     return compactRepeatedText(value) || fallback || "";
   }
 
-  function pieceCategoryNeedsIntern(categoryKey) {
-    return (
-      categoryKey === "contestacao_com_agravo" ||
-      categoryKey === "contestacao_sem_agravo" ||
-      categoryKey === "contestacao_possivel_agravo"
-    );
+  function pieceCategoryNeedsIntern(_categoryKey) {
+    // Sem IDs de usuários confirmados do MTPrev, não fazemos atribuição automática
+    // a profissionais de outro órgão. O formulário do SPA continua editável.
+    return false;
   }
 
   function pieceReportRecord(row, index, pageNumber) {
@@ -15348,10 +15340,11 @@
 
     const activeAssessorChoices = [];
     const assessor = searchableChoice("Designar ao assessor(a)", activeAssessorChoices, (choice) => {
-      flowState.assessor = choice ? choice.value : "";
+      // Nome livre é apenas uma proposta: o formulário SPA validará a pessoa.
+      flowState.assessor = choice ? choice.value : assessor.input.value.trim();
     });
-    assessor.input.placeholder = "Carregando equipe...";
-    assessor.input.disabled = true;
+    assessor.input.placeholder = "Selecione assessor ou digite nome habilitado no SPA";
+    assessor.input.disabled = false;
     form.appendChild(assessor.wrapper);
 
     const officeBox = document.createElement("div");
@@ -15418,7 +15411,8 @@
     form.appendChild(classifyButton);
 
     function canClassify() {
-      if (!flowState.manifestation || !flowState.hasOffice) return false;
+      // Classificar e designar exige uma escolha humana de assessor.
+      if (!flowState.assessor.trim() || !flowState.manifestation || !flowState.hasOffice) return false;
       return flowState.hasOffice !== "yes" || Boolean(
         flowState.officeObservation && flowState.officeObservation.value && String(flowState.officeAssignee || "").trim()
       );
@@ -15427,14 +15421,13 @@
     function refresh() {
       observationSlot.innerHTML = "";
       if (flowState.hasOffice === "yes") {
-        const officeAssignee = searchableChoice(
-          "Responsável pelo Ofício",
-          TRIAGE_OFFICE_ASSIGNEES.map((label) => ({ label: label, value: label })),
-          (choice) => { flowState.officeAssignee = choice ? choice.value : ""; }
-        );
-        officeAssignee.input.value = flowState.officeAssignee || TRIAGE_DEFAULT_OFFICE_ASSIGNEE;
-        officeAssignee.input.placeholder = "Pesquisar responsável...";
-        observationSlot.appendChild(officeAssignee.wrapper);
+        const officeAssignee = inputField("Responsável pelo Ofício", "Nome habilitado no SPA", false);
+        officeAssignee.input.value = flowState.officeAssignee;
+        officeAssignee.input.addEventListener("input", () => {
+          flowState.officeAssignee = officeAssignee.input.value.trim();
+          classifyButton.disabled = !canClassify();
+        });
+        observationSlot.appendChild(officeAssignee.label);
         const officeObservation = searchableChoice("Observação do Ofício", TRIAGE_OFFICE_OBSERVATIONS, (choice) => {
           flowState.officeObservation = choice;
         });
@@ -15454,7 +15447,7 @@
       classifyButton.style.cursor = classifyButton.disabled ? "not-allowed" : "pointer";
     }
 
-    const classificationSection = createPanelSection("Classificar Processo", false);
+    const classificationSection = createPanelSection("Classificar Processo / Designar ao assessor", true);
     classificationSection.body.appendChild(form);
     section.body.appendChild(classificationSection.section);
 

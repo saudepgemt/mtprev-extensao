@@ -50,7 +50,8 @@ test('página de opções preserva destinatários globais gerenciados no SPA', a
   const nodes = new Map();
   for (const id of ['watch-mail-form','watch-mail-sender','watch-mail-consent','watch-mail-enabled',
     'watch-mail-status','watch-mail-test','watch-mail-connect','watch-mail-disconnect',
-    'watch-mail-check','watch-mail-client-id-state','watch-mail-defaults-count','watch-mail-extension-id']) {
+    'watch-mail-check','watch-mail-client-id-state','watch-mail-defaults-count','watch-mail-extension-id',
+    'watch-mail-compose','watch-mail-mode-manual','watch-mail-mode-oauth','watch-mail-manual-controls','watch-mail-oauth-controls','watch-mail-mode-note']) {
     nodes.set(id, {value:'',checked:false,textContent:'',dataset:{},addEventListener(name,handler) {events[`${id}:${name}`]=handler;}});
   }
   nodes.get('watch-mail-sender').value = 'remetente@org.gov.br';

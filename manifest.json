@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.73",
-  "version_name": "2.73",
+  "version": "2.0.74",
+  "version_name": "2.74",
   "minimum_chrome_version": "116",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
@@ -100,8 +100,7 @@
       "resources": [
         "images/logo-mtprev.png",
         "images/icon-mtprev128.png",
-        "images/material-rounded/*.svg",
-        "data/equipe.xlsx"
+        "images/material-rounded/*.svg"
       ],
       "matches": [
         "https://spa.pge.mt.gov.br/*",

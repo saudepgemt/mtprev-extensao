@@ -60,6 +60,7 @@
   }
   async function connect() {
     const c = await config();
+    if (c.deliveryMode === 'manual') throw new Error('Modo manual selecionado: não precisa conectar o Gmail.');
     await authorizedToken(c, true);
     return {ok: true, message: `Google autorizado para envio como ${cleanEmail(c.sender)}. O acesso fica neste perfil do Chrome.`};
   }
@@ -118,6 +119,7 @@
     return base64url(new TextEncoder().encode(message));
   }
   async function send(c, recipients, subject, payload, {manual = false} = {}) {
+    if (c.deliveryMode === 'manual') return {skipped:true, reason:'Modo de e-mail manual: nenhum envio automático é realizado.'};
     if (!manual && !(c.enabled === true && c.consent === true)) return {skipped:true, reason:'Alertas automáticos desativados.'};
     if (c.consent !== true) throw new Error('Confirme a autorização para transmitir informações via Gmail API antes do envio.');
     if (!recipients.length) return {skipped:true, reason:'Nenhum destinatário habilitado para este processo.'};
@@ -148,6 +150,7 @@
   }
   async function notify(record, items) {
     const c = await config();
+    if (c.deliveryMode === 'manual') return {skipped:true,reason:'Rascunhos manuais não são enviados em segundo plano.'};
     if (!c.enabled || !c.consent || !Array.isArray(items) || !items.length) return {skipped:true};
     const to = recipientsFor(c, record);
     const content = template(record, items);
@@ -156,12 +159,13 @@
   async function preview(record) {
     const c = await config();
     const content = record ? template(record, [], true) : null;
-    return {ok:true, recipients:recipientsFor(c, record), sender:cleanEmail(c.sender), consent:c.consent === true,
+    return {ok:true, recipients:recipientsFor(c, record), sender:cleanEmail(c.sender), deliveryMode:c.deliveryMode === 'manual' ? 'manual' : 'oauth', consent:c.consent === true,
       enabled:c.enabled === true, clientReady:clientReady(), processNumber:record?.number || null,
       movementAvailable:content?.hasMovement || false, subject:content?.subject || ''};
   }
   async function test(record) {
     const c = await config();
+    if (c.deliveryMode === 'manual') throw new Error('Modo manual: use Preparar rascunho, não o envio Gmail.');
     const to = recipientsFor(c, record);
     let subject = '[Acompanhamento Especial] Teste de envio Gmail';
     let payload = 'Teste de conexão solicitado manualmente nas configurações da MTPrev. Nenhum dado processual foi incluído.';
@@ -175,10 +179,29 @@
     if (result.skipped) throw new Error(result.reason);
     return {ok:true, message:`A Gmail API aceitou o teste para ${result.count} destinatário(s). Isso não garante a entrega.`, recipients:to};
   }
+  async function draft(record) {
+    const c = await config();
+    if (c.deliveryMode !== 'manual') throw new Error('Selecione envio manual nas Configurações antes de preparar um aviso.');
+    if (c.consent !== true) throw new Error('Confirme a autorização para compartilhar os dados processuais nas Configurações.');
+    if (!record) throw new Error('Nenhum processo em acompanhamento foi selecionado.');
+    const recipients = recipientsFor(c, record);
+    if (!recipients.length) throw new Error('Cadastre destinatários para este processo.');
+    const content = template(record, [], true);
+    if (!content.hasMovement) throw new Error('Sem movimentação disponível. Abra o processo no SPA e execute a verificação antes de preparar o aviso.');
+    // Rascunho local; nunca retorna senhas, tokens ou cabeçalhos OAuth.
+    return {ok:true, deliveryMode:'manual', recipients, subject:String(content.subject||'').slice(0,180),
+      body:String(content.plain||'').slice(0,1800), sender:cleanEmail(c.sender),
+      message:'O envio depende de revisão e confirmação no aplicativo de e-mail.'};
+  }
   async function status() {
     const c = await config();
-    return {ok:true, clientReady:clientReady(), sender:cleanEmail(c.sender), configured:clientReady() && EMAIL_RE.test(cleanEmail(c.sender)), enabled:c.enabled === true, consent:c.consent === true,
-      message:clientReady() ? 'OAuth configurado no manifesto. Conecte o Gmail para autorizar.' : 'Informe o Client ID OAuth no manifest.json antes de conectar.'};
+    const manual = c.deliveryMode === 'manual';
+    return {ok:true, deliveryMode:manual?'manual':'oauth',clientReady:clientReady(),sender:cleanEmail(c.sender),
+      configured:manual ? c.consent === true : clientReady() && EMAIL_RE.test(cleanEmail(c.sender)),
+      enabled:!manual && c.enabled === true,consent:c.consent === true,
+      message:manual ? 'Envio manual selecionado. Nenhuma notificação é enviada automaticamente.' :
+        clientReady() ? 'OAuth presente no manifesto. Conecte o Gmail para autorizar.' :
+        'Informe o Client ID OAuth no manifest.json antes de conectar.'};
   }
   const settingsUrl = chrome.runtime.getURL('options.html');
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
@@ -196,5 +219,5 @@
     op().then(respond, err => respond({ok:false,error:err?.message || 'Falha na conexão Google.'}));
     return true;
   });
-  globalThis.MTPrevWatchMail = {notify, test, preview, status, parseEmails, recipientsFor, CONFIG_KEY, SCOPE, EMAIL_SCOPE};
+  globalThis.MTPrevWatchMail = {notify, test, preview, draft, status, parseEmails, recipientsFor, CONFIG_KEY, SCOPE, EMAIL_SCOPE};
 })();

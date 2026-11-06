@@ -168,7 +168,7 @@ test('Chrome continua importando as dependencias pelo service worker', () => {
   const imported = [];
   context.importScripts = (file) => { imported.push(file); run(`js/${file}`); };
   run('js/background.js');
-  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'vendor/pdf.min.js', 'watch_mail_template.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
+  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'shared/mtprev_pje_individual_oauth.js', 'vendor/pdf.min.js', 'watch_mail_template.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
   assert.equal(listeners.length, 3);
   assert.ok(context.pdfjsLib.getDocument);
 });
