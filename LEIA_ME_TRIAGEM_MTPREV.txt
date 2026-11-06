@@ -1,0 +1,48 @@
+MTPrev — Atualização da Triagem baseada em TRIAGEM.pdf
+Referência: tabela da página 1 do PDF fornecido pelo usuário.
+
+O ZIP contém ARQUIVOS COMPLETOS, não diffs. Extraia na raiz do projeto
+mtprev-extensao, preservando a estrutura de pastas e substituindo os nomes iguais.
+
+Principais alterações:
+- Tabela de 10 assessores e respectivos procuradores da MTPrev, substituindo
+  dados herdados da CDSP. O nome "Luma Grabriela Nascimento" foi mantido
+  exatamente como aparece no PDF; confirme a grafia no SPA.
+- Sugestões baseadas em assunto e tipo de peça. Havendo dois responsáveis,
+  regras conflitantes ou assunto não identificado, exigir decisão humana.
+- Relatório de Triagem: campos de assessor, procurador, assunto editável,
+  justificativa e texto livre; salvar rascunho por processo, copiar texto.
+  Rascunhos não alteram o SPA.
+- Fluxo operacional "Classificar Processo / Designar ao assessor" visível na
+  página de Triagem. Permite digitar nome fora da tabela, desde que o SPA
+  o aceite e valide no formulário oficial; informação adicional e motivo
+  são encaminhados ao campo oficial de classificação.
+- Responsável por ofício não é preenchido com dados antigos da CDSP;
+  exige nome digitado, validado no SPA.
+- O arquivo data/equipe.xlsx ANTIGO não entra mais no build do Chrome. O
+  Painel Gerencial passa a identificar setores como NÃO INFORMADOS, porque
+  o PDF não contém lotação por setor. Não confundir isto com uma lotação
+  institucional real.
+
+COMO INSTALAR
+1) Faça cópia dos arquivos existentes, se tiver mudanças locais.
+2) Extraia este ZIP SOBRE A RAIZ DO PROJETO e substitua os arquivos iguais.
+3) No terminal do projeto:
+   node --test tests/organograma_distribuicao.test.cjs tests/mtprev_team_migration.test.cjs tests/store_release.test.cjs
+   node scripts/build-chrome-store.js
+4) Recarregue em chrome://extensions e use Ctrl+R na aba do SPA.
+5) Abra "Triagem" e verifique o relatório, o botão de classificação e a
+   lista de assessores. Teste com um processo autorizado sem efetuar a
+   última confirmação de envio antes da revisão.
+
+LIMITAÇÕES
+- O registro no Relatório de Triagem é LOCAL. A designação efetiva só
+  acontece no formulário próprio do SPA, após confirmação da ação e
+  validação da seleção na interface nativa.
+- A validação online em uma sessão autenticada do SPA não foi feita.
+- A tabela TRIAGEM.pdf não informa os setores/lotação nem comprova se cada
+  assessor continua habilitado no SPA; a lista nativa é a autoridade.
+- Não foi feita limpeza completa de outras funcionalidades herdadas da
+  CDSP fora do escopo da triagem. Revise-as antes de publicar na loja.
+- Há falhas preexistentes de testes em Autos/PDF e Configurações no projeto
+  enviado. Elas não foram alteradas por esta entrega.

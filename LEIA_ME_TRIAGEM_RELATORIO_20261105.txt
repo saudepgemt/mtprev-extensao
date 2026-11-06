@@ -1,0 +1,39 @@
+MTPrev — ajuste da triagem / relatório (Chrome) — 05/11/2026
+
+BASE: MTPrev_triagem_MTPREV_arquivos_completos_20261105.zip.
+Esta atualização contém ARQUIVOS COMPLETOS para sobrescrever, não fragmentos nem patches.
+
+1. Extraia o ZIP na raiz do projeto da extensão e substitua os arquivos:
+   - js/triagem/mtprev_pop_panel.js
+   - js/triagem/spa_extension_panel.js
+   - js/background.js
+2. Execute:
+   node --test tests/triage_operational_navigation.test.cjs tests/organograma_distribuicao.test.cjs tests/mtprev_team_migration.test.cjs
+   node scripts/build-chrome-store.js
+3. Recarregue a extensão em chrome://extensions, atualize o SPA com Ctrl+R e abra Triagem.
+
+ALTERAÇÕES:
+- O assunto original do SPA aparece em destaque, mesmo com o registro recolhido. Não substitui assunto por inferência.
+- Cada registro com link validado oferece “Abrir no SPA para designar”. É um acesso ao processo,
+  não um comando de salvamento ou distribuição.
+- “Abrir próximo no SPA (N)” percorre os processos selecionados UM POR CLIQUE;
+  não executa distribuição em lote, ciência ou envio ao SPA.
+- O formulário operacional “Fluxo de Triagem” foi movido para “Ações no processo aberto”; sua
+  classificação efetiva continua dependendo de confirmação, da ação “Complementar classificação
+  do processo” e da validação de campos pelo próprio SPA.
+- Se a coleta fornecer um LINK DE PDF que identifique explicitamente decisão/sentença/acórdão,
+  a extensão consulta a quantidade de páginas via PDF.js e tenta abrir na última página.
+- Quando não existir vínculo documental confiável, o botão de decisão fica indisponível e há
+  alternativa para abrir o processo e consultar os documentos; não escolhe decisões por heurística.
+- Se o serviço de leitura não puder contar as páginas, o PDF abre sem posicionamento automático.
+- Não há OCR de PDFs digitalizados nesta atualização.
+
+VALIDAÇÃO:
+- 26 testes específicos de triagem e migração passaram.
+- 12 asserções passaram na simulação interativa Chromium.
+- Build Chrome concluído (65 arquivos).
+- Bateria do projeto: 116/125 testes passaram; 9 falhas anteriores de Autos/PDF (6) e
+  Configurações do menu (3). Nenhuma dessas falhas foi corrigida neste pacote.
+- NÃO foi executada uma designação real no SPA autenticado. Faça o teste com processo autorizado.
+
+ATENÇÃO: Não publicar na Chrome Web Store sem revisão das falhas pendentes e do OAuth.

@@ -338,9 +338,20 @@
           'O processo ainda nao disponibilizou o leitor de Autos. Confira se o expediente tem numero e documentos carregados.');
       } finally { autosOpening = false; }
     }
-    function openSettings() {
-      if(typeof chrome==='undefined' || !chrome.runtime?.openOptionsPage){notice('Opções indisponíveis nesta sessão.');return;}
-      Promise.resolve(chrome.runtime.openOptionsPage()).then(()=>close()).catch(()=>notice('Não foi possível abrir as opções da extensão.'));
+    async function openSettings() {
+      // A interface do SPA não tem acesso a openOptionsPage no content script.
+      // A solicitação é validada e executada pelo service worker da extensão.
+      if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+        notice('Extensão desconectada. Recarregue a página do SPA.');
+        return;
+      }
+      try {
+        const reply = await chrome.runtime.sendMessage({ type: 'MTPREV_OPEN_OPTIONS' });
+        if (!reply?.ok) throw new Error(reply?.error || 'Não foi possível abrir as opções.');
+        close();
+      } catch (error) {
+        notice(error?.message || 'Não foi possível abrir as configurações. Recarregue a extensão.');
+      }
     }
     function entries() {
       if (module) return options();
@@ -353,7 +364,7 @@
         {title:'Acompanhar',icon:'radar',special:true,run:openWatch},
         {title:'Autos e PDFs',icon:'format_list_numbered',run:openAutos},
         {title:'Ofícios',icon:'outgoing_mail',run:()=>selectShortcut('oficios')},
-        {title:'Configurações',icon:'filter_alt',run:openSettings}
+        {title:'Configurações',icon:'settings',run:openSettings}
       ];
     }
     function paint(items) {

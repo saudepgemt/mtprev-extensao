@@ -34,8 +34,8 @@
       el('p', 'Leitura do expediente → conferência de competência, regularidade da intimação, legitimidade, eventuais nulidades e prazo oficial → escolha humana entre observação, confirmar análise, sugerir encerramento ou solicitar redistribuição. O Procurador responsável decide o protocolo ou a devolução da minuta. Assinatura e envio de CI seguem o fluxo próprio. Fonte: manual, p. 34–54.', flow);
     }
     const chart = el('details', '', root);
-    el('summary', 'Critérios da proposta de distribuição', chart);
-    el('p', 'Execuções individuais → Ney; execuções coletivas sem recurso → Victor Gabriel; recursos de execuções coletivas → Ney; execução de honorários → Ana Clara. Pensão por morte → Gabrielle, exceto casos ligados a subsídio/vida funcional do instituidor → Maria Fernanda ou Ana Julia. Contribuição não doente → Yuri; no recurso → Gabrielle. Aposentadoria, residual civil/militar, contribuição doente e pauta de julgamento → Maria Fernanda ou Ana Julia. Imposto de Renda → Clarissa. Mandado de segurança e contrarrazões (com exceções) → Yuri. Atos específicos de triagem e juntada: conferir Ana Clara/Thais. Atribuição de procurador conforme o organograma.', chart);
+    el('summary', 'Critérios da tabela de distribuição', chart);
+    el('p', 'Execuções individuais → Ney; execuções coletivas sem recurso → Victor Gabriel; recursos de execuções coletivas → Ney; execução de honorários → Ana Clara. Pensão por morte → Gabrielle, exceto casos ligados a subsídio/vida funcional do instituidor → Maria Fernanda ou Luma. Contribuição não doente → Yuri; no recurso → Gabrielle. Aposentadoria, residual civil/militar, contribuição doente e pauta de julgamento → Maria Fernanda ou Luma. Imposto de Renda → Clarissa. Mandado de segurança e contrarrazões (com exceções) → Yuri. Atos específicos de triagem e juntada: conferir Ana Clara/Thais. Atribuição de procurador conforme a tabela de triagem.', chart);
     el('p', 'A proposta não define divisão automática entre assessoras com matérias compartilhadas nem todos os casos de conflito. Peças e matérias são etapas diferentes. Revisão humana obrigatória.', chart);
     const unitLabel = el('label', 'Unidade destas sugestões', root);
     const unit = el('select', '', unitLabel);
@@ -85,7 +85,7 @@
           const checks = section('Conferências · inferências e sugestões, não decisões');
           const pending = section('Pendências · informações não confirmadas');
           const guidance = section('Orientações · POP e revisão humana');
-          const routing = section('Distribuição sugerida · PROPOSTA do organograma (revisar)');
+          const routing = section('Distribuição sugerida · PROPOSTA da tabela de triagem (revisar)');
           const distribution = diagnosis.distribution || R.suggestDistribution?.(record, consent.checked ? (read?.text || '') : '') || { candidates: [], notes: ['Não disponível nesta versão das regras.'] };
           for (const suggestion of distribution.candidates || []) {
             const card = el('div', '', routing);
@@ -94,14 +94,14 @@
             for (const assessor of suggestion.assessores || []) {
               field(card, 'Assessor(a) sugerido(a)', assessor.name);
               field(card, 'Procurador indicado', assessor.procuradores);
-              field(card, 'Cobertura de peças na proposta', assessor.pecas);
+              field(card, 'Cobertura de peças na tabela', assessor.pecas);
             }
             if (suggestion.detail) field(card, 'Ressalva', suggestion.detail);
             field(card, 'Base da indicação', suggestion.source);
           }
           if (!distribution.candidates?.length) field(routing, 'Encaminhamento', 'Não identificado com segurança: revisão humana necessária.');
           for (const note of distribution.notes || []) field(routing, 'Atenção', note);
-          field(routing, 'Fonte', distribution.source || 'Organograma de triagem/distribuição, p. 1');
+          field(routing, 'Fonte', distribution.source || 'TRIAGEM.pdf — MTPrev, p. 1');
           field(routing, 'Situação', 'Proposta sujeita a validação; nenhuma redistribuição executada.');
           for (const [key, label] of [['party','Destinatário'],['actionClass','Classe processual'],['pjeDeadline','Prazo oficial']]) if (!record[key]) field(pending, label, 'Não disponível nos dados coletados; conferir no SPA/documento.');
           field(guidance, 'Conferência obrigatória', 'Regularidade da intimação, legitimidade e prazo oficial devem ser conferidos pelo responsável. O diagnóstico não confirma esses requisitos e não pratica atos.');
@@ -183,6 +183,15 @@
     .mtprev-triage-target{flex:2;min-width:210px;color:#36546a;}
     .mtprev-triage-target strong{display:block;font-size:12px;color:#274a62;}
     .mtprev-triage-target small{font-size:11px;color:#648093;display:block;}
+    .mtprev-triage-subject{display:grid;gap:2px;padding:5px 8px;margin:3px 0 5px;background:#eaf5fb;border-left:3px solid #277ea2;border-radius:5px;overflow-wrap:anywhere;}
+    .mtprev-triage-subject b{font-size:10px;color:#365e75;text-transform:uppercase;letter-spacing:.035em;}
+    .mtprev-triage-subject strong{font-size:13px!important;color:#12394f!important;line-height:1.3;}
+    .mtprev-triage-row-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+    .mtprev-triage-row-actions a,.mtprev-triage-row-actions button{font-size:11px;padding:6px 9px;white-space:normal;border-radius:7px;border:1px solid #9dc5d8;color:#1a5574;background:#f1f9fc;text-decoration:none;font-weight:800;}
+    .mtprev-triage-row-actions button:disabled{opacity:.55;cursor:not-allowed;}
+    .mtprev-triage-row-actions a:focus-visible,.mtprev-triage-row-actions button:focus-visible{outline:2px solid #267aa3;outline-offset:2px;}
+    .mtprev-triage-batch-feedback{font-weight:700;}
+
     .mtprev-triage-badge{border-radius:999px;padding:5px 9px;white-space:nowrap;font-size:11px;font-weight:750;background:#eaf3f9;color:#185a7a;}
     .mtprev-triage-row details{border-top:1px solid #dbe7f0;padding:0 12px;}
     .mtprev-triage-row details summary{padding:10px 0;cursor:pointer;font-weight:750;color:#176497;font-size:12px;}
@@ -191,8 +200,13 @@
     .mtprev-triage-detail-grid b{display:block;color:#60768a;margin-bottom:4px;}
     .mtprev-triage-row a{color:#146b9d;font-weight:700;}
     .mtprev-triage-review{display:grid;gap:7px;margin:12px 0;padding:10px;background:#e9f3f8;border-radius:8px;}
-    .mtprev-triage-review select,.mtprev-triage-review textarea{border:1px solid #b0cad8;border-radius:7px;background:white;color:#254253;padding:8px;width:100%;font:12px system-ui,sans-serif;}
-    .mtprev-triage-review textarea{min-height:54px;resize:vertical;}
+    .mtprev-triage-review select,.mtprev-triage-review input[type=text],.mtprev-triage-review textarea{border:1px solid #b0cad8;border-radius:7px;background:white;color:#254253;padding:8px;width:100%;font:12px system-ui,sans-serif;}
+    .mtprev-triage-review textarea{min-height:74px;resize:vertical;}
+    .mtprev-triage-review label{font-size:11px;color:#254253;font-weight:750;display:grid;gap:5px;}
+    .mtprev-triage-review small{font-size:11px;color:#4c6b7c;line-height:1.4;}
+    .mtprev-triage-review .mtprev-triage-choice-warning{color:#84511b;background:#fff5e4;padding:8px;border-radius:7px;}
+    .mtprev-triage-review button{justify-self:start;background:#175e7e;color:white;padding:8px 12px;border:0;border-radius:7px;font-weight:750;cursor:pointer;}
+
     .mtprev-triage-group{background:#d8eaf5;padding:10px;border-radius:9px;font-weight:850;color:#1c4965;margin:16px 0 7px;}
     .mtprev-triage-pager{display:flex;justify-content:center;margin:15px 0;}
     .mtprev-triage-loadbox{border:1px solid #9bc7dc;background:#f7fbfe;border-radius:12px;padding:20px;max-width:590px;margin:16px auto;text-align:center;}
@@ -244,7 +258,7 @@
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}min ${String(s % 60).padStart(2, '0')}s`;
   }
   const reportKey = record => [record.processNumber || '', record.expedienteId || '', record.rowKey || record.id || ''].join('|');
-  // A proposta do organograma NÃO permite deduzir um assessor apenas do CNJ.
+  // A proposta da tabela de triagem NÃO permite deduzir um assessor apenas do CNJ.
   // Correções manuais ficam locais e separadas dos dados retornados pelo SPA.
   const manualCategories = Object.freeze([
     ['exec_individual','Execução individual','Execução individual',''],
@@ -269,7 +283,7 @@
   function currentRules() {
     const rules = window.MTPrevTriageRules;
     if (!rules || typeof rules.suggestDistribution !== 'function' || !rules.version) {
-      throw new Error('As regras do organograma não foram carregadas nesta versão. Substitua também js/shared/mtprev_triage_rules.js, recarregue a extensão e atualize a página do SPA.');
+      throw new Error('As regras da tabela de triagem não foram carregadas nesta versão. Substitua também js/shared/mtprev_triage_rules.js, recarregue a extensão e atualize a página do SPA.');
     }
     return rules;
   }
@@ -364,12 +378,84 @@
     wrap.append(name);return wrap;
   }
 
+  // Os registros vêm do SPA. Só abrimos URLs HTTPS dos domínios autorizados.
+  // Não tentamos deduzir qual é a decisão usando apenas o número do processo.
+  function safeSpaHref(raw) {
+    try {
+      if (!raw) return '';
+      const u = new URL(String(raw), location.href);
+      return u.protocol === 'https:' && ['spa.pge.mt.gov.br', 'pge.mt.spa.coreplan.com.br'].includes(u.hostname) ? u.href : '';
+    } catch (_) { return ''; }
+  }
+  function procedureHref(record) {
+    const existing = safeSpaHref(record?.pendencyUrl);
+    if (existing) return existing;
+    const id = String(record?.procedureId || record?.rowKey || '').trim();
+    return /^\d+$/.test(id) ? safeSpaHref('/procedures/' + id) : '';
+  }
+  function decisionPdfCandidate(record) {
+    const sources = [
+      ...(Array.isArray(record?.expedientes) ? record.expedientes : []),
+      ...(Array.isArray(record?.documents) ? record.documents : []),
+      ...(Array.isArray(record?.tasks) ? record.tasks : [])
+    ];
+    if (record?.decisionPdfUrl) sources.push({url:record.decisionPdfUrl,label:'Decisão'});
+    for (const source of sources) {
+      if (!source || typeof source !== 'object') continue;
+      const label = String([source.label,source.type,source.description,source.title].filter(Boolean).join(' '))
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      if (!/decisao|sentenca|acordao/.test(label)) continue;
+      let href = safeSpaHref(source.pdfUrl || source.url || source.viewerUrl);
+      if (!href) continue;
+      try {
+        let parsed = new URL(href);
+        if (parsed.pathname === '/pdfjs/web/viewer.html') {
+          const file = parsed.searchParams.get('file');
+          href = safeSpaHref(file && new URL(file, parsed.origin).href);
+          if (!href) continue;
+          parsed = new URL(href);
+        }
+        if (!/\.pdf$/i.test(parsed.pathname)) continue;
+        return href;
+      } catch (_) { /* URL não confirmada. */ }
+    }
+    return '';
+  }
+  function openDecisionLastPage(pdfUrl, feedback) {
+    // A aba precisa ser criada pelo clique, antes da consulta assíncrona.
+    const opened = window.open('about:blank', '_blank');
+    if (!opened) { feedback.textContent='O Chrome bloqueou a nova aba. Autorize pop-ups para o SPA ou abra pelo processo.'; return; }
+    try { opened.opener = null; } catch (_) {}
+    feedback.textContent='Consultando a quantidade de páginas da decisão…';
+    if (!window.chrome?.runtime?.sendMessage) {
+      opened.location.href = pdfUrl;
+      feedback.textContent='PDF aberto. A contagem de páginas não está disponível neste contexto.';
+      return;
+    }
+    try {
+      window.chrome.runtime.sendMessage({type:'MTPREV_TRIAGE_PDF_PAGE_COUNT',url:pdfUrl}, response => {
+        const pages = response?.ok && Number.isSafeInteger(response.pages) && response.pages > 0 ? response.pages : 0;
+        try {
+          const target = new URL(pdfUrl);
+          if (pages) target.hash = 'page=' + pages;
+          opened.location.href = target.href;
+        } catch (_) { /* A aba pode ter sido fechada. */ }
+        feedback.textContent = pages
+          ? `Decisão aberta na página ${pages} de ${pages}. Confira o conteúdo antes de designar.`
+          : 'PDF aberto na primeira página: não foi possível determinar com segurança a última página.';
+      });
+    } catch (_) {
+      try { opened.location.href = pdfUrl; } catch (_) {}
+      feedback.textContent='PDF aberto sem posicionamento automático na última página.';
+    }
+  }
+
   function createModernReport(api) {
     installReportStyle();
     const root = reportNode('section','mtprev-triage-entry');
     const heading = reportNode('div','mtprev-triage-entry__head');
     heading.append(reportNode('strong','','Triagem e distribuição · MTPrev'));
-    heading.append(reportNode('small','','Uma leitura da mesa, sugestões pelo organograma e revisão por processo.'));
+    heading.append(reportNode('small','','Relatório com assunto do SPA, sugestão de assessor e acesso ao processo para designar.'));
     root.append(heading);
     const actions = reportNode('div','mtprev-triage-entry__actions');
     const generate = reportNode('button','mtprev-triage-primary','Gerar relatório de triagem');
@@ -380,7 +466,7 @@
     const forceRefresh=reportNode('input');forceRefresh.type='checkbox';
     forceLabel.append(forceRefresh,document.createTextNode(' Ler novamente a mesa (ignorar cache de 10 minutos)'));
     actions.append(generate,reopen); root.append(actions,forceLabel);
-    const hint = reportNode('p','mtprev-triage-entry__note','A classificação é consultiva. Nenhuma ciência, distribuição ou encerramento será executado.');
+    const hint = reportNode('p','mtprev-triage-entry__note','O relatório é consultivo. A designação só ocorre após a confirmação no formulário oficial do SPA.');
     root.append(hint);
     const status = reportNode('p','mtprev-triage-entry__note');status.setAttribute('role','status');root.append(status);
     let last = null, currentController = null, modal = null;
@@ -402,7 +488,7 @@
       header.append(brand);
       const h=reportNode('div','mtprev-triage-head-title');
       h.append(reportNode('strong','','Relatório de Triagem e Distribuição'));
-      h.append(reportNode('small','','Proposta de organograma · recomendações para conferência humana'));
+      h.append(reportNode('small','','Proposta de tabela de triagem · recomendações para conferência humana'));
       header.append(h);
       const close=reportNode('button','','Fechar');close.type='button';
       close.addEventListener('click',()=>{if(currentController)currentController.abort();overlay.remove();modal=null;});
@@ -512,11 +598,13 @@
       switcher.append(byProcess,byPerson);
       const selectAll=reportNode('button','','Marcar até 100');selectAll.type='button';
       const exportCsv=reportNode('button','','Exportar CSV');exportCsv.type='button';
-      toolbar.append(search,select,switcher,selectAll,exportCsv);main.append(toolbar);
-      const selectedNotice=reportNode('p','mtprev-triage-note','Marcar é apenas para organizar a revisão nesta tela. Não distribui nem encerra expedientes.');main.append(selectedNotice);
+      const nextSelected=reportNode('button','mtprev-triage-primary','Abrir próximo selecionado no SPA');nextSelected.type='button';nextSelected.disabled=true;
+      nextSelected.title='Abre um processo por clique. Não executa designação nem ciência automaticamente.';
+      toolbar.append(search,select,switcher,selectAll,nextSelected,exportCsv);main.append(toolbar);
+      const selectedNotice=reportNode('p','mtprev-triage-note','Marque processos e use “Abrir próximo selecionado” para conferi-los e designá-los no formulário oficial, um por vez.');main.append(selectedNotice);
       const list=reportNode('div');main.append(list);
       const pager=reportNode('div','mtprev-triage-pager');main.append(pager);
-      const selected=new Set();let view='process',pageSize=40;
+      const selected=new Set(), openedForReview=new Set();let view='process',pageSize=40;
       const normalized=(value)=>R.norm(value||'');
       const summarySearch=x=>normalized([x.record.processNumber,x.record.expedienteId,x.record.assunto,x.record.manifestationSuggested,...x.people.map(p=>p.name)].join(' '));
       function filtered(){
@@ -526,8 +614,21 @@
       function setButtons(){
         byProcess.setAttribute('aria-pressed',String(view==='process'));
         byPerson.setAttribute('aria-pressed',String(view==='assessor'));
-        selectedNotice.textContent=`${selected.size} expediente(s) marcados para revisão · marcar não altera o SPA.`;
+        const pending = rows.filter(x => selected.has(x.key) && !openedForReview.has(x.key) && procedureHref(x.record)).length;
+        nextSelected.disabled = pending === 0;
+        nextSelected.textContent = `Abrir próximo no SPA (${pending})`;
+        selectedNotice.textContent=`${selected.size} expediente(s) marcados · ${pending} com link disponível para revisão sequencial. Cada clique abre 1 processo; nenhuma designação é automática.`;
       }
+      nextSelected.addEventListener('click', () => {
+        const item = rows.find(x => selected.has(x.key) && !openedForReview.has(x.key) && procedureHref(x.record));
+        if (!item) { setButtons();return; }
+        const href = procedureHref(item.record);
+        const opened = window.open(href,'_blank');
+        try { if (opened) opened.opener=null; } catch (_) {}
+        if (!opened) { selectedNotice.textContent='O Chrome bloqueou a abertura. Permita pop-ups do SPA ou use o botão individual “Abrir para designar”.';return; }
+        openedForReview.add(item.key);
+        setButtons();
+      });
       function openAllowedLink(parent,record){
         const items=[record.pendencyUrl,...(record.expedientes||[]).map(e=>e.url)].filter(Boolean);
         const match=items.find(value=>{try{const u=new URL(value,location.href);return u.protocol==='https:'&&['spa.pge.mt.gov.br','pge.mt.spa.coreplan.com.br'].includes(u.hostname)}catch(_){return false}});
@@ -551,9 +652,35 @@
           x.people.forEach((person,index)=>{if(index)ownersLine.append(document.createTextNode(' ou '));ownersLine.append(assessorLabel(person.name));});
         } else ownersLine.textContent='Responsável não identificado';
         dest.append(ownersLine);
+        const spaSubject = String(x.record.assunto || x.record.assuntoPrincipal || x.record.subject || '').trim();
+        const theme=reportNode('div','mtprev-triage-subject');
+        theme.append(reportNode('b','','Assunto informado pelo SPA'));
+        theme.append(reportNode('strong','',spaSubject || 'Não fornecido pelo SPA — conferir manualmente'));
+        dest.append(theme);
+        if(x.manualLabel)dest.append(reportNode('small','',`Matéria revisada manualmente: ${x.manualLabel}`));
         const noMetadata=!(x.record.assunto || x.record.assuntoPrincipal || x.record.subject || x.record.actionClass || x.record.classe || x.record.manifestationSuggested || x.record.manifestacaoSugerida || x.record.lastProgress);
-        dest.append(reportNode('small','',x.manualLabel?`Matéria informada para conferência: ${x.manualLabel}`:(owners?`Procurador: ${owners}`:noMetadata?'SPA não forneceu matéria nem manifestação':'Conferir matéria e tipo de peça')));
+        dest.append(reportNode('small','',owners?`Procurador: ${owners}`:noMetadata?'SPA não forneceu matéria nem manifestação':'Conferir matéria e tipo de peça'));
+        try { const choice=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}')[x.key];
+          if(choice?.assessor)dest.append(reportNode('small','',`Designação escolhida (rascunho): ${choice.assessor}`));
+        } catch(_){}
         strip.append(dest);
+        const rowActions=reportNode('div','mtprev-triage-row-actions');
+        const processUrl=procedureHref(x.record);
+        if(processUrl){
+          const open=reportNode('a','','Abrir no SPA para designar ↗');open.href=processUrl;open.target='_blank';open.rel='noopener noreferrer';
+          open.title='Abre o processo. A designação ocorre no fluxo “Complementar classificação do processo” após conferência e confirmação.';
+          rowActions.append(open);
+        }
+        const pdfUrl=decisionPdfCandidate(x.record);
+        const pdfButton=reportNode('button','','Decisão · última página');pdfButton.type='button';
+        pdfButton.disabled=!pdfUrl;
+        pdfButton.title=pdfUrl?'Abrir PDF identificado como decisão/sentença/acórdão pelo SPA, na última página se a contagem for possível.':'Não há link de PDF identificado como decisão nos metadados deste processo. Consulte Autos e PDFs no SPA.';
+        const pdfFeedback=reportNode('small');pdfFeedback.setAttribute('role','status');
+        pdfButton.addEventListener('click',()=>{if(pdfUrl)openDecisionLastPage(pdfUrl,pdfFeedback);});
+        rowActions.append(pdfButton);
+        if(!pdfUrl && processUrl){const fallback=reportNode('a','','Ver documentos no SPA ↗');fallback.href=processUrl;fallback.target='_blank';fallback.rel='noopener noreferrer';rowActions.append(fallback);}
+        rowActions.append(pdfFeedback);
+        strip.append(rowActions);
         const badgeLabel=x.kind==='matched'?'✓ Sugestão encontrada':x.kind==='review'?'◇ Escolha necessária':'? Sem classificação';
         strip.append(reportNode('span','mtprev-triage-badge',badgeLabel));article.append(strip);
         const details=reportNode('details');
@@ -563,14 +690,14 @@
         detailField('Assunto informado pelo SPA',x.record.assunto || x.record.assuntoPrincipal || x.record.subject);
         detailField('Classe informada pelo SPA',x.record.actionClass || x.record.classe);
         detailField('Tipo de peça / manifestação',x.record.manifestationSuggested);
-        detailField('Matéria e justificativa',x.candidates.map(c=>`${c.category}: ${c.reason}`).join(' | ')||'Não enquadrado na proposta.');
-        detailField('Regras e ressalvas',x.distribution.notes?.join(' | ')||'Conferir se a proposta está vigente e aplicável.');
-        detailField('Procurador indicado no organograma',owners);
-        detailField('Fonte e cobertura',`${x.distribution.source||'Proposta do organograma'}; ${x.record.metadataSource||'Metadados do SPA'}`);
+        detailField('Matéria e justificativa',x.candidates.map(c=>`${c.category}: ${c.reason}`).join(' | ')||'Não enquadrado na tabela.');
+        detailField('Regras e ressalvas',x.distribution.notes?.join(' | ')||'Conferir se a tabela está vigente e aplicável.');
+        detailField('Procurador indicado na tabela de triagem',owners);
+        detailField('Fonte e cobertura',`${x.distribution.source||'Proposta da tabela de triagem'}; ${x.record.metadataSource||'Metadados do SPA'}`);
         details.append(info);
         const origin=reportNode('div');openAllowedLink(origin,x.record);details.append(origin);
         const manualBox=reportNode('div','mtprev-triage-review');
-        manualBox.append(reportNode('strong','','Enquadramento assistido pelo organograma'));
+        manualBox.append(reportNode('strong','','Enquadramento assistido pela tabela de triagem'));
         manualBox.append(reportNode('p','','Após conferir o expediente, escolha a matéria ou peça. A sugestão será marcada para revisão humana e salva apenas neste navegador.'));
         const manualSelect=reportNode('select');manualSelect.setAttribute('aria-label','Matéria conferida manualmente');
         const emptyOption=reportNode('option','','Usar somente os dados recebidos do SPA');emptyOption.value='';manualSelect.append(emptyOption);
@@ -589,18 +716,59 @@
           render();
           main.scrollTop=from;
         });
-        manualBox.append(manualSelect);details.append(manualBox);
+        manualBox.append(manualSelect);
+        const assignBox = reportNode('div','mtprev-triage-review');
+        assignBox.append(reportNode('strong','','Designação proposta — escolha humana'));
+        assignBox.append(reportNode('small','', 'Escolha um assessor da tabela ou informe outro profissional habilitado no SPA. O registro abaixo é um rascunho local; não designa nem envia automaticamente.'));
+        const revKey=x.key;let saved={};
+        try{saved=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}')[revKey]||{}}catch(_){}
+        const labelField=(label, control)=>{const labelNode=reportNode('label','',label);labelNode.append(control);assignBox.append(labelNode);return control;};
+        const assessorSelect=reportNode('select');assessorSelect.setAttribute('aria-label','Assessor para designação');
+        const assessorDefault=reportNode('option','','Selecionar assessor(a)');assessorDefault.value='';assessorSelect.append(assessorDefault);
+        const team=(currentRules().team||[]).map(person=>person.name);
+        for(const name of team){const option=reportNode('option','',name);option.value=name;assessorSelect.append(option);}
+        const customOption=reportNode('option','','Outro assessor habilitado no SPA…');customOption.value='__custom__';assessorSelect.append(customOption);
+        const names=team;
+        assessorSelect.value=saved.assessor && names.includes(saved.assessor) ? saved.assessor : saved.assessor ? '__custom__' : '';
+        labelField('Assessor(a) responsável',assessorSelect);
+        const customName=reportNode('input');customName.type='text';customName.placeholder='Nome exato exibido no SPA';customName.value=saved.assessor && !names.includes(saved.assessor)?saved.assessor:'';
+        customName.hidden=assessorSelect.value!=='__custom__';
+        labelField('Nome manual, se não constar na tabela',customName);
+        const procuradorSelect=reportNode('select');procuradorSelect.setAttribute('aria-label','Procurador de referência');
+        for(const [value,label] of [['','A confirmar no SPA'],['Dorigatti','Dorigatti'],['Miyoshi','Miyoshi'],['Dorigatti e Miyoshi','Dorigatti e Miyoshi']]){const o=reportNode('option','',label);o.value=value;procuradorSelect.append(o);}
+        procuradorSelect.value=saved.procurador||'';labelField('Procurador de referência',procuradorSelect);
+        const subjectInput=reportNode('input');subjectInput.type='text';subjectInput.placeholder='Assunto conferido no expediente';subjectInput.value=saved.assuntoTriagem||x.manualLabel||x.record.assunto||x.record.assuntoPrincipal||'';
+        labelField('Assunto para triagem (editável)',subjectInput);
+        const message=reportNode('textarea');message.placeholder='Texto livre, instruções, providências e justificativa de conflito…';message.value=saved.textoDesignacao||'';
+        labelField('Texto da designação / justificativa',message);
+        const choiceWarning=reportNode('small','mtprev-triage-choice-warning', x.kind==='matched'?'Confira o assessor no SPA antes de confirmar.':'Há conflito, enquadramento manual ou ausência de indicação única: escolha o responsável e registre a justificativa.');
+        assignBox.append(choiceWarning);
+        const formFeedback=reportNode('small');
+        const chosenAssessor=()=>assessorSelect.value==='__custom__'?customName.value.trim():assessorSelect.value;
+        const saveDraft=()=>{
+          try{const db=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');db[revKey]={...(db[revKey]||{}),assessor:chosenAssessor(),procurador:procuradorSelect.value,assuntoTriagem:subjectInput.value.trim(),textoDesignacao:message.value,at:new Date().toISOString()};localStorage.setItem('MTPREV_POP_REVIEWS',JSON.stringify(db));formFeedback.textContent='Rascunho salvo neste navegador. Para efetivar, use Classificar Processo no SPA.';}
+          catch(_){formFeedback.textContent='Não foi possível salvar a escolha local.';}
+        };
+        assessorSelect.addEventListener('change',()=>{customName.hidden=assessorSelect.value!=='__custom__';const selectedPerson=(currentRules().team||[]).find(p=>p.name===assessorSelect.value);if(selectedPerson){procuradorSelect.value=selectedPerson.procuradores||'';}saveDraft();});
+        for(const control of [customName,procuradorSelect,subjectInput,message])control.addEventListener('change',saveDraft);
+        const saveButton=reportNode('button','','Salvar rascunho de designação');saveButton.type='button';saveButton.addEventListener('click',saveDraft);
+        const copyButton=reportNode('button','','Copiar texto para o SPA');copyButton.type='button';
+        copyButton.addEventListener('click',async()=>{
+          const full=[`Processo: ${x.record.processNumber||'não informado'}`,`Assunto: ${subjectInput.value||'não informado'}`,`Assessor: ${chosenAssessor()||'a definir'}`,`Procurador: ${procuradorSelect.value||'a confirmar'}`,`Fundamento: ${x.candidates.map(c=>c.reason).join(' / ')||'Conferência manual'}`,message.value].filter(Boolean).join('\n');
+          try{await navigator.clipboard.writeText(full);formFeedback.textContent='Texto copiado. Confira e cole no formulário de classificação do SPA.';}
+          catch(_){formFeedback.textContent='Cópia indisponível neste navegador. Selecione e copie o texto manualmente.';}
+        });
+        assignBox.append(saveButton,copyButton,formFeedback);
+        manualBox.append(reportNode('small','', 'O assunto original do SPA não é alterado por esta escolha.'));details.append(manualBox,assignBox);
         const rev=reportNode('div','mtprev-triage-review');
         rev.append(reportNode('strong','','Registro local de conferência (não altera o SPA)'));
         const revStatus=reportNode('select');
         for(const value of ['Pendente','Conferido — manter indicação','Conferido — corrigir indicação']){const option=reportNode('option','',value);option.value=value;revStatus.append(option);}
         const note=reportNode('textarea');note.placeholder='Anotação de conferência…';note.setAttribute('aria-label','Anotação da revisão');
-        const revKey=x.key;let saved={};
-        try{saved=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}')[revKey]||{}}catch(_){}
         revStatus.value=saved.status||'Pendente';note.value=saved.note||'';
         const feedback=reportNode('small');
         function save(){
-          try{const db=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');db[revKey]={status:revStatus.value,note:note.value,at:new Date().toISOString(),indication:x.diagnosis.competence};localStorage.setItem('MTPREV_POP_REVIEWS',JSON.stringify(db));feedback.textContent='Conferência registrada neste navegador.';}
+          try{const db=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');db[revKey]={...(db[revKey]||{}),status:revStatus.value,note:note.value,at:new Date().toISOString(),indication:x.diagnosis.competence};localStorage.setItem('MTPREV_POP_REVIEWS',JSON.stringify(db));feedback.textContent='Conferência registrada neste navegador.';}
           catch(_){feedback.textContent='Não foi possível salvar a conferência no armazenamento local.';}
         }
         revStatus.addEventListener('change',save);note.addEventListener('change',save);
@@ -633,8 +801,8 @@
       selectAll.addEventListener('click',()=>{filtered().slice(0,100).forEach(x=>selected.add(x.key));render();});
       exportCsv.addEventListener('click',()=>{
         const csvValue=value=>{let text=String(value??'');if(/^[\t\r\n=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
-        const dataRows=[['Processo','Expediente','Assunto informado pelo SPA','Enquadramento manual','Situação','Assessor(es) sugerido(s)','Procurador(es)','Justificativa'],
-          ...filtered().map(x=>[x.record.processNumber,x.record.expedienteId,x.record.assunto || x.record.assuntoPrincipal || x.record.subject,x.manualLabel || '',x.kind,x.people.map(p=>p.name).join(' / '),[...new Set(x.people.map(p=>p.procuradores))].join(' / '),x.candidates.map(c=>c.reason).join(' | ')])];
+        const dataRows=[['Processo','Expediente','Assunto informado pelo SPA','Enquadramento manual','Situação','Assessor(es) sugerido(s)','Procurador(es)','Justificativa','Assessor escolhido','Procurador escolhido','Assunto editado','Texto de designação'],
+          ...filtered().map(x=>[x.record.processNumber,x.record.expedienteId,x.record.assunto || x.record.assuntoPrincipal || x.record.subject,x.manualLabel || '',x.kind,x.people.map(p=>p.name).join(' / '),[...new Set(x.people.map(p=>p.procuradores))].join(' / '),x.candidates.map(c=>c.reason).join(' | '),...(()=>{let d={};try{d=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}')[x.key]||{}}catch(_){}return[d.assessor||'',d.procurador||'',d.assuntoTriagem||'',d.textoDesignacao||''];})()])];
         const content='\uFEFF'+dataRows.map(row=>row.map(csvValue).join(';')).join('\r\n');
         const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
         const a=reportNode('a');a.href=url;a.download='mtprev-triagem-revisao.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);

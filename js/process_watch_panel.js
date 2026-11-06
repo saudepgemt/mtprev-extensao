@@ -198,6 +198,24 @@
     progress(result.message || 'Gmail API aceitou a mensagem de teste.',100,'success');
     return result;
   }
+  async function prepareManualDraft(processNumber, progress = () => {}) {
+    progress('Lendo a movimentação disponível no SPA…', 12);
+    await syncSpaForMail(processNumber, progress);
+    const draft = await mailRequest('mailDraft', processNumber);
+    if (draft.deliveryMode !== 'manual') throw new Error('Selecione Envio manual nas Configurações.');
+    const recipients = parseEmails(draft.recipients || []);
+    if (!recipients.length) throw new Error('Sem destinatários válidos.');
+    if (!window.confirm(`Preparar aviso do processo ${displayNumber(processNumber)} para ${recipients.length} destinatário(s)?\n\nNENHUM EMAIL SERÁ ENVIADO PELA EXTENSÃO. Confira o rascunho e envie no seu aplicativo.`)) {
+      progress('Rascunho cancelado.', 0, 'idle');
+      return;
+    }
+    const uri = 'mailto:?' + new URLSearchParams({
+      bcc:recipients.join(','),subject:String(draft.subject||'').slice(0,180),body:String(draft.body||'').slice(0,1800)
+    }).toString().replace(/\+/g,'%20');
+    if (uri.length > 7500) throw new Error('Rascunho longo demais para o aplicativo de e-mail. Reduza os destinatários do processo.');
+    const a=document.createElement('a'); a.href=uri; document.body.append(a); a.click(); a.remove();
+    progress('Rascunho solicitado. Revise e confirme o envio no seu aplicativo de e-mail.', 100, 'success');
+  }
   function formLabel(text, parent, control) {
     const label = element('label', text, parent, 'cdsp-watch-mail-label');
     if (control) label.htmlFor = control.id;
@@ -481,7 +499,7 @@
     }, 'cdsp-watch-button cdsp-watch-button--primary');
     saveMail.title = 'Salva inclusões e exclusões somente para este processo.';
     const updateTestProgress=makeMailProgress(content);
-    button('Enviar última movimentação (TESTE)', mailActions, async () => {
+    const gmailTestButton = button('Enviar última movimentação (TESTE)', mailActions, async () => {
       try {
         const result = await confirmTest(record.number, updateTestProgress);
         if (result) explain.textContent = result.message;
@@ -490,8 +508,17 @@
         throw error;
       }
     });
+    const manualButton = button('Preparar aviso no aplicativo de e-mail', mailActions, async () => {
+      await prepareManualDraft(record.number, updateTestProgress);
+    });
+    manualButton.title = 'Sem OAuth: abre um rascunho. Não realiza o envio automaticamente.';
+    gmailTestButton.dataset.mtprevGmailTest = '1';
     chrome.storage.local.get(MAIL_CONFIG_KEY).then(data => {
       if (!exclusions.isConnected) return;
+      const mailMode = data?.[MAIL_CONFIG_KEY]?.deliveryMode === 'manual' ? 'manual' : 'oauth';
+      manualButton.hidden = mailMode !== 'manual';
+      const gmailButton = mailActions.querySelector('[data-mtprev-gmail-test]');
+      if (gmailButton) gmailButton.hidden = mailMode === 'manual';
       const defaults = parseEmails(data?.[MAIL_CONFIG_KEY]?.defaults || []);
       if (!defaults.length) {
         element('p', 'Nenhum destinatário padrão cadastrado. Abra Destinatários padrão dos avisos acima.', exclusions);

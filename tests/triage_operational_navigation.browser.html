@@ -1,0 +1,40 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Triagem MTPrev · encaminhamento seguro</title>
+<pre id="test-results">Verificando…</pre>
+<div id="fixture"></div>
+<script>
+window.opened=[];
+window.open=(href,target)=>{const tab={location:{href:href||''},opener:window};window.opened.push(tab);return tab;};
+window.chrome={runtime:{sendMessage:(message,callback)=>{window.lastMessage=message;callback({ok:true,pages:12});}}};
+window.SpaAdapter={route:()=>({kind:'procedure'})};
+</script>
+<script src="../js/shared/mtprev_triage_rules.js"></script>
+<script src="../js/triagem/mtprev_pop_panel.js"></script>
+<script>
+(async()=>{
+ const out=document.querySelector('#test-results'),tests=[];
+ const assert=(condition,label)=>{if(!condition)throw Error(label);tests.push('PASS: '+label);};
+ try {
+  const rows=[{rowKey:'1747606',procedureId:'1747606',processNumber:'1002000-44.2023.8.11.0041',expedienteId:'41858970',assunto:'Pensão por morte',pendencyUrl:'https://pge.mt.spa.coreplan.com.br/procedures/1747606',expedientes:[{label:'Decisão judicial',url:'https://pge.mt.spa.coreplan.com.br/documents/decisao.pdf'}]},
+              {rowKey:'1747607',procedureId:'1747607',processNumber:'1002000-44.2023.8.11.0042',expedienteId:'41858971',assunto:'Sem correspondência',pendencyUrl:'https://pge.mt.spa.coreplan.com.br/procedures/1747607'}];
+  const panel=MTPrevPopPanel.create({getRecords:()=>rows});document.querySelector('#fixture').append(panel);
+  [...panel.querySelectorAll('button')].find(b=>b.textContent.includes('Gerar relatório')).click();
+  await new Promise(r=>setTimeout(r,60));
+  const modal=document.querySelector('.mtprev-triage-modal');assert(Boolean(modal),'modal gerado');
+  const items=[...modal.querySelectorAll('.mtprev-triage-row')];assert(items.length===2,'linhas geradas');
+  assert(items[0].querySelector('.mtprev-triage-subject strong')?.textContent==='Pensão por morte','assunto do SPA visível no card fechado');
+  assert(items[0].querySelector('.mtprev-triage-row-actions a').getAttribute('href').endsWith('/procedures/1747606'),'abre processo correto');
+  const pdf=items[0].querySelector('button[title*="última página"]');assert(pdf && !pdf.disabled,'PDF da decisão identificado e botão habilitado');
+  pdf.click();await new Promise(r=>setTimeout(r,0));
+  assert(window.lastMessage.type==='MTPREV_TRIAGE_PDF_PAGE_COUNT','consulta PDF pelo fundo da extensão');
+  assert(window.opened[0].location.href.endsWith('decisao.pdf#page=12'),'abre última página após contagem');
+  assert(items[1].querySelector('button[title*="Não há link"]')?.disabled===true,'ausência de PDF não inventa link');
+  items[0].querySelector('input[type=checkbox]').click();items[1].querySelector('input[type=checkbox]').click();
+  const next=[...modal.querySelectorAll('.mtprev-triage-tools button')].find(b=>b.textContent.includes('Abrir próximo'));
+  assert(!next.disabled && next.textContent.includes('(2)'),'dois processos elegíveis para revisão sequencial');
+  next.click();assert(window.opened[1].location.href.endsWith('/procedures/1747606'),'primeiro processo abre após clique explícito');
+  next.click();assert(window.opened[2].location.href.endsWith('/procedures/1747607'),'segundo processo abre após novo clique explícito');
+  assert(next.disabled,'fila termina sem executar designação');
+  out.dataset.result='pass';out.textContent=tests.join('\n')+'\nALL PASS';
+ } catch(e) {out.dataset.result='fail';out.textContent=tests.join('\n')+'\nFAIL: '+e.stack;}
+})();
+</script></html>

@@ -32,7 +32,6 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
   const requiredFiles = new Set([
     ...manifest.background.scripts,
     "js/vendor/pdf.worker.min.js",
-    "data/equipe.xlsx",
     ...Object.values(manifest.icons || {}),
     ...Object.values(manifest.action.default_icon || {}),
     ...manifest.content_scripts.flatMap((script) => [...(script.js || []), ...(script.css || [])]),

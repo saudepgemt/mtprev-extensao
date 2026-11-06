@@ -95,7 +95,7 @@
       return { ok: true, records };
     }
     // O envio de teste precisa ser uma ação explícita do usuário no SPA.
-    if (message.action === 'mailPreview' || message.action === 'mailTest') {
+    if (message.action === 'mailPreview' || message.action === 'mailTest' || message.action === 'mailDraft') {
       if (number && !/^\d{20}$/.test(number)) throw new Error('Número CNJ inválido.');
       let record = number ? records[number] : null;
       if (number && !record) throw new Error('Processo não está em acompanhamento.');
@@ -105,6 +105,7 @@
         .sort((a,b) => String(b.checkedAt || '').localeCompare(String(a.checkedAt || '')))[0] || null;
       if (!record) throw new Error('Nenhuma movimentação salva. Consulte um processo para preparar o teste.');
       if (!globalThis.MTPrevWatchMail) throw new Error('Módulo Gmail indisponível.');
+      if (message.action === 'mailDraft') return globalThis.MTPrevWatchMail.draft(record);
       return message.action === 'mailPreview'
         ? globalThis.MTPrevWatchMail.preview(record)
         : globalThis.MTPrevWatchMail.test(record);
