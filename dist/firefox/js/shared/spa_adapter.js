@@ -8,7 +8,7 @@
     try {
       const url = new URL(raw);
       if (url.protocol !== 'https:' || !hosts.has(url.hostname)) return { supported: false, kind: 'unsupported' };
-      const kind = /^\/workspace\/?$/.test(url.pathname) ? 'workspace' : /^\/procedures\/?$/.test(url.pathname) ? 'inbox' : /^\/procedures\/massive\/\d+/.test(url.pathname) ? 'massive' : /^\/procedures\/\d+\/folder\/?$/.test(url.pathname) ? 'folder' : /^\/procedures\/\d+(?:\/|$)/.test(url.pathname) ? 'procedure' : 'other';
+      const kind = (/^\/workspace\/?$/.test(url.pathname) || (url.pathname==='/' && Boolean(document.querySelector?.('form.workspace-search,#workspace-process-results,.workspace-process-list')))) ? 'workspace' : /^\/procedures\/?$/.test(url.pathname) ? 'inbox' : /^\/procedures\/massive\/\d+/.test(url.pathname) ? 'massive' : /^\/procedures\/\d+\/folder\/?$/.test(url.pathname) ? 'folder' : /^\/procedures\/\d+(?:\/|$)/.test(url.pathname) ? 'procedure' : 'other';
       const path = kind === 'other' ? '/[unmapped]' : kind === 'procedure' ? '/procedures/:id' : url.pathname.replace(/\d+/g, ':id');
       return { supported: true, kind, origin: url.origin, path };
     } catch (_) { return { supported: false, kind: 'unsupported' }; }
@@ -84,7 +84,8 @@
         [processNumber,get('ID do expediente'),get('Parte(s) ativa(s)'),get('Data da distribuição')].join('|');
       const expedienteUrls = [...new Set(Array.from(node.querySelectorAll('[data-workspace-document-url]')).map(link => safeUrl(link.getAttribute('data-workspace-document-url'))).filter(Boolean))];
       const labels = Array.from(node.querySelectorAll('[data-workspace-card-markers] [data-original-title],[data-workspace-card-markers] [title]')).map(label => label.getAttribute('data-original-title') || label.getAttribute('title')).filter(Boolean);
-      const procedureId = pendencyUrl.match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1] || '';
+      const cardProcedureId=node.getAttribute('data-procedure-id') || node.querySelector('[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
+      const procedureId = /^\d+$/.test(cardProcedureId)?cardProcedureId:pendencyUrl.match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1] || '';
       const deadlineNodes = Array.from(node.querySelectorAll('.workspace-deadline__item'));
       const deadlineDetails = deadlineNodes.map(item => [item.textContent, ...Array.from(item.querySelectorAll('[title],[data-content],[data-original-title]')).map(el => el.getAttribute('title') || el.getAttribute('data-content') || el.getAttribute('data-original-title'))].filter(Boolean).join(' ')).join(' ');
       return {id:`workspace-card-${rowKey}`,rowKey,processNumber,expedienteId:get('ID do expediente'),
@@ -92,7 +93,7 @@
         assunto:get('Assunto Principal','Assunto(s) do Tribunal','Assunto','Assunto do processo','Assunto do Tribunal','Matéria'),
         actionClass:get('Classe','Classe processual','Tipo de ação'),origin:get('Origem do expediente'),
         manifestationSuggested:get('Manifestação sugerida','Sugestão de manifestação','Sugestão de ação (IA)','Tipo de peça'),distributionDate:get('Data da distribuição'),
-        jurisdiction:get('Jurisdição'),assessor:get('Assessor(a)'),party:get('Parte(s) ativa(s)','Partes ativas','Parte ativa'),
+        jurisdiction:get('Jurisdição'),assessor:get('Assessor(a)','Assessor','Assessor responsável','Assessor(a) responsável'),party:get('Parte(s) ativa(s)','Partes ativas','Parte ativa'),
         judgingBody:get('Órgão julgador','Julgador'), tribunal:get('Tribunal'),
         receivedText:get('Recebido','Tempo na caixa'), knowledgeDateText:get('Data da ciência'), deadlineDetails,
         observation:get('Observação'),
@@ -107,7 +108,7 @@
     return locate('workspace','cards',root).nodes.filter(visible).map(workspaceRecordFromNode);
   }
   function isWorkspace() {
-    return /^\/workspace\/?$/.test(new URL(location.href).pathname);
+    return route().kind==='workspace';
   }
   async function collectWorkspaceReport({ onProgress = () => {}, isStopped = () => false } = {}) {
     const href = location.href;

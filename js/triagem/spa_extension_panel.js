@@ -11325,7 +11325,7 @@
   // O cache usa o armazenamento local da extensão (não o localStorage do SPA).
   // Escopo: conta, URL, mesa e filtros atuais. Nunca inclui token de sessão.
   function workspaceDuplicateCacheScope() {
-    if (!/^\/workspace\/?$/.test(window.location.pathname)) return '';
+    if (!window.SpaAdapter?.isWorkspace?.()) return '';
     const form = document.querySelector('form.workspace-search');
     const skip = name => /(?:authenticity|csrf|token|password|secret|session|cookie|nonce)/i.test(name) || /^(?:page|per_page|offset|cursor|utf8|_token|_timestamp)$/i.test(name);
     const normalize = pairs => pairs
@@ -11425,6 +11425,18 @@
   }
 
   let duplicatePreload=null, duplicatePreloadScope='';
+  let duplicateMenuOpening=false;
+  document.addEventListener('mtprev:duplicates:open',async()=>{
+    if(duplicateMenuOpening)return;
+    duplicateMenuOpening=true;
+    try{
+      const ok=await buildDuplicateReport(false);
+      document.dispatchEvent(new Event(ok?'mtprev:duplicates:ready':'mtprev:duplicates:error'));
+    }catch(error){
+      log('Não foi possível abrir Duplicados: '+error.message,'error');
+      document.dispatchEvent(new Event('mtprev:duplicates:error'));
+    }finally{duplicateMenuOpening=false;}
+  });
   function preloadWorkspaceDuplicates(){
     const scope=workspaceDuplicateCacheScope();
     if(duplicatePreload && duplicatePreload.scope!==scope){duplicatePreload.controller.abort();duplicatePreloadScope='';return;}
@@ -11460,7 +11472,7 @@
       setDuplicateLoading(true, 'Gerando relatório de duplicados…');
       // A rota /workspace não usa DataTables (#procedures-box). Detectar
       // pela rota e pelos cards reais, não por um wrapper opcional.
-      const inWorkspace = /^\/workspace\/?$/.test(window.location.pathname);
+      const inWorkspace = Boolean(window.SpaAdapter?.isWorkspace?.());
       if (inWorkspace) {
         if (!window.SpaAdapter?.collectWorkspaceRecords) {
           throw new Error('Leitor do workspace não carregado. Verifique spa_adapter.js e recarregue a página.');
@@ -11629,7 +11641,7 @@
     // O workspace pode conter links de passos de OUTROS processos em um
     // preview lateral. Nunca acionar um link da pagina atual ao preparar a
     // sugestao do expediente selecionado no relatorio.
-    const action = /^\/workspace\/?$/.test(window.location.pathname)
+    const action = Boolean(window.SpaAdapter?.isWorkspace?.())
       ? Object.assign(data, {
           createdAt: Date.now(),
           operationId: "triage-closure-" + Date.now() + "-" + Math.random().toString(36).slice(2)
@@ -11638,7 +11650,7 @@
     // Workspace is the orchestrator, not the destination tab. A sessionStorage
     // copy here remains stale even after the opened tab processes the action.
     // Keep only one shared pending action for strictly sequential hand-off.
-    if (/^\/workspace\/?$/.test(window.location.pathname)) {
+    if (Boolean(window.SpaAdapter?.isWorkspace?.())) {
       const alreadyPending = storageGet(TRIAGE_CLOSURE_ACTION_KEY, "");
       if (alreadyPending) {
         throw new Error("Ha outra sugestao de encerramento pendente. Confira a aba aberta antes de iniciar outra.");

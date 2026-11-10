@@ -4,11 +4,15 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
-function adapter() {
-  const context = vm.createContext({ URL, Set, Map, console, window: { addEventListener() {} }, location: { href: 'https://pge.mt.spa.coreplan.com.br/procedures' } });
+function adapter(hasHome=false) {
+  const context = vm.createContext({ URL, Set, Map, console, document:{querySelector:()=>hasHome?{}:null}, window: { addEventListener() {} }, location: { href: 'https://pge.mt.spa.coreplan.com.br/procedures' } });
   for (const file of ['spa_selectors.js', 'spa_adapter.js']) vm.runInContext(fs.readFileSync(path.join(root, 'js/shared', file), 'utf8'), context);
   return context.SpaAdapter;
 }
+test('página inicial com mesa SPA usa o mesmo leitor; página sem mesa não é presumida workspace',()=>{
+  assert.equal(adapter(true).route('https://pge.mt.spa.coreplan.com.br/').kind,'workspace');
+  assert.equal(adapter(false).route('https://pge.mt.spa.coreplan.com.br/').kind,'other');
+});
 test('route recognition preserves both SPA domains and excludes untrusted hosts', () => {
   const api = adapter();
   for (const origin of ['https://spa.pge.mt.gov.br', 'https://pge.mt.spa.coreplan.com.br']) {

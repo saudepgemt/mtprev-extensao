@@ -11,7 +11,7 @@
   const excluded = key => /(?:authenticity|csrf|token|password|secret|session|cookie|nonce)/i.test(key) || /^(?:page|per_page|offset|cursor|utf8|_token|_timestamp)$/i.test(key) || /^utm_/i.test(key);
   const params = items => items.filter(([key])=>!excluded(key)).map(([k,v])=>[String(k),String(v)]).sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1]));
   function scope(){
-    if(!/^\/workspace\/?$/.test(location.pathname))return '';
+    if(!/^\/workspace\/?$/.test(location.pathname) && !(location.pathname==='/' && globalThis.SpaAdapter?.isWorkspace?.()))return '';
     const url=new URL(location.href), form=document.querySelector('form.workspace-search');
     return JSON.stringify({version:1,origin:url.origin,path:url.pathname.replace(/\/$/,'')||'/workspace',userId:url.searchParams.get('user_id')||'',query:params([...url.searchParams.entries()]),filters:form?params([...new FormData(form).entries()]):[],endpoint:form?.getAttribute('data-partial-url')||''});
   }

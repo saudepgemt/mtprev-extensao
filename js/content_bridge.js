@@ -475,7 +475,7 @@
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
       if (extensionContextInvalidated) return;
-      if (/^\/workspace\/?$/.test(location.pathname) && !loadedModules.triagem && !loadingModules.triagem) {
+      if ((/^\/workspace\/?$/.test(location.pathname) || (location.pathname==='/' && document.querySelector('form.workspace-search,#workspace-process-results,.workspace-process-list'))) && !loadedModules.triagem && !loadingModules.triagem) {
         loadingModules.triagem=true;
         safeSendMessage({type:'CDSP_GENERAL_INJECT_TRIAGEM'},response=>{
           const error=safeLastError();delete loadingModules.triagem;
