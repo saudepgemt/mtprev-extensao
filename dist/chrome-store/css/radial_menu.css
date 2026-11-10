@@ -1465,6 +1465,21 @@ body.mtprev-workspace-readable.mtprev-workspace-filter-dock .workspace-processes
 }
 body.mtprev-workspace-readable.mtprev-workspace-filter-dock .workspace-processes__heading :is(h2,.workspace-eyebrow) {color:#f5fcff !important;}
 body.mtprev-workspace-readable.mtprev-workspace-filter-dock .workspace-processes__heading :is(p,#workspace-results-count) {color:#d4ebf3 !important;}
+#cdsp-general-shell .mtprev-triage-menu-progress {
+  display:none;
+  margin:0 12px 10px;
+  padding:10px 12px;
+  border:1px solid #b9d4e4;
+  border-radius:10px;
+  background:#edf6fc;
+  color:#24465e;
+  text-align:left;
+}
+#cdsp-general-shell.mtprev-grid-open .mtprev-triage-menu-progress {display:block;}
+#cdsp-general-shell .mtprev-triage-menu-progress strong {display:block;font:600 12px/1.45 system-ui,sans-serif;overflow-wrap:anywhere;}
+#cdsp-general-shell .mtprev-triage-menu-progress progress {display:block;width:100%;height:7px;margin:8px 0;accent-color:#197ca8;}
+#cdsp-general-shell .mtprev-triage-menu-progress progress[hidden] {display:none;}
+#cdsp-general-shell .mtprev-triage-menu-progress button {margin-top:6px;padding:5px 9px;border:1px solid #a9cadf;border-radius:6px;background:white;color:#205575;font:600 11px system-ui,sans-serif;cursor:pointer;}
 @media(max-width:850px) {
   body.mtprev-workspace-readable.mtprev-workspace-filter-dock .workspace-layout {grid-template-columns:minmax(0,1fr) !important;}
   body.mtprev-workspace-readable.mtprev-workspace-filter-dock .workspace-navigation {

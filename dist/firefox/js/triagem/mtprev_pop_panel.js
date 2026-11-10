@@ -249,6 +249,42 @@
     .mtprev-triage-row{border-radius:12px;border-color:#d2e2ee;background:#fff}
     .mtprev-triage-side-button:focus-visible{outline:2px solid #77d9f0;outline-offset:2px}
 
+    /* Mesma identidade do menu: petroleo, superficies planas e acentos ciano. */
+    .mtprev-triage-modal{--triage-ink:#193d50;--triage-panel:#233f51;--triage-line:#486779;--triage-accent:#84d0e7;font-family:system-ui,'Segoe UI',sans-serif;}
+    .mtprev-triage-dialog{border-radius:12px;border-color:#598299;background:#edf3f7;box-shadow:0 12px 42px #0b24364d;}
+    .mtprev-triage-head{background:linear-gradient(105deg,#1b3c50,#246379);border-bottom:1px solid #568598;padding:14px 18px;}
+    .mtprev-triage-head-title strong{font-size:17px;font-weight:700;letter-spacing:0;}
+    .mtprev-triage-head-title small{font-size:12px;color:#d0e3eb;}
+    .mtprev-triage-head button{background:#233f51;border-color:#598299;color:#edf8fc;border-radius:7px;}
+    .mtprev-triage-brand{background:#18394c;border-color:#548da5;border-radius:10px;}
+    .mtprev-triage-workspace{background:#edf3f7;}
+    .mtprev-triage-main{padding:18px;}
+    .mtprev-triage-stats{gap:10px;margin-bottom:16px;}
+    .mtprev-triage-modal button.mtprev-triage-stat{background:var(--triage-panel);border:1px solid var(--triage-line);border-top:3px solid var(--stat-color);border-radius:9px;padding:12px 14px;box-shadow:none;}
+    .mtprev-triage-modal button.mtprev-triage-stat small{color:#d3e5ed;font-size:12px;font-weight:600;}
+    .mtprev-triage-modal button.mtprev-triage-stat strong{color:#fff;font-size:25px;font-weight:700;}
+    .mtprev-triage-modal button.mtprev-triage-stat .stat-icon{background:#1c3647;color:var(--triage-accent);border-radius:6px;}
+    .mtprev-triage-modal button.mtprev-triage-stat:hover{background:#2d5267;border-color:var(--triage-accent);box-shadow:none;}
+    .mtprev-triage-modal button.mtprev-triage-stat[aria-pressed=true]{border-color:var(--triage-accent);box-shadow:inset 0 0 0 1px var(--triage-accent);}
+    .mtprev-triage-tools{padding:12px;background:#1b3d50;border:1px solid #476b80;border-radius:9px;gap:8px;margin:0 0 16px;}
+    .mtprev-triage-modal .mtprev-triage-tools button{background:#25475c;color:#eef7fb;border-color:#65879b;border-radius:6px;font-weight:600;}
+    .mtprev-triage-modal .mtprev-triage-tools button:hover:not(:disabled){background:#34627a;}
+    .mtprev-triage-tools input,.mtprev-triage-tools select{background:#f8fbfd;border-color:#aac6d6;border-radius:6px;font-size:12px;}
+    .mtprev-triage-tools .mtprev-triage-switch button[aria-pressed=true]{background:#dceff8;color:#163e56;border-color:#84d0e7;}
+    .mtprev-triage-row{border:1px solid #b9cfdd;border-left:3px solid var(--row-color,#4887a5);border-radius:8px;background:#fff;box-shadow:none;margin:0 0 12px;}
+    .mtprev-triage-row:nth-of-type(even){background:#f4f8fb;}
+    .mtprev-triage-row:hover{border-color:#719db4;box-shadow:none;}
+    .mtprev-triage-row-head{padding:16px;gap:16px;}
+    .mtprev-triage-process strong{font-size:13px;color:#183d54;}
+    .mtprev-triage-target strong{font-weight:650;}
+    .mtprev-triage-subject{background:transparent;border:0;border-left:2px solid #7eb6cd;border-radius:0;padding:3px 9px;margin:7px 0;}
+    .mtprev-triage-subject b{font-size:10px;color:#58768a;}
+    .mtprev-triage-procurador{background:#e9f2f7;border:0;border-radius:5px;padding:6px 9px;}
+    .mtprev-triage-row-actions a,.mtprev-triage-row-actions button{background:#eef5f9;border-color:#a9c6d6;font-weight:600;border-radius:6px;}
+    .mtprev-triage-badge{background:#e2f0f5;border-radius:5px;color:#24536a;font-weight:600;}
+    .mtprev-triage-row details{border-color:#cfdee7;}
+    .mtprev-triage-row details summary{font-weight:600;color:#315f78;}
+    .mtprev-triage-detail-grid section{border-radius:5px;background:#eff5f9;border-color:#cfdee7;}
     @media(max-width:850px){.mtprev-triage-workspace{flex-direction:column;}.mtprev-triage-sidebar{flex:0 0 auto;min-width:0;max-height:210px;}.mtprev-triage-main{padding:11px;}}
     @media(max-width:900px){.mtprev-triage-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mtprev-triage-detail-grid{grid-template-columns:1fr}.mtprev-triage-head{gap:7px;padding:9px}.mtprev-triage-brand{min-width:50px}.mtprev-triage-main{padding:9px}}
     `;
@@ -400,11 +436,23 @@
     const id = String(record?.procedureId || record?.rowKey || '').trim();
     return /^\d+$/.test(id) ? safeSpaHref('/procedures/' + id) : '';
   }
-  function recentSpaAssignment(doc) {
+  function spaAssignmentText(value,assessors=[]) {
+    const normalize=text=>String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+    const text=normalize(value);
+    if(/\b(?:nao|sem|cancelad\w*|revogad\w*|desfeit\w*)\b/.test(text))return false;
+    const target=text.match(/\b(?:distribuid[oa]|designad[oa]|atribuid[oa])\s+(?:para|ao(?:\s*\(a\))?|a(?:\s*\(o\))?)\s+(?:(?:o|a|um|uma)\s+)?(.+)/)?.[1];
+    if(!target)return false;
+    if(/^assessor(?:a|\(a\))?(?:\b|\s|[(:-]|$)/.test(target))return true;
+    return assessors.some(name=>{
+      const person=normalize(name);
+      return person.split(' ').length>=2 && (target===person || target.startsWith(person+' ') || target.startsWith(person+' -') || target.startsWith(person+'('));
+    });
+  }
+  function recentSpaAssignment(doc,assessors=[]) {
     const selector='.workspace-preview__timeline-item,.workspace-preview__timeline-entry,.workspace-preview__movement,.workspace-preview__activity,.timeline-item,.timeline__item,.timeline-entry';
     const nodes=Array.from(doc.querySelectorAll(selector));
     const entries=nodes.filter(node=>!nodes.some(other=>other!==node && other.contains(node))).map((node,index)=>{
-      const titleNode=node.querySelector('[class*="timeline-title"],[class*="timeline__title"],[class*="movement-title"],[class*="activity-title"],h3,h4,h5,strong');
+      const titleNode=node.querySelector('[class*="timeline-title"],[class*="timeline__title"],[class*="movement-title"],[class*="activity-title"],h3,h4,h5');
       const text=String(titleNode?.textContent || node.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
       const explicit=node.querySelector('time[datetime]')?.getAttribute('datetime') || node.getAttribute('datetime');
       const date=String(node.textContent||'').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s*(?:[aà]s\s*)?(\d{1,2}):(\d{2}))?/i);
@@ -414,23 +462,40 @@
     entries.sort((a,b)=>Number.isFinite(a.timestamp)&&Number.isFinite(b.timestamp)?b.timestamp-a.timestamp || a.index-b.index:a.index-b.index);
     const recent=entries.slice(0,3);
     // O autor do andamento nao e necessariamente o assessor designado.
-    const assigned=recent.some(({text})=>! /\b(?:nao|sem|cancelad\w*|revogad\w*|desfeit\w*)\b/.test(text) &&
-      /\b(?:distribuid[oa]|designad[oa]|atribu[ií]d[oa])\s+(?:para|ao|a)\s+(?:(?:o|a|um|uma)\s+)?assessor(?:a|\(a\))?\b/.test(text));
+    const assigned=recent.some(({text})=>spaAssignmentText(text,assessors));
     return {assigned,readable:recent.length>0};
   }
-  async function excludeAssignedSpaRecords(records,{signal,onProgress=()=>{}}={}) {
+  const spaAssignmentCache=new Map();
+  const SPA_ASSIGNMENT_CACHE_TTL=10*60*1000;
+  async function excludeAssignedSpaRecords(records,{signal,onProgress=()=>{},force=false}={}) {
+    const scope=globalThis.MTPrevWorkspaceCache?.scope?.() || location.href || location.origin;
+    for(const [key,value] of spaAssignmentCache)if(Date.now()-value.at>=SPA_ASSIGNMENT_CACHE_TTL || value.scope!==scope)spaAssignmentCache.delete(key);
     const groups=new Map(), excluded=new Set();let checked=0,failed=0;
     for(const record of records){
-      const id=String(record.procedureId || '').trim() || procedureHref(record).match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1];
+      const id=String((/^\d+$/.test(String(record.rowKey||''))?record.rowKey:'') || record.procedureId || '').trim() || procedureHref(record).match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1];
       if(!id || !/^\d+$/.test(id)){failed++;continue;}
       if(!groups.has(id))groups.set(id,[]);
       groups.get(id).push(record);
     }
-    const queue=Array.from(groups),total=queue.length;let cursor=0;
+    const queue=Array.from(groups),total=queue.length,batchSize=100,concurrency=8;
+    let cursor=0,batchEnd=0,batch=0,reused=0;
+    const batches=Math.ceil(total/batchSize);
+    const progress=()=>onProgress({checked,total,excluded:excluded.size,failed,batch,batches,batchSize,concurrency,reused});
     async function worker(){
-      while(cursor<queue.length){
+      while(cursor<batchEnd){
         signal?.throwIfAborted();
         const [id,items]=queue[cursor++];
+        const assessors=items.map(item=>item.assessor).filter(name=>typeof name==='string' && name.trim());
+        // O ultimo andamento do card tambem e evidencia recente do proprio SPA.
+        // Nao depende de quem realizou a distribuicao nem de quem esta conectado.
+        if(items.some(item=>spaAssignmentText(item.lastProgress,assessors))){
+          items.forEach(record=>excluded.add(record));checked++;progress();continue;
+        }
+        const cacheKey=scope+'|'+id+'|'+assessors.join('|'),cached=force?null:spaAssignmentCache.get(cacheKey);
+        if(cached){
+          if(cached.assigned)items.forEach(record=>excluded.add(record));
+          checked++;reused++;progress();continue;
+        }
         const controller=new AbortController();
         const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});
         const timer=setTimeout(abort,15000);
@@ -441,15 +506,19 @@
           let html=await response.text();
           if(/^\s*\{/.test(html)){const json=JSON.parse(html);html=typeof json.html==='string'?json.html:typeof json.content==='string'?json.content:'';}
           if(!html || /<form[^>]+(?:sign.in|login)/i.test(html))throw new Error('Andamentos indisponíveis');
-          const result=recentSpaAssignment(new DOMParser().parseFromString(html,'text/html'));
+          const result=recentSpaAssignment(new DOMParser().parseFromString(html,'text/html'),assessors);
           if(!result.readable)throw new Error('Andamentos não reconhecidos');
+          spaAssignmentCache.set(cacheKey,{scope,at:Date.now(),assigned:result.assigned});
           if(result.assigned)items.forEach(record=>excluded.add(record));
         }catch(error){signal?.throwIfAborted();failed+=items.length;}
         finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
-        checked++;onProgress({checked,total,excluded:excluded.size,failed});
+        checked++;progress();
       }
     }
-    await Promise.all(Array.from({length:Math.min(3,total)},()=>worker()));
+    while(cursor<total){
+      signal?.throwIfAborted();batch++;batchEnd=Math.min(cursor+batchSize,total);progress();
+      await Promise.all(Array.from({length:Math.min(concurrency,batchEnd-cursor)},()=>worker()));
+    }
     return {records:records.filter(record=>!excluded.has(record)),triagedRecords:records.filter(record=>excluded.has(record)),excluded:excluded.size,failed};
   }
   function decisionPdfCandidate(record) {
@@ -530,6 +599,28 @@
     const status = reportNode('p','mtprev-triage-entry__note');status.setAttribute('role','status');root.append(status);
     let last = null, currentController = null, modal = null, pendingMain=null, lastScope='', attemptedScope='';
     const reportScope=()=>window.MTPrevWorkspaceCache?.scope?.()||'';
+    function updateMenuProgress(state,text,value=0){
+      const stage=document.querySelector('#cdsp-general-shell .mtprev-orbit');
+      if(!stage)return;
+      let box=stage.querySelector('.mtprev-triage-menu-progress');
+      if(!box){
+        box=reportNode('section','mtprev-triage-menu-progress');box.setAttribute('aria-label','Leitura da triagem');
+        const label=reportNode('strong');label.setAttribute('role','status');
+        const bar=reportNode('progress');bar.max=100;bar.setAttribute('aria-label','Progresso da triagem');
+        const button=reportNode('button');button.type='button';
+        button.addEventListener('click',()=>{
+          if(box.dataset.state==='loading')currentController?.abort();
+          else if(box.dataset.state==='ready')openReport();
+          else void generateReport(true);
+        });
+        box.append(label,bar,button);stage.insertBefore(box,stage.querySelector('.mtprev-orbit__ring'));
+      }
+      box.dataset.state=state;box.querySelector('strong').textContent=text;
+      const bar=box.querySelector('progress');bar.value=value;bar.hidden=state!=='loading';
+      box.querySelector('button').textContent=state==='loading'?'Interromper':state==='ready'?'Abrir relatório':'Tentar novamente';
+      const compact=stage.querySelector('.mtprev-grid-compact-copy small');
+      if(compact)compact.textContent=state==='loading'?`Triagem · ${value}%`:state==='ready'?'Triagem pronta':'Triagem interrompida';
+    }
 
     function makeModal() {
       modal?.remove();
@@ -551,7 +642,7 @@
       h.append(reportNode('small','','Proposta de tabela de triagem · recomendações para conferência humana'));
       header.append(h);
       const close=reportNode('button','','Fechar');close.type='button';
-      close.addEventListener('click',()=>{if(currentController)currentController.abort();overlay.remove();modal=null;});
+      close.addEventListener('click',()=>{overlay.remove();modal=null;});
       header.append(close);
       const area=reportNode('div','mtprev-triage-workspace');
       const main=reportNode('div','mtprev-triage-main');
@@ -570,13 +661,16 @@
       const cancel=reportNode('button','','Interromper leitura');cancel.type='button';
       cancel.addEventListener('click',()=>currentController?.abort());
       box.append(msg,detail,progress,cancel);main.append(box);
-      return ({count,total,rounds,pages,phase})=>{
+      return ({count,total,rounds,pages,phase,batch,batches,concurrency,reused})=>{
         const n=Number(count) || 0, t=Number(total);
         const valid=Number.isFinite(t) && t>0;
         const pct=valid?Math.min(100,Math.floor(n/t*100)):0;
         msg.textContent=phase==='assignments'?`Conferindo os 3 últimos andamentos: ${n} de ${t}`:valid?`Lendo processos: ${n} de ${t} (${pct}%)`:`Lendo processos: ${n}`;
-        detail.textContent=`Lotes de até 100 · ${Number.isFinite(Number(rounds))?rounds:'–'}${Number.isFinite(Number(pages))?' / '+pages:''} concluídos · ${fmtDuration(Date.now()-startedAt)} decorridos`;
+        detail.textContent=phase==='assignments'
+          ?`Grupo ${batch||1} de ${batches||Math.ceil(t/100)||1} · até 100 processos por grupo · até ${concurrency||8} consultas simultâneas${reused?' · '+reused+' reaproveitadas':''} · ${fmtDuration(Date.now()-startedAt)} decorridos. Pode fechar esta janela; a leitura continua.`
+          :`Lotes de até 100 · ${Number.isFinite(Number(rounds))?rounds:'–'}${Number.isFinite(Number(pages))?' / '+pages:''} concluídos · ${fmtDuration(Date.now()-startedAt)} decorridos`;
         fill.style.width=`${pct}%`;
+        updateMenuProgress('loading',msg.textContent,pct);
       };
     }
     let startedAt=0;
@@ -584,17 +678,20 @@
       if(currentController) return;
       background=background===true;
       const scope=reportScope();
-      const main=background?reportNode('div','mtprev-triage-main'):makeModal();
+      const main=reportNode('div','mtprev-triage-main');
+      attemptedScope=scope;
       pendingMain=main;
       startedAt=Date.now();
       currentController=new AbortController();
       generate.disabled=true;
       const showProgress=showLoad(main);
+      updateMenuProgress('loading','Preparando triagem em segundo plano…',0);
+      if(!background)document.dispatchEvent(new Event('mtprev:triage:loading'));
       try {
         currentRules(); // Não coletar centenas de cards quando a lógica de distribuição está ausente.
         let records,coverage='partial',total,fromCache=false;
         if(window.SpaAdapter?.route?.().kind==='workspace') {
-          const result=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:currentController.signal,onProgress:showProgress,force:forceRefresh.checked,allowScroll:!background});
+          const result=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:currentController.signal,onProgress:showProgress,force:forceRefresh.checked,allowScroll:false});
           records=result.records||[];coverage=result.reason;total=result.total;fromCache=Boolean(result.fromCache);
         } else {
           records=api.getRecords()||[];total=records.length;
@@ -605,7 +702,7 @@
         let assignmentCheck={excluded:0,failed:0};
         if(window.SpaAdapter?.route?.().kind==='workspace'){
           showProgress({count:0,total:records.length,phase:'assignments'});
-          assignmentCheck=await excludeAssignedSpaRecords(records,{signal:currentController.signal,onProgress:({checked,total})=>showProgress({count:checked,total,phase:'assignments'})});
+          assignmentCheck=await excludeAssignedSpaRecords(records,{signal:currentController.signal,force:forceRefresh.checked,onProgress:({checked,...progress})=>showProgress({...progress,count:checked,phase:'assignments'})});
           records=assignmentCheck.records;
         }
         if(currentController.signal.aborted)return;
@@ -617,10 +714,13 @@
         reopen.hidden=false;
         status.textContent=`Última análise: ${rows.length} expediente(s). ${coverage==='complete'?'Leitura completa.':'Cobertura não confirmada.'} ${assignmentCheck.excluded} já designado(s) retirado(s).`+(assignmentCheck.failed?` Não foi possível conferir os andamentos de ${assignmentCheck.failed} expediente(s), mantidos na lista.`:'');
         renderReport(main,last);
+        updateMenuProgress('ready',`Triagem pronta · ${rows.length+triagedRows.length} expedientes`,100);
       } catch(error) {
         if(currentController?.signal.aborted) {
+          updateMenuProgress('stopped','Leitura da triagem interrompida');
           main.replaceChildren(reportNode('p','mtprev-triage-note','Leitura interrompida. Nenhuma movimentação foi realizada.'));
         } else {
+          updateMenuProgress('error',`Triagem: ${error?.message||error}`);
           const errorBox=reportNode('p','mtprev-triage-error',`Não foi possível gerar o relatório: ${error?.message||error}`);
           main.replaceChildren(errorBox);
         }
@@ -908,24 +1008,33 @@
       render();
     }
     function openReport(){
-      if(last && (!lastScope || lastScope===reportScope())){renderReport(makeModal(),last);return;}
+      if(last && (!lastScope || lastScope===reportScope())){
+        renderReport(makeModal(),last);
+        document.querySelector('#cdsp-general-shell .mtprev-triage-menu-progress')?.remove();
+        const compact=document.querySelector('#cdsp-general-shell .mtprev-grid-compact-copy small');
+        if(compact)compact.textContent='Abrir ferramentas';
+        return;
+      }
       if(currentController && pendingMain){
-        if(!pendingMain.isConnected){const host=makeModal();host.replaceWith(pendingMain);}
+        document.dispatchEvent(new Event('mtprev:triage:loading'));
         return;
       }
       void generateReport();
     }
     document.addEventListener('mtprev:triage:open',openReport);
-    function preload(){
+    function watchTriageScope(){
       const scope=reportScope();
       if(currentController && attemptedScope && attemptedScope!==scope){currentController.abort();attemptedScope='';last=null;return;}
-      if(!scope || currentController || attemptedScope===scope || !document.querySelector('.workspace-process-card'))return;
-      attemptedScope=scope;last=null;void generateReport(true);
+      if(last && lastScope!==scope){
+        last=null;reopen.hidden=true;
+        document.querySelector('#cdsp-general-shell .mtprev-triage-menu-progress')?.remove();
+        const compact=document.querySelector('#cdsp-general-shell .mtprev-grid-compact-copy small');
+        if(compact)compact.textContent='Abrir ferramentas';
+      }
     }
-    setTimeout(preload,300);
-    const preloadTimer=setInterval(()=>{if(root.isConnected)preload();else if(document.readyState!=='loading'){clearInterval(preloadTimer);currentController?.abort();document.removeEventListener('mtprev:triage:open',openReport);}},2000);
+    const scopeTimer=setInterval(()=>{if(root.isConnected)watchTriageScope();else if(document.readyState!=='loading'){clearInterval(scopeTimer);currentController?.abort();document.removeEventListener('mtprev:triage:open',openReport);}},2000);
     generate.addEventListener('click',()=>generateReport());
-    reopen.addEventListener('click',()=>{if(last)renderReport(makeModal(),last);});
+    reopen.addEventListener('click',openReport);
     return root;
   }
 

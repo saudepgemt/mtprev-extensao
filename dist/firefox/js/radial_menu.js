@@ -413,6 +413,11 @@
       paint(entries());
       center.focus({ preventScroll: true });
     }
+    document.addEventListener('mtprev:triage:loading',()=>{
+      module=null;directShortcut='';page=0;open();
+    });
+    document.addEventListener('mtprev:duplicates:ready',()=>close());
+    document.addEventListener('mtprev:duplicates:error',()=>notice('Não foi possível gerar o relatório de duplicados. Aguarde a leitura atual terminar e tente novamente.'));
     function close() {
       expanded = false; generation++; clearTimeout(timer); collapseItems();
       shell.classList.remove('mtprev-grid-open');
@@ -442,8 +447,13 @@
       // Coordenação abre diretamente a janela de gerar o painel gerencial.
       // Não inicia coleta sem que o usuário clique em Gerar.
       if (item.key === 'triagem' && !restoreOption) {
-        document.dispatchEvent(new Event('mtprev:triage:open'));
-        module=null;persistActiveView();close();return;
+        module=null;persistActiveView();close();
+        document.dispatchEvent(new Event('mtprev:triage:open'));return;
+      }
+      if (item.key === 'triagem' && restoreOption === 'Duplicados') {
+        module=null;directShortcut='';persistActiveView();open();
+        notice('Preparando relatório de duplicados…');
+        document.dispatchEvent(new Event('mtprev:duplicates:open'));return;
       }
       if (item.key === 'gestao') {
         document.dispatchEvent(new Event('mtprev:management:open'));
@@ -600,7 +610,7 @@
    Os campos originais permanecem no DOM para leitura e operações do SPA. */
 (() => {
   'use strict';
-  if (!/^\/workspace\/?$/.test(location.pathname) || window.__mtprevWorkspaceReadable) return;
+  if (!/^\/(?:workspace\/?)?$/.test(location.pathname) || window.__mtprevWorkspaceReadable) return;
   window.__mtprevWorkspaceReadable = true;
 
   const KEY = 'mtprev.workspace.view.v1';
@@ -834,21 +844,21 @@
     const fields = card.querySelector('.workspace-process-card__fields');
     if (!fields) return;
     const source = card.querySelector('.workspace-process-card__received strong');
-    const raw = String(source?.textContent || '').replace(/\s+/g,' ').trim();
     const existing = fields.querySelector('[data-mtprev-received-field]');
-    if (!raw) { existing?.remove(); return; }
     const title = source?.getAttribute('title') || source?.querySelector('[title]')?.getAttribute('title') || '';
     const receipt = source?.closest('.workspace-process-card__received');
     const nativeReceiptFields = Array.from(fields.querySelectorAll('.workspace-process-card__field,[data-workspace-field]')).filter(field =>
       !field.hasAttribute('data-mtprev-received-field') &&
       norm(field.querySelector('small,[data-full-label]')?.textContent) === 'recebido'
     );
+    const raw = String(source?.textContent || nativeReceiptFields[0]?.querySelector('strong')?.textContent || receipt?.textContent || '').replace(/\s+/g,' ').trim();
+    if (!raw && !receipt && !nativeReceiptFields.length) { existing?.remove(); return; }
     const dateNodes = [source, receipt, ...Array.from(receipt?.querySelectorAll('*') || []),
       ...nativeReceiptFields.flatMap(field => [field,...field.querySelectorAll('*')])].filter(Boolean);
     let exactDate = '';
     for (const node of dateNodes) {
-      for (const attribute of ['data-full-value','data-copy-value','datetime','data-datetime','data-date','title','data-bs-title','data-bs-original-title','data-original-title','data-tippy-content','aria-label']) {
-        const text = node.getAttribute(attribute) || '';
+      for (const attribute of ['data-full-value','data-copy-value','datetime','data-datetime','data-date','data-received-at','data-content','title','data-bs-title','data-bs-original-title','data-original-title','data-tippy-content','aria-label','textContent']) {
+        const text = attribute==='textContent' ? node.textContent || '' : node.getAttribute(attribute) || '';
         const br = text.match(/\b\d{2}\/\d{2}\/\d{4}(?:\s*(?:às|as)?\s*\d{2}:\d{2})?/);
         if (br) { exactDate = br[0]; break; }
         const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -863,7 +873,8 @@
       }
       if (exactDate) break;
     }
-    let field = existing;
+    let field = nativeReceiptFields[0] || existing;
+    if (nativeReceiptFields.length && existing) existing.remove();
     if (!field) {
       field = document.createElement('span');
       field.className = 'workspace-process-card__field mtprev-workspace-received-field';
@@ -877,11 +888,13 @@
       field.append(label,value);
       fields.appendChild(field);
     }
-    field.querySelector('strong').textContent = exactDate || raw;
-    if (exactDate) {
+    const receiptLabel=exactDate || 'Data não informada pelo SPA';
+    field.querySelector('strong').textContent = receiptLabel;
+    field.querySelector('strong').title=exactDate?'Data original informada pelo SPA':raw;
+    {
       for (const nativeField of nativeReceiptFields) {
         const value = nativeField.querySelector('.workspace-process-card__field-value strong,strong,[data-copy-value]');
-        if (value && value.textContent !== exactDate) value.textContent = exactDate;
+        if (value && value.textContent !== receiptLabel) {value.title=raw;value.textContent = receiptLabel;}
       }
     }
     if (title) field.querySelector('strong').title = title;
@@ -966,7 +979,7 @@
    Cada secao pode ser recolhida sem ocultar Visões rápidas ou Fluxos. */
 (() => {
   'use strict';
-  if (!/^\/workspace\/?$/.test(location.pathname) || window.__mtprevWorkspaceFilterSidebar) return;
+  if (!/^\/(?:workspace\/?)?$/.test(location.pathname) || window.__mtprevWorkspaceFilterSidebar) return;
   window.__mtprevWorkspaceFilterSidebar = true;
 
   const STORAGE = 'mtprev.workspace.filter.sections.v3';
@@ -993,7 +1006,7 @@
     if (text) node.textContent = text;
     return node;
   };
-  const isWorkspace = () => /^\/workspace\/?$/.test(location.pathname);
+  const isWorkspace = () => /^\/(?:workspace\/?)?$/.test(location.pathname) && Boolean(document.querySelector('.workspace-navigation,.workspace-process-list,#workspace-process-results'));
   const filterRoot = element => element?.closest?.(
     '.workspace-navigation,.mtprev-workspace-filter-panel,#cdsp-general-shell,#cdsp-process-watch,'+
     '.workspace-process-card,.workspace-process-list,dialog,[role="dialog"],.modal,.popover'

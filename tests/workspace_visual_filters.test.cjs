@@ -30,11 +30,23 @@ test('Campo recebido é extraído do SPA e não inventa data a partir de andamen
   const code=snippet('  const ensureReceiptField = card => {','  const enhanceCard = card => {');
   assert.match(code,/workspace-process-card__received strong/);
   assert.match(code,/raw/);
-  assert.match(code,/if \(!raw\) \{ existing\?\.remove\(\); return; \}/);
+  assert.match(code,/if \(!raw && !receipt && !nativeReceiptFields.length\)/);
   assert.doesNotMatch(code,/Date\.now\(|timeline|31\/08\/2025/);
   assert.match(code,/node\.getAttribute\(attribute\)/);
-  assert.match(code,/textContent = exactDate \|\| raw/);
+  assert.match(code,/receiptLabel=exactDate \|\| 'Data não informada pelo SPA'/);
   assert.match(radial,/dataset.mtprevReceivedField = '1'/);
+});
+test('Recebido lê a data do campo nativo sem wrapper received e não estima datas ausentes',()=>{
+  const code=snippet('  const ensureReceiptField = card => {','  const enhanceCard = card => {');
+  for(const date of ['05/11/2026 às 14:25','']){
+    const value={textContent:'aproximadamente 1 ano',getAttribute:key=>key==='data-original-title'?date:'',querySelector:()=>null};
+    const native={hasAttribute:()=>false,getAttribute:()=>'',querySelector:selector=>selector.includes('small')?{textContent:'Recebido'}:value,querySelectorAll:()=>[value]};
+    const fields={querySelector:()=>null,querySelectorAll:()=>[native]};
+    const card={querySelector:selector=>selector==='.workspace-process-card__fields'?fields:null};
+    const ctx=vm.createContext({norm:text=>String(text).toLowerCase(),card});
+    vm.runInContext(code+'\nensureReceiptField(card);',ctx);
+    assert.equal(value.textContent,date||'Data não informada pelo SPA');
+  }
 });
 
 test('Filtros usam containers estáveis documentados no HTML do SPA',()=>{

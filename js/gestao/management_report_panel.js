@@ -4307,7 +4307,6 @@
       launcher?.mtprevProgress?.stop();launcher?.remove();
       state.lastReadingDurationMs=Date.now()-state.collectionStartedAt;
       openManagementReport(records, result.reportDate);
-      window.SpaAdapter?.showCollectionSummary(document.querySelector("#" + CONFIG.modalId + " > div"), result.coverage);
       setStatus("Painel gerado");
       log("Painel gerencial gerado com " + records.length + " processo(s).", "ok");
     } catch (error) {
@@ -4606,7 +4605,7 @@
           "font-size:13px;font-weight:900;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.08);"
     );
     button.type = "button";
-    button.addEventListener("click", openManagementLauncher);
+    button.addEventListener("click", openManagementDirect);
     body.dataset.mtprevRadialOption = "Gerar painel gerencial";
     body.appendChild(button);
     body.appendChild(
@@ -4677,6 +4676,11 @@
     log("Painel carregado. Versao " + CONFIG.version + ".", "ok");
   }
 
-  document.addEventListener('mtprev:management:open', openManagementLauncher);
+  function openManagementDirect() {
+    if(state.running)return;
+    state.managementForceRefresh=false;
+    void generateManagementReport();
+  }
+  document.addEventListener('mtprev:management:open', openManagementDirect);
   createPanel();
 })();
