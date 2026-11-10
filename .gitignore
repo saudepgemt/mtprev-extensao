@@ -14,3 +14,5 @@ dist/*
 !dist/firefox/
 !dist/README.md
 mtprev-mcp-settings*.json
+*.txt
+*.md
