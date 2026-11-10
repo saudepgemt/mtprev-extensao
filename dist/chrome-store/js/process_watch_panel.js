@@ -2,7 +2,18 @@
   "use strict";
   const KEY = "CDSP_PROCESS_WATCH_V1";
   const POSITION_KEY = "CDSP_PROCESS_WATCH_POSITION_V2";
+  const MAIL_CONFIG_KEY = "MTPREV_WATCH_GMAIL_CONFIG_V1";
   let panel = null;
+  let dockedFullAutos = null;
+  function restoreFullAutos() {
+    if (!dockedFullAutos) return;
+    const { viewer, marker } = dockedFullAutos;
+    dockedFullAutos = null;
+    if (!viewer) return;
+    delete viewer.dataset.mtprevWatchDocked;
+    if (marker?.parentNode) marker.replaceWith(viewer);
+    else document.querySelector('.workspace-preview__document[data-procedure-id]')?.appendChild(viewer);
+  }
   let busy = false;
   let renderVersion = 0;
   const element = (tag, text, parent, className) => {
@@ -27,6 +38,188 @@
     const result = await chrome.runtime.sendMessage({ type: "CDSP_PROCESS_WATCH", action, processNumber, tribunal });
     if (!result?.ok) throw new Error(result?.error || "Não foi possível acessar a extensão. Recarregue a página.");
     return result.records || {};
+  }
+  const emailRegex = /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/;
+  const parseEmails = value => {
+    const entries = Array.isArray(value) ? value : String(value || '').split(/[\s,;]+/);
+    const emails = [...new Set(entries.map(entry => String(entry).trim().toLowerCase()).filter(Boolean))];
+    for (const address of emails) if (!emailRegex.test(address) || address.length > 254) throw new Error('E-mail inválido: ' + address.slice(0, 80));
+    if (emails.length > 40) throw new Error('Máximo de 40 e-mails por grupo.');
+    return emails;
+  };
+  async function mailRequest(action, processNumber, mail) {
+    const result = await chrome.runtime.sendMessage({type:'CDSP_PROCESS_WATCH',action,processNumber,mail});
+    if (!result?.ok) throw new Error(result?.error || 'Falha na configuração de e-mails.');
+    return result;
+  }
+  // O SPA e a extensao partilham este DOM (isolated world), sem acessar tokens ou
+  // criar rotas de API supostas. Uma leitura local e voluntaria nunca dispara email.
+  function spaRecordFor(number = '') {
+    const required = cleanNumber(number);
+    const adapter = window.SpaAdapter;
+    const previews = adapter?.workspacePreviewRecords?.() || [];
+    const cards = adapter?.workspaceRecords?.() || [];
+    const candidates = [...previews, ...cards];
+    let match = candidates.find(row => cleanNumber(row.processNumber) === required && required.length === 20);
+    if (!match && !required) match = candidates.find(row => cleanNumber(row.processNumber).length === 20);
+    if (!match) {
+      const ctx = required && findCurrentSpaContext(required);
+      if (ctx?.matching) match = { processNumber:required, expedienteId:ctx.id };
+    }
+    if (!match) return null;
+    const cnj = cleanNumber(match.processNumber);
+    if (cnj.length !== 20 || (required && cnj !== required)) return null;
+    const preview = findCurrentSpaContext(cnj);
+    const root = preview.matching
+      ? document.querySelector('.workspace-preview__document[data-procedure-id]') || document.querySelector('.procedure-header')
+      : null;
+    const fieldText = (labels) => {
+      for (const field of root?.querySelectorAll('.workspace-preview__field') || []) {
+        const key = (field.querySelector('small')?.textContent || '').toLowerCase();
+        if (labels.some(label => key.includes(label))) return (field.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || field.querySelector('strong')?.textContent || '').trim();
+      }
+      return '';
+    };
+    const rawTimeline = preview.matching ? preview.timeline : '';
+    let timeline = '';
+    try {
+      const url = new URL(rawTimeline, location.origin);
+      if (rawTimeline && url.protocol === 'https:' && url.origin === location.origin && /^\/workspace\/processes\/\d+\/timeline\/?$/.test(url.pathname)) timeline = url.href;
+    } catch (_) { /* Sem timeline oferecida pela interface atual. */ }
+    return {number:cnj,subject: match.assunto || fieldText(['assunto']),
+      parties: match.party || fieldText(['parte(s) ativa', 'partes ativas', 'polo ativo']),
+      expedienteId: String(match.expedienteId || preview.id || '').replace(/\D/g,''),
+      lastProgress: String(match.lastProgress || '').trim(), timeline};
+  }
+  async function readSpaMovement(info) {
+    if (info.timeline) {
+      try {
+        const controller = new AbortController();
+        const stop = setTimeout(() => controller.abort(), 12000);
+        let response;
+        try { response = await fetch(info.timeline, {credentials:'same-origin',headers:{Accept:'application/json, text/html'},signal:controller.signal}); }
+        finally { clearTimeout(stop); }
+        if (response.ok) {
+          const raw = (await response.text()).slice(0, 1600000);
+          let html = raw;
+          if (/^\s*\{/.test(raw)) {const data=JSON.parse(raw);html=typeof data.html==='string'?data.html:'';}
+          if (html) {
+            const doc = new DOMParser().parseFromString(html,'text/html');
+            doc.querySelectorAll('script,style,iframe,form,nav').forEach(n => n.remove());
+            const items = [...doc.querySelectorAll('.workspace-preview__timeline-item,.timeline-item,.timeline__item,.timeline-entry')];
+            const candidates=items.map(n => ({
+              description:(n.textContent || '').replace(/\s+/g,' ').trim(),
+              at:Date.parse(n.querySelector('time[datetime]')?.getAttribute('datetime') || n.getAttribute('datetime') || '') || 0
+            })).filter(entry => entry.description.length>=8 && entry.description.length<=900);
+            // Somente classificar por data quando o SPA fornece datas estruturadas.
+            if (candidates.some(entry => entry.at)) candidates.sort((a,b) => b.at-a.at);
+            const latest=candidates[0];
+            if (latest) return {description:latest.description,source:'SPA - linha do tempo',
+              date:latest.at ? new Date(latest.at).toISOString() : ''};
+          }
+        }
+      } catch (_) { /* Continua para o ultimo andamento do card visivel. */ }
+    }
+    const text = info.lastProgress.replace(/\s+/g, ' ').trim();
+    // O campo "Último andamento" e um resumo da lista e nao toda a timeline.
+    return text.length >= 6 && text.length <= 900 ? {description:text,source:'SPA - último andamento do card'} : null;
+  }
+  async function syncSpaForMail(number, onStep = () => {}) {
+    let chosen = number;
+    if (!chosen) {
+      // O teste geral so pode selecionar processos realmente acompanhados,
+      // nunca um card aleatorio entre os centenas da mesa do SPA.
+      const result = await mailRequest('list','');
+      const tracked = Object.keys(result.records || {});
+      const available = tracked.map(cnj => spaRecordFor(cnj)).filter(Boolean);
+      const matching = available.find(entry => entry.timeline || entry.lastProgress) || available[0];
+      if (!matching) return {found:false};
+      chosen = matching.number;
+    }
+    const info = spaRecordFor(chosen);
+    if (!info) return {found:false};
+    onStep('Lendo dados do expediente no SPA…', 18);
+    const movement = await readSpaMovement(info);
+    const result = await mailRequest('spaSnapshot',info.number,{
+      subject:String(info.subject || '').slice(0,160),parties:String(info.parties || '').slice(0,240),
+      expedienteId:info.expedienteId, movement
+    });
+    return {found:true,hasMovement:!!movement,number:info.number,source:movement?.source || '',result};
+  }
+  // Alternativa ao PJe na mesa SPA: observa SOMENTE processos acompanhados
+  // cujos cards estao carregados. O worker aplica o limite de 24 horas.
+  async function observeVisibleSpaProcesses() {
+    if (!/^\/workspace\/?$/.test(location.pathname) && !/^\/procedures\/\d+(?:\/|$)/.test(location.pathname)) return;
+    const list=await mailRequest('list','');
+    const tracked=Object.keys(list.records||{}).filter(cnj => /^\d{20}$/.test(cnj));
+    for (const cnj of tracked.slice(0,80)) {
+      const info=spaRecordFor(cnj);
+      if (!info) continue;
+      const movement=await readSpaMovement(info);
+      if (!movement) continue;
+      try {
+        await mailRequest('spaObserve',cnj,{subject:String(info.subject||'').slice(0,160),
+          parties:String(info.parties||'').slice(0,240),expedienteId:info.expedienteId,movement});
+      } catch (_) { /* A consulta PJe e as demais observacoes prosseguem. */ }
+    }
+  }
+  function makeMailProgress(container) {
+    const wrapper=element('div','',container,'cdsp-watch-send-progress');
+    wrapper.hidden=true;
+    const status=element('div','',wrapper,'cdsp-watch-send-caption');
+    status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+    const bar=element('progress','',wrapper,'cdsp-watch-send-bar');
+    bar.max=100;bar.value=0;
+    return (message, value, state='running') => {
+      wrapper.hidden=false;
+      wrapper.dataset.state=state;
+      status.textContent=message;
+      if (value === null) bar.removeAttribute('value');
+      else bar.value=value;
+    };
+  }
+  async function confirmTest(processNumber, progress = () => {}) {
+    progress('Procurando a última movimentação no SPA…', 8);
+    const spa = await syncSpaForMail(processNumber,progress);
+    progress('Conferindo autorização e destinatários…', 45);
+    const preview = await mailRequest('mailPreview', processNumber || spa.number || '');
+    if (!preview.clientReady) throw new Error('Client ID OAuth não configurado em manifest.json. Abra as opções da extensão.');
+    if (!preview.consent) throw new Error('Autorize a transmissão de dados pela Gmail API nas Opções da extensão.');
+    if (!preview.recipients.length) throw new Error('Nenhum destinatário configurado para o processo. Cadastre e salve os e-mails antes de testar.');
+    if (!preview.movementAvailable) throw new Error(spa.found
+      ? 'O SPA mostrou o processo, mas não disponibilizou uma movimentação legível. Abra o expediente e sua linha do tempo no SPA, depois tente novamente.'
+      : 'Não há movimentação salva. Abra o expediente ou um card do processo na mesa do SPA e tente novamente. O PJe não é obrigatório para este teste.');
+    progress('Confira o processo e autorize o envio…', 65);
+    if (!window.confirm(`Enviar TESTE da ÚLTIMA MOVIMENTAÇÃO do processo ${displayNumber(preview.processNumber)} pelo Gmail ${preview.sender || '(não configurado)'} para:\n\n${preview.recipients.join('\n')}\n\nAssunto: ${preview.subject}\n\nConfirma?`)) {
+      progress('Envio cancelado. Nenhuma mensagem foi enviada.',0,'idle');return null;
+    }
+    progress('Enviando pela Gmail API…',null);
+    const result = await mailRequest('mailTest',preview.processNumber);
+    progress(result.message || 'Gmail API aceitou a mensagem de teste.',100,'success');
+    return result;
+  }
+  async function prepareManualDraft(processNumber, progress = () => {}) {
+    progress('Lendo a movimentação disponível no SPA…', 12);
+    await syncSpaForMail(processNumber, progress);
+    const draft = await mailRequest('mailDraft', processNumber);
+    if (draft.deliveryMode !== 'manual') throw new Error('Selecione Envio manual nas Configurações.');
+    const recipients = parseEmails(draft.recipients || []);
+    if (!recipients.length) throw new Error('Sem destinatários válidos.');
+    if (!window.confirm(`Preparar aviso do processo ${displayNumber(processNumber)} para ${recipients.length} destinatário(s)?\n\nNENHUM EMAIL SERÁ ENVIADO PELA EXTENSÃO. Confira o rascunho e envie no seu aplicativo.`)) {
+      progress('Rascunho cancelado.', 0, 'idle');
+      return;
+    }
+    const uri = 'mailto:?' + new URLSearchParams({
+      bcc:recipients.join(','),subject:String(draft.subject||'').slice(0,180),body:String(draft.body||'').slice(0,1800)
+    }).toString().replace(/\+/g,'%20');
+    if (uri.length > 7500) throw new Error('Rascunho longo demais para o aplicativo de e-mail. Reduza os destinatários do processo.');
+    const a=document.createElement('a'); a.href=uri; document.body.append(a); a.click(); a.remove();
+    progress('Rascunho solicitado. Revise e confirme o envio no seu aplicativo de e-mail.', 100, 'success');
+  }
+  function formLabel(text, parent, control) {
+    const label = element('label', text, parent, 'cdsp-watch-mail-label');
+    if (control) label.htmlFor = control.id;
+    return label;
   }
   function button(text, parent, fn, className) {
     const node = element("button", text, parent, className || "cdsp-watch-button");
@@ -105,6 +298,97 @@
     }
     return list;
   }
+  function findCurrentSpaContext(cnjDigits) {
+    const preview = document.querySelector('.workspace-preview__document[data-procedure-id]');
+    const field = preview && [...preview.querySelectorAll('.workspace-preview__field')].find((node) =>
+      /n[uú]mero do processo/i.test(node.querySelector('small')?.textContent || ''));
+    const displayed = field?.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || field?.querySelector('strong')?.textContent || '';
+    const current = cleanNumber(displayed);
+    if (preview && current === cnjDigits) {
+      return {
+        id: preview.getAttribute('data-procedure-id'),
+        timeline: preview.querySelector('[data-workspace-preview-panel="timeline"][data-timeline-url]')?.getAttribute('data-timeline-url') || '',
+        matching: true
+      };
+    }
+    if (/^\/procedures\/\d+\/?$/.test(location.pathname) &&
+        (document.querySelector('.workspace-preview__document') || document.querySelector('.procedure-header'))) {
+      const match = location.pathname.match(/\/procedures\/(\d+)/);
+      const header = [...document.querySelectorAll('.workspace-preview__field')].find((node) =>
+        /n[uú]mero do processo/i.test(node.querySelector('small')?.textContent || ''));
+      const value = header?.querySelector('strong')?.textContent || '';
+      return { id: match?.[1] || '', timeline: document.querySelector('[data-timeline-url]')?.getAttribute('data-timeline-url') || '',
+        matching: cleanNumber(value) === cnjDigits };
+    }
+    return { matching: false, timeline: '' };
+  }
+  // Cada card tem um leitor independente. Somente o expediente que estiver
+  // efetivamente aberto no SPA pode receber a instancia real de Autos/PDFs.
+  // Nao duplicar IDs nem reutilizar uma instancia em varios processos.
+  function createProcessSourceViewer(record, parent) {
+    const cnj = cleanNumber(record.number);
+    const ctx = findCurrentSpaContext(cnj);
+    const full = document.getElementById('spa-cdsp-external-docs-panel');
+    const canUseFull = Boolean(ctx.matching && full && cleanNumber(full.dataset.processNumber) === cnj);
+    const slot = element('div', '', parent, 'cdsp-watch-source-slot');
+    if (canUseFull && (!dockedFullAutos || dockedFullAutos.viewer === full)) {
+      const marker = document.createComment('MTPrev: retorno do leitor completo de Autos');
+      full.parentNode.insertBefore(marker, full);
+      full.dataset.mtprevWatchDocked = '1';
+      full.classList.remove('spa-cdsp-external-docs-collapsed');
+      slot.appendChild(full);
+      dockedFullAutos = {viewer:full,marker};
+      return slot;
+    }
+    // Sem ID interno conhecido, mostrar painel proprio baseado no historico
+    // persistido do PJe. A ausencia do expediente nao esconde a interface.
+    const reader = element('section', '', slot, 'cdsp-watch-autos cdsp-watch-autos--standalone');
+    const header = element('div', '', reader, 'cdsp-watch-autos-nav');
+    const heading = element('div', 'Autos e andamentos', header, 'cdsp-watch-autos-heading');
+    heading.title = `Processo ${displayNumber(record.number)}`;
+    const tabs = element('div', '', header, 'cdsp-watch-source-tabs');
+    const content = element('div', '', reader, 'cdsp-watch-autos-body');
+    const activeButtons = new Map();
+    const searchUrl = new URL('/procedures/search?gq=' + encodeURIComponent(displayNumber(record.number)), location.origin).href;
+    const link = (label, href) => {
+      const node = element('a', label, content, 'cdsp-watch-autos-link');
+      node.href = href; node.target = '_blank'; node.rel = 'noopener noreferrer';
+      return node;
+    };
+    function show(tab) {
+      for (const [key, button] of activeButtons) button.setAttribute('aria-pressed', String(key === tab));
+      content.replaceChildren();
+      if (tab === 'pje') {
+        element('p', `Última consulta PJe: ${formatDate(record.checkedAt)}`, content, 'cdsp-watch-autos-muted');
+        if (record.error) element('p', 'Consulta indisponível. Os últimos andamentos salvos continuam acessíveis.', content, 'cdsp-watch-autos-warning');
+        const latest = record.latest || [];
+        if (latest.length) addMovementList(latest, content, false);
+        else element('p', 'Nenhum andamento salvo. Configure a conexão PJe e use Verificar agora.', content, 'cdsp-watch-autos-muted');
+        if ((record.history || []).length) {
+          const hist = element('details', '', content, 'cdsp-watch-autos-history');
+          element('summary', `Movimentações detectadas (${record.history.length})`, hist);
+          for (const entry of record.history) {
+            element('strong', formatDate(entry.at), hist);
+            addMovementList(entry.items || [], hist, Boolean(entry.unread));
+          }
+        }
+      } else {
+        element('p', tab === 'spa'
+          ? 'Para carregar os andamentos administrativos, abra o expediente deste CNJ no SPA.'
+          : 'Autos e PDFs dependem do ID do expediente aberto no SPA. Um mesmo CNJ pode ter vários expedientes.',
+        content, 'cdsp-watch-autos-muted');
+        link('Localizar expediente no SPA', searchUrl);
+      }
+    }
+    for (const [key, label] of [['pje','Andamento PJe'],['spa','Andamentos SPA'],['autos','Autos e PDFs']]) {
+      const btn = element('button', label, tabs, 'cdsp-watch-autos-tab');
+      btn.type = 'button'; btn.addEventListener('click', () => show(key));
+      activeButtons.set(key,btn);
+    }
+    show('pje');
+    return slot;
+  }
+
   function makeRecordCard(record, parent, wasOpen) {
     const card = element("details", "", parent, "cdsp-watch-card");
     card.dataset.processNumber = cleanNumber(record.number);
@@ -113,7 +397,7 @@
     const summary = element("summary", "", card, "cdsp-watch-card-summary");
     const label = element("span", "", summary, "cdsp-watch-card-title");
     element("strong", displayNumber(record.number), label);
-    element("small", `Última consulta: ${formatDate(record.checkedAt)}`, label);
+    element("small", `Última consulta: ${formatDate(record.checkedAt || record.spaCheckedAt)}`, label);
     if (record.unread) {
       const count = (record.history?.[0]?.items || []).length;
       element("span", count > 0 ? `${count} nova(s)` : "Novidade", summary, "cdsp-watch-pill cdsp-watch-pill--unread");
@@ -122,39 +406,131 @@
     element("span", "▾", summary, "cdsp-watch-chevron").setAttribute("aria-hidden", "true");
     const body = element("div", "", card, "cdsp-watch-card-body");
     if (record.error) element("p", `Falha na última consulta: ${record.error}. Os dados anteriores foram preservados.`, body, "cdsp-watch-message is-error");
+    if (record.emailError) element('p', `Alerta por e-mail: ${record.emailError}`, body, 'cdsp-watch-message is-error');
+    else if (record.emailStatus) element('p', `E-mail: ${record.emailStatus}.`, body, 'cdsp-watch-message');
     if (!record.initialized) element("p", "Aguardando a primeira consulta bem-sucedida para criar a referência.", body, "cdsp-watch-message");
-    const history = record.history || [];
-    if (history.length) {
-      element("h3", "Histórico de alterações detectadas", body, "cdsp-watch-subtitle");
-      history.forEach((entry, index) => {
-        const isNew = unreadHistory(entry, record, index);
-        const event = element("details", "", body, `cdsp-watch-event${isNew ? " is-unread" : ""}`);
-        const title = element("summary", "", event);
-        element("span", formatDate(entry.at), title);
-        if (isNew) element("span", "NOVA MOVIMENTAÇÃO", title, "cdsp-watch-pill cdsp-watch-pill--unread");
-        addMovementList(entry.items || [], event, isNew);
-      });
-    } else if (record.initialized) element("p", "Nenhuma alteração detectada desde o início do acompanhamento.", body, "cdsp-watch-message");
-    if ((record.latest || []).length) {
-      const latest = element("details", "", body, "cdsp-watch-event");
-      element("summary", "Dados da última consulta", latest);
-      addMovementList(record.latest, latest, false);
-    }
+    // Leitor criado sob demanda, com novas tentativas locais de pareamento.
+    // O iframe/pre-visualizador do SPA pode chegar depois que o card abre.
+    // Os retries nao consultam PJe nem abrem documentos, apenas conferem o DOM.
+    const mountReader = () => {
+      const existing = body.querySelector('.cdsp-watch-source-slot');
+      if (existing?.contains(dockedFullAutos?.viewer)) return;
+      if (existing) {
+        const ctx = findCurrentSpaContext(cleanNumber(record.number));
+        const available = document.getElementById('spa-cdsp-external-docs-panel');
+        if (!(ctx.matching && available && cleanNumber(available.dataset.processNumber) === cleanNumber(record.number))) return;
+        existing.remove();
+      }
+      createProcessSourceViewer(record, body);
+    };
+    const queueReaderRetry = () => [650, 1600, 3200].forEach(delay => setTimeout(() => {
+      if (card.open && card.isConnected) mountReader();
+    }, delay));
+    if (card.open) {mountReader(); queueReaderRetry();}
+    card.addEventListener('toggle', () => {
+      if (card.open) {mountReader();queueReaderRetry();}
+      else {
+        if (body.contains(dockedFullAutos?.viewer)) restoreFullAutos();
+        body.querySelector('.cdsp-watch-source-slot')?.remove();
+      }
+    });
     const actions = element("div", "", body, "cdsp-watch-card-actions");
-    // O acompanhamento MNI/PJe conhece o CNJ, mas não necessariamente o ID interno
-    // de cada expediente no SPA. Não inventar /procedures/ID.
-    const cnj = displayNumber(record.number);
-    const currentField = Array.from(document.querySelectorAll('.workspace-preview__field')).find((field) =>
-      /número do processo/i.test(field.querySelector('small')?.textContent || '')
-    );
-    const currentNumber = (currentField?.querySelector('[data-copy-value]')?.getAttribute('data-copy-value') || currentField?.querySelector('strong')?.textContent || '').replace(/\D/g,'');
-    const onMatchingProcess = currentNumber.length === 20 && currentNumber === cleanNumber(record.number) && /^\/procedures\/\d+\/?$/.test(location.pathname);
-    const spaLink = element('a', onMatchingProcess ? 'Abrir autos/PDFs deste processo' : 'Localizar processo no SPA / Autos', actions, 'cdsp-watch-button cdsp-watch-button--primary');
-    spaLink.href = onMatchingProcess ? location.href : new URL('/procedures/search?gq=' + encodeURIComponent(cnj), location.origin).href;
-    spaLink.target = '_blank';spaLink.rel='noopener noreferrer';
-    spaLink.title = onMatchingProcess ? 'Abrir o processo no SPA2 com o painel de autos.' : 'Pesquisar o CNJ no SPA, selecionar o expediente correto e consultar Autos/Andamentos.';
     button("Verificar agora", actions, async () => { await request("check", record.number); await render(); });
     if (record.unread) button("Marcar como lido", actions, async () => { await request("read", record.number); await render(); }, "cdsp-watch-button cdsp-watch-button--primary");
+    if (record.unread && (record.history || []).length) {
+      button("Preparar e-mail", actions, async () => {
+        const preview = await mailRequest('mailPreview', record.number);
+        const recipient = preview.recipients.join(',');
+        const latest = record.history[0];
+        const subject = `MTPrev | Nova movimentação no processo ${displayNumber(record.number)}`;
+        const lines = [
+          `Processo: ${displayNumber(record.number)}`,
+          `Consulta: ${formatDate(latest.at)}`,
+          "",
+          ...((latest.items || []).slice(0, 15).map((value) => String(value).slice(0, 500))),
+          "",
+          "Mensagem preparada pelo MTPrev para revisão antes do envio."
+        ];
+        const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+        const anchor = document.createElement("a");
+        anchor.href = mailto;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }, "cdsp-watch-button cdsp-watch-button--primary").title =
+        "Abre um rascunho no aplicativo de e-mail. Não envia automaticamente.";
+    }
+    const mailDetails = element('details', '', body, 'cdsp-watch-mail-per-process');
+    element('summary', 'Dados do processo e destinatários de notificações', mailDetails);
+    const content = element('div', '', mailDetails, 'cdsp-watch-mail-per-process-body');
+    element('p', 'O teste tenta preencher automaticamente assunto, partes, expediente e último andamento do SPA. Campos manuais são opcionais e têm prioridade.', content, 'cdsp-watch-mail-help');
+    const fields = [
+      ['Assunto do processo', 'subject', 'Ex.: Aposentadoria / concessão', 160],
+      ['Partes (nomes para o aviso)', 'parties', 'Ex.: Parte autora × Instituto de Previdência', 240],
+      ['ID do expediente SPA (para link direto)', 'expedienteId', 'Ex.: 41858970', 16]
+    ];
+    const metadata = {};
+    for (const [labelText,key,placeholder,max] of fields) {
+      formLabel(labelText,content);
+      const field = element('input','',content);
+      field.type='text';field.maxLength=max;field.placeholder=placeholder;
+      field.value=String(record[key] || (key==='expedienteId' ? (findCurrentSpaContext(cleanNumber(record.number)).matching ? findCurrentSpaContext(cleanNumber(record.number)).id : '') : ''));
+      metadata[key]=field;
+    }
+    const offLabel = element('label', '', content, 'cdsp-watch-mail-check');
+    const off = element('input', '', offLabel);
+    off.type = 'checkbox'; off.checked = record.mail?.enabled !== false;
+    element('span', 'Enviar avisos deste processo', offLabel);
+    formLabel('Adicionar destinatários específicos (um por linha)', content);
+    const extra = element('textarea', '', content);
+    extra.rows = 2;
+    extra.placeholder = 'outro.servidor@instituicao.gov.br';
+    extra.value = (record.mail?.extra || []).join('\n');
+    const exclusions = element('fieldset', '', content, 'cdsp-watch-mail-exclusions');
+    element('legend', 'Destinatários padrão — desmarque para excluir neste processo', exclusions);
+    const excluded = new Set(record.mail?.excluded || []);
+    const checks = [];
+    const explain = element('p', 'As alterações de destinatários são salvas apenas após clicar em Salvar.', content, 'cdsp-watch-mail-help');
+    const mailActions = element('div', '', content, 'cdsp-watch-card-actions');
+    const saveMail = button('Salvar destinatários', mailActions, async () => {
+      const settings = {enabled: off.checked, extra:parseEmails(extra.value), excluded:checks.filter(row => !row.input.checked).map(row => row.address), subject:metadata.subject.value,parties:metadata.parties.value,expedienteId:metadata.expedienteId.value};
+      await mailRequest('saveMail', record.number, settings);
+      explain.textContent = 'Destinatários deste processo atualizados.';
+    }, 'cdsp-watch-button cdsp-watch-button--primary');
+    saveMail.title = 'Salva inclusões e exclusões somente para este processo.';
+    const updateTestProgress=makeMailProgress(content);
+    const gmailTestButton = button('Enviar última movimentação (TESTE)', mailActions, async () => {
+      try {
+        const result = await confirmTest(record.number, updateTestProgress);
+        if (result) explain.textContent = result.message;
+      } catch(error) {
+        updateTestProgress(error?.message || 'Falha no envio.',0,'error');
+        throw error;
+      }
+    });
+    const manualButton = button('Preparar aviso no aplicativo de e-mail', mailActions, async () => {
+      await prepareManualDraft(record.number, updateTestProgress);
+    });
+    manualButton.title = 'Sem OAuth: abre um rascunho. Não realiza o envio automaticamente.';
+    gmailTestButton.dataset.mtprevGmailTest = '1';
+    chrome.storage.local.get(MAIL_CONFIG_KEY).then(data => {
+      if (!exclusions.isConnected) return;
+      const mailMode = data?.[MAIL_CONFIG_KEY]?.deliveryMode === 'manual' ? 'manual' : 'oauth';
+      manualButton.hidden = mailMode !== 'manual';
+      const gmailButton = mailActions.querySelector('[data-mtprev-gmail-test]');
+      if (gmailButton) gmailButton.hidden = mailMode === 'manual';
+      const defaults = parseEmails(data?.[MAIL_CONFIG_KEY]?.defaults || []);
+      if (!defaults.length) {
+        element('p', 'Nenhum destinatário padrão cadastrado. Abra Destinatários padrão dos avisos acima.', exclusions);
+      }
+      for (const address of defaults) {
+        const row = element('label', '', exclusions, 'cdsp-watch-mail-check');
+        const input = element('input', '', row);
+        input.type = 'checkbox';input.checked = !excluded.has(address);
+        element('span', address, row);
+        checks.push({address,input});
+      }
+    }).catch(() => { explain.textContent = 'Não foi possível carregar os destinatários padrão.'; });
     button("Parar de acompanhar", actions, async () => {
       if (!window.confirm(`Parar de acompanhar o processo ${displayNumber(record.number)}?`)) return;
       await request("remove", record.number); await render();
@@ -189,8 +565,9 @@
     panel.querySelector(".cdsp-watch-total").textContent = String(items.length);
     panel.querySelector(".cdsp-watch-unread-total").textContent = String(unread);
     panel.querySelector(".cdsp-watch-error-total").textContent = String(errors);
+    restoreFullAutos();
     list.replaceChildren();
-    if (!items.length) element("p", "Nenhum processo acompanhado. Use ‘Adicionar processo’ para começar.", list, "cdsp-watch-empty");
+    if (!items.length) element("p", "Nenhum processo acompanhado. Cole um CNJ e clique em Salvar acompanhamento.", list, "cdsp-watch-empty");
     items.forEach((record) => {
       const card = makeRecordCard(record, list, expanded.has(cleanNumber(record.number)));
       if (record.error) card.classList.add("has-error");
@@ -200,6 +577,7 @@
     if (status && status.dataset.tone !== "error") status.textContent = `Lista atualizada · ${unread} processo(s) com alterações não lidas.`;
   }
   function close() {
+    restoreFullAutos();
     if (panel) panel.hidden = true;
     window.dispatchEvent(new Event("mtprev-process-watch-closed"));
   }
@@ -220,7 +598,7 @@
     logo.src = chrome.runtime.getURL("images/logo-mtprev.png"); logo.alt = "MTPrev"; logo.draggable = false;
     const heading = element("div", "", header, "cdsp-watch-heading");
     element("h2", "Acompanhamento Especial", heading);
-    element("p", "Movimentações de processos · Atualização a cada 30 minutos", heading);
+    element("p", "Movimentações de processos · Verificação automática a cada 24h", heading);
     button("Voltar", header, close, "cdsp-watch-button cdsp-watch-close");
     makeDraggable(header);
     const main = element("div", "", panel, "cdsp-watch-main");
@@ -241,39 +619,120 @@
     });
     filter.addEventListener("change", applyFilters);
     const actions = element("div", "", main, "cdsp-watch-toolbar-actions");
-    const form = element("details", "", actions, "cdsp-watch-add");
-    element("summary", "+ Adicionar processo", form);
-    const fields = element("div", "", form, "cdsp-watch-add-fields");
-    const label = element("label", "Número do processo (CNJ)", fields);
-    const input = element("input", "", label); input.placeholder = "0000000-00.0000.8.11.0000";
-    input.value = (document.body.innerText.match(/\b\d{7}-\d{2}\.\d{4}\.8\.11\.\d{4}\b/) || [""])[0];
-    const instanceLabel = element("label", "Instância", fields);
-    const instance = element("select", "", instanceLabel);
-    for (const [value, text] of [["", "Automática pelo número"], ["1 grau", "1º grau"], ["2 grau", "2º grau"]]) {
+    // Cadastro direto: colar o CNJ e salvar, sem abrir outro formulário.
+    const form = element("div", "", main, "cdsp-watch-quick-add");
+    const label = element("label", "Adicionar processo ao acompanhamento", form, "cdsp-watch-quick-label");
+    const fields = element("div", "", form, "cdsp-watch-quick-fields");
+    const input = element("input", "", fields, "cdsp-watch-quick-cnj");
+    input.type = "text"; input.inputMode = "numeric";
+    input.placeholder = "Cole o número CNJ (20 dígitos)";
+    input.setAttribute("aria-label", "Número CNJ para acompanhar");
+    const currentCNJ = (document.body.innerText.match(/\b\d{7}-\d{2}\.\d{4}\.8\.11\.\d{4}\b/) || [""])[0];
+    if (currentCNJ) input.value = currentCNJ;
+    const instance = element("select", "", fields, "cdsp-watch-quick-instance");
+    instance.setAttribute("aria-label", "Instância do PJe");
+    for (const [value, text] of [["", "Instância automática"], ["1 grau", "1º grau"], ["2 grau", "2º grau"]]) {
       const option = element("option", text, instance); option.value = value;
     }
-    button("Iniciar acompanhamento", fields, async () => {
+    const submit = button("Salvar acompanhamento", fields, async () => {
+      if (!/^\d{20}$/.test(cleanNumber(input.value))) throw new Error("Cole um número CNJ válido com 20 dígitos.");
       await request("add", input.value, instance.value);
-      form.open = false;
       input.value = "";
       await render();
     }, "cdsp-watch-button cdsp-watch-button--primary");
-    button("Verificar todos agora", actions, async () => { await request("checkAll"); await render(); });
-    const configure = button("Configurar consulta PJe", actions);
-    configure.addEventListener("click", async () => {
-      try {
-        const result = await chrome.runtime.sendMessage({ type: "MTPREV_OPEN_OPTIONS" });
-        if (!result?.ok) throw new Error(result?.error || "Não foi possível abrir a configuração.");
-      } catch (error) {
-        const status = panel.querySelector(".cdsp-watch-status");
-        status.textContent = error.message; status.dataset.tone = "error";
-      }
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); submit.click(); }
     });
+    button("Verificar todos agora", actions, async () => { await request("checkAll"); await render(); });
+    // Acompanhamento mantém somente preferências de destinatários.
+    // OAuth, remetente e MCP/PJe ficam na página aberta pelo botão Configurações do menu inicial.
+    const mailSettings = element('details', '', main, 'cdsp-watch-mail-settings');
+    element('summary', 'Destinatários padrão dos avisos', mailSettings);
+    const mailFields = element('div', '', mailSettings, 'cdsp-watch-mail-fields');
+    element('p', 'Defina quem receberá avisos de todos os processos acompanhados. Para excluir alguém de um processo específico, abra o card e desmarque o destinatário.', mailFields);
+    formLabel('Endereços padrão (um por linha; também aceita vírgulas)', mailFields);
+    const defaultsInput = element('textarea', '', mailFields);
+    defaultsInput.rows = 4;
+    defaultsInput.placeholder = 'servidor@instituicao.gov.br\noutro@instituicao.gov.br';
+    const spaContacts = element('div', '', mailFields, 'cdsp-watch-spa-contacts');
+    formLabel('Selecionar uma conta do SPA', spaContacts);
+    const contactsSearch = element('input', '', spaContacts, 'cdsp-watch-contact-search');
+    contactsSearch.type = 'search';
+    contactsSearch.placeholder = 'Pesquisar pelo nome ou e-mail no SPA';
+    contactsSearch.setAttribute('aria-label', 'Pesquisar usuários visíveis no SPA');
+    const contactsSelect = element('select', '', spaContacts, 'cdsp-watch-contact-select');
+    contactsSelect.setAttribute('aria-label', 'Selecionar conta do SPA');
+    const contactEmail = element('input', '', spaContacts, 'cdsp-watch-contact-email');
+    contactEmail.type = 'email';
+    contactEmail.placeholder = 'E-mail confirmado do usuário selecionado';
+    contactEmail.setAttribute('aria-label', 'E-mail confirmado do usuário selecionado');
+    contactEmail.autocomplete = 'off';
+    const contactsHelp = element('p', '', spaContacts, 'cdsp-watch-mail-help');
+    const contactsActions = element('div', '', spaContacts, 'cdsp-watch-card-actions');
+    let availableContacts = [];
+    const fillContacts = () => {
+      const query = contactsSearch.value.trim().toLocaleLowerCase('pt-BR');
+      const filtered = availableContacts.filter(item => !query || `${item.name} ${item.email}`.toLocaleLowerCase('pt-BR').includes(query));
+      contactsSelect.replaceChildren();
+      const placeholder = element('option', filtered.length ? 'Selecione uma conta do SPA' : 'Nenhuma conta encontrada', contactsSelect);
+      placeholder.value = '';
+      filtered.forEach(item => {
+        const option = element('option', item.email ? `${item.name} — ${item.email}` : `${item.name} — e-mail a informar`, contactsSelect);
+        option.value = String(availableContacts.indexOf(item));
+      });
+      contactEmail.value = '';
+      contactsHelp.textContent = availableContacts.length
+        ? `${availableContacts.length} conta(s) encontrada(s) nos campos visíveis do SPA. Se o SPA não informar um e-mail, digite o endereço confirmado antes de adicionar.`
+        : 'O SPA não disponibilizou contas nos controles desta página. Abra uma lista de usuários no SPA e clique em Atualizar, ou informe os e-mails diretamente acima.';
+    };
+    const reloadContacts = () => {
+      availableContacts = globalThis.MTPrevSpaMailContacts?.list(document) || [];
+      fillContacts();
+    };
+    contactsSearch.addEventListener('input', fillContacts);
+    contactsSelect.addEventListener('change', () => {
+      const index = contactsSelect.value;
+      const contact = index === '' ? null : availableContacts[Number(index)];
+      contactEmail.value = contact?.email || '';
+      contactsHelp.textContent = !contact ? 'Selecione uma conta do SPA.' : contact.email
+        ? `Endereço fornecido pelo SPA para ${contact.name}. Confira antes de adicionar.`
+        : `O SPA mostrou ${contact.name}, mas não informou e-mail. Digite um endereço confirmado para associar ao destinatário.`;
+    });
+    button('Atualizar contas do SPA', contactsActions, async () => { reloadContacts(); });
+    button('Adicionar destinatário selecionado', contactsActions, async () => {
+      const index = contactsSelect.value;
+      if (index === '') throw new Error('Escolha uma conta na lista do SPA.');
+      const chosen = availableContacts[Number(index)];
+      if (!chosen) throw new Error('Conta do SPA não encontrada; atualize a lista.');
+      const address = parseEmails(contactEmail.value);
+      if (address.length !== 1) throw new Error('Informe um e-mail válido e confirmado para o usuário selecionado.');
+      const updated = parseEmails([...parseEmails(defaultsInput.value), address[0]]);
+      defaultsInput.value = updated.join('\n');
+      contactsHelp.textContent = `${chosen.name} adicionado à lista. Clique em Salvar destinatários padrão para confirmar.`;
+    }, 'cdsp-watch-button cdsp-watch-button--primary');
+    reloadContacts();
+    const mailInfo = element('p', '', mailFields, 'cdsp-watch-mail-help');
+    const loadDefaults = async () => {
+      const data = await chrome.storage.local.get(MAIL_CONFIG_KEY);
+      const current = data?.[MAIL_CONFIG_KEY] || {};
+      defaultsInput.value = parseEmails(current.defaults || []).join('\n');
+      mailInfo.textContent = `${parseEmails(current.defaults || []).length} destinatário(s) padrão salvo(s). Limite de 40 endereços por envio.`;
+    };
+    loadDefaults().catch(() => { mailInfo.textContent = 'Não foi possível carregar os destinatários. Tente reabrir o painel.'; });
+    const mailButtons = element('div', '', mailFields, 'cdsp-watch-card-actions');
+    button('Salvar destinatários padrão', mailButtons, async () => {
+      const defaults = parseEmails(defaultsInput.value);
+      const stored = (await chrome.storage.local.get(MAIL_CONFIG_KEY))[MAIL_CONFIG_KEY] || {};
+      await chrome.storage.local.set({[MAIL_CONFIG_KEY]:{...stored, defaults}});
+      mailInfo.textContent = `${defaults.length} destinatário(s) padrão salvo(s). As exclusões individuais por processo foram preservadas.`;
+      // Atualizar checkboxes de cada processo sem perder o conteúdo salvo.
+      await render();
+    }, 'cdsp-watch-button cdsp-watch-button--primary');
     const status = element("p", "", main, "cdsp-watch-status");
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
     element("p", "0 processo(s) exibido(s)", main, "cdsp-watch-visible-count");
     element("div", "", main, "cdsp-watch-list");
-    element("p", "A primeira consulta cria a referência. As seguintes verificam movimentações e alterações de expedientes do PJe/TJMT. Não verifica encerramentos internos do SPA. As informações ficam neste perfil do Chrome.", main, "cdsp-watch-note");
+    element("p", "Verificação automática do PJe a cada 24 horas e observação dos cards SPA visíveis quando a mesa estiver aberta. Para teste, a extensão também pode ler o último andamento do expediente exibido no SPA, sem PJe configurado; a observação SPA depende dos cards carregados na mesa e não alcança processos ausentes da tela. Com navegador fechado não há monitoramento.", main, "cdsp-watch-note");
     panel.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } });
     window.addEventListener("resize", () => { if (panel && !panel.hidden) { const rect = panel.getBoundingClientRect(); const pos = viewportClamp(rect.left, rect.top); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top}px`; } });
     positionPanel();
@@ -304,4 +763,15 @@
     if (panel && !panel.hidden && !busy) render().catch(() => {});
   });
   install();
+  // Executa ao carregar o SPA, mesmo que o usuário não abra o painel.
+  // O background controla o intervalo global para evitar consultas duplicadas entre abas.
+  if (window === window.top && !window.MTPREV_WATCH_PAGE_CHECK_SENT) {
+    window.MTPREV_WATCH_PAGE_CHECK_SENT = true;
+    chrome.runtime.sendMessage({ type:"CDSP_PROCESS_WATCH", action:"pageOpened" })
+      .catch(() => {});
+    // Espera os cards SPA2 serem renderizados; uma segunda tentativa cobre
+    // carregamentos lentos. O background bloqueia repeticoes em menos de 24h.
+    for (const delay of [4500,13000]) setTimeout(() =>
+      observeVisibleSpaProcesses().catch(() => {}),delay);
+  }
 })();

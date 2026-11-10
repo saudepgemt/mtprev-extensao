@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.72",
+  "version": "2.0.74",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
   "permissions": [
@@ -11,7 +11,8 @@
     "clipboardWrite",
     "downloads",
     "unlimitedStorage",
-    "notifications"
+    "notifications",
+    "identity"
   ],
   "host_permissions": [
     "https://spa.pge.mt.gov.br/*",
@@ -21,7 +22,9 @@
     "https://pje2.tjmt.jus.br/*",
     "https://www.sigadoc.mt.gov.br/*",
     "https://sigadoc.mt.gov.br/*",
-    "https://docs.google.com/*"
+    "https://docs.google.com/*",
+    "https://gmail.googleapis.com/*",
+    "https://openidconnect.googleapis.com/*"
   ],
   "background": {
     "scripts": [
@@ -29,6 +32,8 @@
       "js/vendor/pdf.min.js",
       "js/triagem/offscreen_pdf_reader.js",
       "js/background.js",
+      "js/watch_mail_template.js",
+      "js/watch_mail_oauth.js",
       "js/process_watch_background.js"
     ]
   },
@@ -55,6 +60,7 @@
         "js/shared/spa_adapter.js",
         "js/radial_menu.js",
         "js/content_bridge.js",
+        "js/shared/spa_mail_contacts.js",
         "js/process_watch_panel.js",
         "js/extrator/content.js"
       ],
@@ -65,6 +71,18 @@
         "css/process_watch.css",
         "css/theme.css"
       ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://spa.pge.mt.gov.br/*",
+        "https://pge.mt.spa.coreplan.com.br/*"
+      ],
+      "js": [
+        "js/iframe_autos_bridge.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
       "run_at": "document_idle"
     },
     {
@@ -87,8 +105,7 @@
       "resources": [
         "images/logo-mtprev.png",
         "images/icon-mtprev128.png",
-        "images/material-rounded/*.svg",
-        "data/equipe.xlsx"
+        "images/material-rounded/*.svg"
       ],
       "matches": [
         "https://spa.pge.mt.gov.br/*",
@@ -103,6 +120,13 @@
       "48": "images/icon-mtprev48.png",
       "128": "images/icon-mtprev128.png"
     }
+  },
+  "oauth2": {
+    "client_id": "561685887068-u6cu081kjuolflgnn09cmitktqk7cigl.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/userinfo.email"
+    ]
   },
   "browser_specific_settings": {
     "gecko": {

@@ -311,7 +311,7 @@
 
   async function collectWorkspaceRecords({
     signal, onProgress = () => {}, timeout = 360000, pause = 90,
-    idleTimeout = 18000, maxRetries = 2
+    idleTimeout = 18000, maxRetries = 2, allowScroll = true
   } = {}) {
     // Ordem: botão nativo sem rolar; caso ele não acione a paginação,
     // salto instantâneo até o fim (equivalente à tecla End).
@@ -323,6 +323,7 @@
 
     const viaApi = await collectWorkspaceViaApi({signal,onProgress,timeout});
     if (viaApi) return viaApi;
+    if (!allowScroll) throw new Error('A leitura em segundo plano não conseguiu consultar a lista do SPA. Tente novamente pelo relatório.');
 
     const href = location.href;
     const form = document.querySelector('form.workspace-search');

@@ -1,6 +1,20 @@
 /* Paleta compartilhada pelos controles do menu e das janelas independentes.
    A camada dá prioridade às cores sobre os estilos legados, inclusive inline.
    O escopo abaixo nunca seleciona botões nativos do SPA. */
+/* Ocultar a barra nativa de andamentos, incluindo Expandir todos.
+   O seletor tambem se aplica aos paineis inseridos depois por navegacao SPA. */
+input[placeholder="Filtrar andamentos" i],
+input[placeholder="Filtrar andamentos..." i],
+input[placeholder="Filtrar andamentos…" i],
+:is(div, section):has(input[placeholder="Filtrar andamentos" i]):has(> button):not(:has(a, select, textarea, h1, h2, h3, [role="tablist"])):not(:has(input:not([placeholder^="Filtrar andamentos" i]))),
+:is(div, section):has(input[placeholder="Filtrar andamentos..." i]):has(> button):not(:has(a, select, textarea, h1, h2, h3, [role="tablist"])):not(:has(input:not([placeholder^="Filtrar andamentos" i]))),
+:is(div, section):has(input[placeholder="Filtrar andamentos…" i]):has(> button):not(:has(a, select, textarea, h1, h2, h3, [role="tablist"])):not(:has(input:not([placeholder^="Filtrar andamentos" i]))),
+:is(div, label):has(input[placeholder="Filtrar andamentos" i]):not(:has(button, a, select, textarea)),
+:is(div, label):has(input[placeholder="Filtrar andamentos..." i]):not(:has(button, a, select, textarea)),
+:is(div, label):has(input[placeholder="Filtrar andamentos…" i]):not(:has(button, a, select, textarea)) {
+  display: none !important;
+}
+
 :root {
   --mtprev-color-scheme: light;
   --mtprev-bg: #f4f7fb;

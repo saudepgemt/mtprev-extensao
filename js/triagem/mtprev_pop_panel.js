@@ -163,7 +163,11 @@
     .mtprev-triage-head button{flex:none;background:#e7f3ff;color:#183c55;}
     .mtprev-triage-main{min-height:0;overflow:auto;padding:16px;}
     .mtprev-triage-note{font-size:12px;background:#e3eff8;border:1px solid #c4dae9;border-radius:9px;padding:10px 12px;color:#3c5870;margin:0 0 12px;}
-    .mtprev-triage-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:12px;}
+    .mtprev-triage-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:12px;}
+    .mtprev-triage-modal button.mtprev-triage-stat{text-align:left;font:inherit;cursor:pointer;border:1px solid #d4e2eb;border-left:4px solid var(--stat-color,#2780af);border-radius:10px;background:#fff;padding:12px;min-width:0;transition:box-shadow .15s ease,background-color .15s ease;}
+    .mtprev-triage-modal button.mtprev-triage-stat:hover{background:#f6fafc;box-shadow:0 3px 9px #183c5514;}
+    .mtprev-triage-modal button.mtprev-triage-stat[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--stat-color);}
+    .mtprev-triage-modal button.mtprev-triage-stat:focus-visible{outline:2px solid #197ca8;outline-offset:2px;}
     .mtprev-triage-stat{border:1px solid #d4e2eb;border-left:4px solid var(--stat-color,#2780af);border-radius:10px;background:#fff;padding:12px;min-width:0;}
     .mtprev-triage-stat small{display:block;font-size:11px;color:#60778c;font-weight:700;}
     .mtprev-triage-stat strong{display:block;font-size:25px;color:#1b3951;margin-top:4px;font-weight:850;}
@@ -230,6 +234,9 @@
     .mtprev-triage-main{flex:1;min-width:0;min-height:0;overflow:auto;padding:18px 20px;overscroll-behavior:contain;}
     .mtprev-assessor-avatar{width:29px;height:29px;flex:none;position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #aacbd9;color:#2c637d;background:#e1eff5;font-size:10px;font-weight:850;overflow:hidden;}
     .mtprev-assessor-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#e1eff5;}
+    .mtprev-triage-procurador{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;margin-top:7px;padding:7px 10px;border:1px solid #c7dce9;border-radius:7px;background:#f2f7fb;color:#244e6b;font-size:13px;line-height:1.45;}
+    .mtprev-triage-procurador strong{color:#244e6b;font-weight:700;}
+    .mtprev-triage-procurador span{color:#183e59;font-weight:600;overflow-wrap:anywhere;}
     .mtprev-assessor-label{display:inline-flex;align-items:center;gap:8px;min-width:0;vertical-align:middle;}
     .mtprev-assessor-label>span:last-child{min-width:0;overflow-wrap:anywhere;}
     .mtprev-triage-owner-line{display:flex!important;flex-wrap:wrap;align-items:center;gap:7px;}
@@ -393,6 +400,58 @@
     const id = String(record?.procedureId || record?.rowKey || '').trim();
     return /^\d+$/.test(id) ? safeSpaHref('/procedures/' + id) : '';
   }
+  function recentSpaAssignment(doc) {
+    const selector='.workspace-preview__timeline-item,.workspace-preview__timeline-entry,.workspace-preview__movement,.workspace-preview__activity,.timeline-item,.timeline__item,.timeline-entry';
+    const nodes=Array.from(doc.querySelectorAll(selector));
+    const entries=nodes.filter(node=>!nodes.some(other=>other!==node && other.contains(node))).map((node,index)=>{
+      const titleNode=node.querySelector('[class*="timeline-title"],[class*="timeline__title"],[class*="movement-title"],[class*="activity-title"],h3,h4,h5,strong');
+      const text=String(titleNode?.textContent || node.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+      const explicit=node.querySelector('time[datetime]')?.getAttribute('datetime') || node.getAttribute('datetime');
+      const date=String(node.textContent||'').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s*(?:[aà]s\s*)?(\d{1,2}):(\d{2}))?/i);
+      const timestamp=explicit?Date.parse(explicit):date?Date.UTC(+date[3],+date[2]-1,+date[1],+(date[4]||0),+(date[5]||0)):NaN;
+      return {text,timestamp,index};
+    });
+    entries.sort((a,b)=>Number.isFinite(a.timestamp)&&Number.isFinite(b.timestamp)?b.timestamp-a.timestamp || a.index-b.index:a.index-b.index);
+    const recent=entries.slice(0,3);
+    // O autor do andamento nao e necessariamente o assessor designado.
+    const assigned=recent.some(({text})=>! /\b(?:nao|sem|cancelad\w*|revogad\w*|desfeit\w*)\b/.test(text) &&
+      /\b(?:distribuid[oa]|designad[oa]|atribu[ií]d[oa])\s+(?:para|ao|a)\s+(?:(?:o|a|um|uma)\s+)?assessor(?:a|\(a\))?\b/.test(text));
+    return {assigned,readable:recent.length>0};
+  }
+  async function excludeAssignedSpaRecords(records,{signal,onProgress=()=>{}}={}) {
+    const groups=new Map(), excluded=new Set();let checked=0,failed=0;
+    for(const record of records){
+      const id=String(record.procedureId || '').trim() || procedureHref(record).match(/\/procedures\/(\d+)(?:[/?#]|$)/)?.[1];
+      if(!id || !/^\d+$/.test(id)){failed++;continue;}
+      if(!groups.has(id))groups.set(id,[]);
+      groups.get(id).push(record);
+    }
+    const queue=Array.from(groups),total=queue.length;let cursor=0;
+    async function worker(){
+      while(cursor<queue.length){
+        signal?.throwIfAborted();
+        const [id,items]=queue[cursor++];
+        const controller=new AbortController();
+        const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});
+        const timer=setTimeout(abort,15000);
+        try{
+          const url=new URL('/workspace/processes/'+id+'/timeline',location.origin);
+          const response=await fetch(url.href,{credentials:'same-origin',redirect:'error',headers:{Accept:'text/html, application/json'},signal:controller.signal});
+          if(!response.ok)throw new Error('HTTP '+response.status);
+          let html=await response.text();
+          if(/^\s*\{/.test(html)){const json=JSON.parse(html);html=typeof json.html==='string'?json.html:typeof json.content==='string'?json.content:'';}
+          if(!html || /<form[^>]+(?:sign.in|login)/i.test(html))throw new Error('Andamentos indisponíveis');
+          const result=recentSpaAssignment(new DOMParser().parseFromString(html,'text/html'));
+          if(!result.readable)throw new Error('Andamentos não reconhecidos');
+          if(result.assigned)items.forEach(record=>excluded.add(record));
+        }catch(error){signal?.throwIfAborted();failed+=items.length;}
+        finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+        checked++;onProgress({checked,total,excluded:excluded.size,failed});
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(3,total)},()=>worker()));
+    return {records:records.filter(record=>!excluded.has(record)),triagedRecords:records.filter(record=>excluded.has(record)),excluded:excluded.size,failed};
+  }
   function decisionPdfCandidate(record) {
     const sources = [
       ...(Array.isArray(record?.expedientes) ? record.expedientes : []),
@@ -469,7 +528,8 @@
     const hint = reportNode('p','mtprev-triage-entry__note','O relatório é consultivo. A designação só ocorre após a confirmação no formulário oficial do SPA.');
     root.append(hint);
     const status = reportNode('p','mtprev-triage-entry__note');status.setAttribute('role','status');root.append(status);
-    let last = null, currentController = null, modal = null;
+    let last = null, currentController = null, modal = null, pendingMain=null, lastScope='', attemptedScope='';
+    const reportScope=()=>window.MTPrevWorkspaceCache?.scope?.()||'';
 
     function makeModal() {
       modal?.remove();
@@ -494,14 +554,11 @@
       close.addEventListener('click',()=>{if(currentController)currentController.abort();overlay.remove();modal=null;});
       header.append(close);
       const area=reportNode('div','mtprev-triage-workspace');
-      const aside=reportNode('aside','mtprev-triage-sidebar');aside.setAttribute('aria-label','Navegação dos relatórios de triagem');
       const main=reportNode('div','mtprev-triage-main');
-      area.append(aside,main);shell.append(header,area);overlay.append(shell);
+      area.append(main);shell.append(header,area);overlay.append(shell);
       document.body.append(overlay);
       overlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close.click();}});
       modal=overlay;
-      aside.append(reportNode('strong','mtprev-triage-side-title','RELATÓRIOS'));
-      aside.append(reportNode('p','mtprev-triage-side-hint','A mesma leitura permite várias maneiras de revisar os expedientes.'));
       return main;
     }
     function showLoad(main) {
@@ -513,19 +570,22 @@
       const cancel=reportNode('button','','Interromper leitura');cancel.type='button';
       cancel.addEventListener('click',()=>currentController?.abort());
       box.append(msg,detail,progress,cancel);main.append(box);
-      return ({count,total,rounds,pages})=>{
+      return ({count,total,rounds,pages,phase})=>{
         const n=Number(count) || 0, t=Number(total);
         const valid=Number.isFinite(t) && t>0;
         const pct=valid?Math.min(100,Math.floor(n/t*100)):0;
-        msg.textContent=valid?`Lendo processos: ${n} de ${t} (${pct}%)`:`Lendo processos: ${n}`;
+        msg.textContent=phase==='assignments'?`Conferindo os 3 últimos andamentos: ${n} de ${t}`:valid?`Lendo processos: ${n} de ${t} (${pct}%)`:`Lendo processos: ${n}`;
         detail.textContent=`Lotes de até 100 · ${Number.isFinite(Number(rounds))?rounds:'–'}${Number.isFinite(Number(pages))?' / '+pages:''} concluídos · ${fmtDuration(Date.now()-startedAt)} decorridos`;
         fill.style.width=`${pct}%`;
       };
     }
     let startedAt=0;
-    async function generateReport() {
+    async function generateReport(background=false) {
       if(currentController) return;
-      const main=makeModal();
+      background=background===true;
+      const scope=reportScope();
+      const main=background?reportNode('div','mtprev-triage-main'):makeModal();
+      pendingMain=main;
       startedAt=Date.now();
       currentController=new AbortController();
       generate.disabled=true;
@@ -534,7 +594,7 @@
         currentRules(); // Não coletar centenas de cards quando a lógica de distribuição está ausente.
         let records,coverage='partial',total,fromCache=false;
         if(window.SpaAdapter?.route?.().kind==='workspace') {
-          const result=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:currentController.signal,onProgress:showProgress,force:forceRefresh.checked});
+          const result=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:currentController.signal,onProgress:showProgress,force:forceRefresh.checked,allowScroll:!background});
           records=result.records||[];coverage=result.reason;total=result.total;fromCache=Boolean(result.fromCache);
         } else {
           records=api.getRecords()||[];total=records.length;
@@ -542,10 +602,20 @@
         }
         if(currentController.signal.aborted)return;
         if(!records.length)throw new Error('Nenhum expediente foi encontrado na tela ou na mesa atual.');
+        let assignmentCheck={excluded:0,failed:0};
+        if(window.SpaAdapter?.route?.().kind==='workspace'){
+          showProgress({count:0,total:records.length,phase:'assignments'});
+          assignmentCheck=await excludeAssignedSpaRecords(records,{signal:currentController.signal,onProgress:({checked,total})=>showProgress({count:checked,total,phase:'assignments'})});
+          records=assignmentCheck.records;
+        }
+        if(currentController.signal.aborted)return;
         const rows=classifyTriage(records);
-        last={rows,elapsed:Date.now()-startedAt,coverage,total,at:new Date(),fromCache};
+        const triagedRows=classifyTriage(assignmentCheck.triagedRecords||[]).map(row=>({...row,kind:'triaged',people:[],candidates:[]}));
+        if(scope && reportScope()!==scope)throw new DOMException('Mesa ou filtros alterados','AbortError');
+        lastScope=scope;
+        last={rows,triagedRows,elapsed:Date.now()-startedAt,coverage,total,at:new Date(),fromCache};
         reopen.hidden=false;
-        status.textContent=`Última análise: ${rows.length} expediente(s). ${coverage==='complete'?'Leitura completa.':'Cobertura não confirmada.'}`;
+        status.textContent=`Última análise: ${rows.length} expediente(s). ${coverage==='complete'?'Leitura completa.':'Cobertura não confirmada.'} ${assignmentCheck.excluded} já designado(s) retirado(s).`+(assignmentCheck.failed?` Não foi possível conferir os andamentos de ${assignmentCheck.failed} expediente(s), mantidos na lista.`:'');
         renderReport(main,last);
       } catch(error) {
         if(currentController?.signal.aborted) {
@@ -555,41 +625,48 @@
           main.replaceChildren(errorBox);
         }
       } finally {
-        currentController=null;generate.disabled=false;
+        currentController=null;pendingMain=null;generate.disabled=false;
       }
     }
     function renderReport(main,data) {
-      const rows=data.rows;
+      const sourceRows=data.rows;
+      let rows=[],triagedRows=[];
+      function refreshTriageState(){
+        let reviews={};try{reviews=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');}catch(_){}
+        rows=[];const done=new Map();
+        for(const row of data.triagedRows||[])done.set(row.key,{...row,triagedAutomatically:true});
+        for(const row of sourceRows){
+          const manual=/^Conferido\s*[—–-]\s*(?:manter|corrigir) indicação$/.test(reviews[row.key]?.status||'');
+          if(manual || done.has(row.key))done.set(row.key,{...(done.get(row.key)||row),kind:'triaged',triagedManually:manual,people:[],candidates:[]});
+          else rows.push(row);
+        }
+        for(const row of done.values())if(/^Conferido\s*[—–-]\s*(?:manter|corrigir) indicação$/.test(reviews[row.key]?.status||''))row.triagedManually=true;
+        triagedRows=Array.from(done.values());
+      }
+      refreshTriageState();
       const matched=rows.filter(x=>x.kind==='matched').length;
       const review=rows.filter(x=>x.kind==='review').length;
       const unknown=rows.filter(x=>x.kind==='unknown').length;
       main.replaceChildren();
-      const summary=reportNode('div','mtprev-triage-note',`${rows.length} expedientes examinados · ${data.fromCache?'Cache completo reutilizado':'Tempo de leitura '+fmtDuration(data.elapsed)} · ${data.coverage==='complete'?'Leitura completa da mesa.':'Leitura parcial ou apenas registros visíveis — confirme a cobertura.'} Nenhuma alteração foi feita no SPA.`);
-      main.append(summary);
       const metrics=reportNode('div','mtprev-triage-stats');
       for(const item of [
-        {label:'Analisados',value:rows.length,mark:'▣',color:'#197ca8'},
-        {label:'Sugestão encontrada',value:matched,mark:'✓',color:'#267f83'},
-        {label:'Escolha necessária',value:review,mark:'◇',color:'#a47b25'},
-        {label:'Sem classificação',value:unknown,mark:'?',color:'#925a78'}]) {
-        const card=reportNode('div','mtprev-triage-stat');card.style.setProperty('--stat-color',item.color);
+        {label:'Analisados',value:rows.length+triagedRows.length,mark:'▣',color:'#197ca8',filter:'analyzed'},
+        {label:'Sugestão encontrada',value:matched,mark:'✓',color:'#267f83',filter:'matched'},
+        {label:'Escolha necessária',value:review,mark:'◇',color:'#a47b25',filter:'review'},
+        {label:'Sem classificação',value:unknown,mark:'?',color:'#925a78',filter:'unknown'},
+        {label:'Já triados',value:triagedRows.length,mark:'✓',color:'#32836b',filter:'triaged'}]) {
+        const card=reportNode('button','mtprev-triage-stat');card.style.setProperty('--stat-color',item.color);
+        card.type='button';card.dataset.filter=item.filter;
+        card.title=item.filter==='triaged'?'Ver triados manualmente e designações identificadas automaticamente nos 3 últimos andamentos do SPA':`Exibir: ${item.label}`;
+        card.addEventListener('click',()=>{select.value=item.filter;view='process';pageSize=40;render();});
         card.append(reportNode('span','stat-icon',item.mark));card.append(reportNode('small','',item.label));card.append(reportNode('strong','',String(item.value)));
         metrics.append(card);
       }
       main.append(metrics);
-      const missingMatter = rows.filter(x=>!x.record.assunto && !x.record.assuntoPrincipal && !x.record.subject && !x.record.actionClass && !x.record.classe).length;
-      const missingAction = rows.filter(x=>!x.record.manifestationSuggested && !x.record.manifestacaoSugerida && !x.record.lastProgress).length;
-      if (missingMatter || missingAction) {
-        const diagnostic = reportNode('p','mtprev-triage-note');
-        diagnostic.style.cssText='border-left:4px solid #d49a32;background:#fff5dc;color:#654715;padding:10px 12px;border-radius:8px;';
-        diagnostic.textContent = `Cobertura dos dados do SPA2: ${missingMatter} sem assunto/classe e ${missingAction} sem manifestação/andamento entre ${rows.length} expedientes. ` +
-          (data.fromCache?'Este resultado veio do cache: marque “Ler novamente a mesa” para verificar se há dados novos. ':'') + 'Não é possível escolher assessor apenas pelo número CNJ. Abra “Ver critérios” para conferir os dados ou informar a matéria manualmente.';
-        main.append(diagnostic);
-      }
       const toolbar=reportNode('div','mtprev-triage-tools');
       const search=reportNode('input');search.type='search';search.placeholder='Buscar número, assunto ou assessor…';search.setAttribute('aria-label','Buscar no relatório');
       const select=reportNode('select');select.setAttribute('aria-label','Filtrar situação');
-      for(const [value,label] of [['all','Todas as situações'],['matched','Sugestão encontrada'],['review','Escolha necessária'],['unknown','Sem classificação']]){
+      for(const [value,label] of [['all','Aguardando triagem'],['analyzed','Todos os analisados'],['matched','Sugestão encontrada'],['review','Escolha necessária'],['unknown','Sem classificação'],['triaged','Já triados']]){
         const option=reportNode('option','',label);option.value=value;select.append(option);
       }
       const switcher=reportNode('div','mtprev-triage-switch');
@@ -601,7 +678,7 @@
       const nextSelected=reportNode('button','mtprev-triage-primary','Abrir próximo selecionado no SPA');nextSelected.type='button';nextSelected.disabled=true;
       nextSelected.title='Abre um processo por clique. Não executa designação nem ciência automaticamente.';
       toolbar.append(search,select,switcher,selectAll,nextSelected,exportCsv);main.append(toolbar);
-      const selectedNotice=reportNode('p','mtprev-triage-note','Marque processos e use “Abrir próximo selecionado” para conferi-los e designá-los no formulário oficial, um por vez.');main.append(selectedNotice);
+      const selectedNotice=reportNode('p','mtprev-triage-note');selectedNotice.hidden=true;main.append(selectedNotice);
       const list=reportNode('div');main.append(list);
       const pager=reportNode('div','mtprev-triage-pager');main.append(pager);
       const selected=new Set(), openedForReview=new Set();let view='process',pageSize=40;
@@ -609,15 +686,18 @@
       const summarySearch=x=>normalized([x.record.processNumber,x.record.expedienteId,x.record.assunto,x.record.manifestationSuggested,...x.people.map(p=>p.name)].join(' '));
       function filtered(){
         const q=normalized(search.value);
-        return rows.filter(x=>(select.value==='all'||x.kind===select.value)&&(!q||summarySearch(x).includes(q)));
+        const source=select.value==='analyzed'?[...rows,...triagedRows]:select.value==='triaged'?triagedRows:rows;
+        return source.filter(x=>(select.value==='all'||select.value==='analyzed'||x.kind===select.value)&&(!q||summarySearch(x).includes(q)));
       }
       function setButtons(){
+        for(const card of metrics.children)card.setAttribute('aria-pressed',String(card.dataset.filter===select.value));
         byProcess.setAttribute('aria-pressed',String(view==='process'));
         byPerson.setAttribute('aria-pressed',String(view==='assessor'));
         const pending = rows.filter(x => selected.has(x.key) && !openedForReview.has(x.key) && procedureHref(x.record)).length;
         nextSelected.disabled = pending === 0;
         nextSelected.textContent = `Abrir próximo no SPA (${pending})`;
-        selectedNotice.textContent=`${selected.size} expediente(s) marcados · ${pending} com link disponível para revisão sequencial. Cada clique abre 1 processo; nenhuma designação é automática.`;
+        selectedNotice.hidden=true;
+        selectedNotice.textContent='';
       }
       nextSelected.addEventListener('click', () => {
         const item = rows.find(x => selected.has(x.key) && !openedForReview.has(x.key) && procedureHref(x.record));
@@ -625,7 +705,7 @@
         const href = procedureHref(item.record);
         const opened = window.open(href,'_blank');
         try { if (opened) opened.opener=null; } catch (_) {}
-        if (!opened) { selectedNotice.textContent='O Chrome bloqueou a abertura. Permita pop-ups do SPA ou use o botão individual “Abrir para designar”.';return; }
+        if (!opened) { selectedNotice.hidden=false;selectedNotice.textContent='O Chrome bloqueou a abertura. Permita pop-ups do SPA ou use o botão individual “Abrir para designar”.';return; }
         openedForReview.add(item.key);
         setButtons();
       });
@@ -636,6 +716,17 @@
         const a=reportNode('a','','Abrir expediente no SPA');a.href=new URL(match,location.href).href;a.target='_blank';a.rel='noopener noreferrer';parent.append(a);
       }
       function addRow(target,x){
+        if(x.kind==='triaged'){
+          const card=reportNode('article','mtprev-triage-row');card.style.setProperty('--row-color','#32836b');
+          const body=reportNode('div','mtprev-triage-target');body.style.padding='14px';
+          body.append(reportNode('strong','',x.record.processNumber||'Processo sem número'));
+          body.append(reportNode('small','',`Expediente ${x.record.expedienteId||'não informado'}`));
+          body.append(reportNode('strong','','✓ Já triado'));
+          body.append(reportNode('small','',x.triagedManually&&x.triagedAutomatically?'Triado manualmente e confirmado pela análise automática dos 3 últimos andamentos.':x.triagedManually?'Triado manualmente — conferência registrada neste navegador.':'Triado automaticamente — designação identificada nos 3 últimos andamentos do SPA.'));
+          const href=procedureHref(x.record);
+          if(href){const link=reportNode('a','','Abrir no SPA ↗');link.href=href;link.target='_blank';link.rel='noopener noreferrer';body.append(link);}
+          card.append(body);target.append(card);return;
+        }
         const article=reportNode('article','mtprev-triage-row');
         article.style.setProperty('--row-color',x.kind==='matched'?'#2b8c94':x.kind==='review'?'#be9655':'#888aa5');
         const strip=reportNode('div','mtprev-triage-row-head');
@@ -649,9 +740,11 @@
         const dest=reportNode('div','mtprev-triage-target');
         const ownersLine=reportNode('strong','mtprev-triage-owner-line');
         if(x.people.length){
+          ownersLine.append(document.createTextNode(x.people.length===1?'Assessor: ':'Assessores: '));
           x.people.forEach((person,index)=>{if(index)ownersLine.append(document.createTextNode(' ou '));ownersLine.append(assessorLabel(person.name));});
-        } else ownersLine.textContent='Responsável não identificado';
+        } else ownersLine.textContent='Assessor: sem sugestão identificada';
         dest.append(ownersLine);
+        if(x.people.length)dest.append(reportNode('small','',x.people.length===1?'Sugerido pelo sistema para este processo':'Sugeridos pelo sistema — conferir e escolher o responsável'));
         const spaSubject = String(x.record.assunto || x.record.assuntoPrincipal || x.record.subject || '').trim();
         const theme=reportNode('div','mtprev-triage-subject');
         theme.append(reportNode('b','','Assunto informado pelo SPA'));
@@ -659,7 +752,11 @@
         dest.append(theme);
         if(x.manualLabel)dest.append(reportNode('small','',`Matéria revisada manualmente: ${x.manualLabel}`));
         const noMetadata=!(x.record.assunto || x.record.assuntoPrincipal || x.record.subject || x.record.actionClass || x.record.classe || x.record.manifestationSuggested || x.record.manifestacaoSugerida || x.record.lastProgress);
-        dest.append(reportNode('small','',owners?`Procurador: ${owners}`:noMetadata?'SPA não forneceu matéria nem manifestação':'Conferir matéria e tipo de peça'));
+        if(owners){
+          const procurador=reportNode('div','mtprev-triage-procurador');
+          procurador.append(reportNode('strong','','Procurador:'),reportNode('span','',owners));
+          dest.append(procurador);
+        } else dest.append(reportNode('small','',noMetadata?'SPA não forneceu matéria nem manifestação':'Conferir matéria e tipo de peça'));
         try { const choice=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}')[x.key];
           if(choice?.assessor)dest.append(reportNode('small','',`Designação escolhida (rascunho): ${choice.assessor}`));
         } catch(_){}
@@ -768,15 +865,16 @@
         revStatus.value=saved.status||'Pendente';note.value=saved.note||'';
         const feedback=reportNode('small');
         function save(){
-          try{const db=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');db[revKey]={...(db[revKey]||{}),status:revStatus.value,note:note.value,at:new Date().toISOString(),indication:x.diagnosis.competence};localStorage.setItem('MTPREV_POP_REVIEWS',JSON.stringify(db));feedback.textContent='Conferência registrada neste navegador.';}
+          try{const db=JSON.parse(localStorage.getItem('MTPREV_POP_REVIEWS')||'{}');db[revKey]={...(db[revKey]||{}),status:revStatus.value,note:note.value,at:new Date().toISOString(),indication:x.diagnosis.competence};localStorage.setItem('MTPREV_POP_REVIEWS',JSON.stringify(db));feedback.textContent='Conferência registrada neste navegador.';render();}
           catch(_){feedback.textContent='Não foi possível salvar a conferência no armazenamento local.';}
         }
         revStatus.addEventListener('change',save);note.addEventListener('change',save);
         rev.append(revStatus,note,feedback);details.append(rev);article.append(details);target.append(article);
       }
       function render(){
+        refreshTriageState();
         setButtons();list.replaceChildren();pager.replaceChildren();
-        const metricNumbers=[rows.length, rows.filter(x=>x.kind==='matched').length, rows.filter(x=>x.kind==='review').length, rows.filter(x=>x.kind==='unknown').length];
+        const metricNumbers=[rows.length+triagedRows.length, rows.filter(x=>x.kind==='matched').length, rows.filter(x=>x.kind==='review').length, rows.filter(x=>x.kind==='unknown').length,triagedRows.length];
         [...metrics.children].forEach((card,i)=>{const label=card.querySelector('strong');if(label)label.textContent=String(metricNumbers[i]);});
         const matching=filtered();
         if(!matching.length){list.append(reportNode('div','mtprev-triage-empty','Nenhum processo encontrado para essa pesquisa.'));return;}
@@ -807,47 +905,26 @@
         const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
         const a=reportNode('a');a.href=url;a.download='mtprev-triagem-revisao.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
       });
-      const sidebar=modal?.querySelector('.mtprev-triage-sidebar');
-      const makeSideButton=(label,description,fn,active)=>{
-        const button=reportNode('button','mtprev-triage-side-button');button.type='button';
-        button.append(reportNode('span','',label));
-        if(description)button.append(reportNode('small','',description));
-        button.setAttribute('aria-current',active?'page':'false');
-        button.addEventListener('click',fn);return button;
-      };
-      function redrawSide(){
-        if(!sidebar)return;
-        sidebar.replaceChildren();
-        sidebar.append(reportNode('strong','mtprev-triage-side-title','RELATÓRIOS'));
-        sidebar.append(reportNode('p','mtprev-triage-side-hint','Todas as visualizações usam os mesmos dados coletados.'));
-        sidebar.append(makeSideButton('Por processo','Lista e critérios',()=>{view='process';render();},view==='process'));
-        sidebar.append(makeSideButton('Por assessor','Sugestões agrupadas',()=>{view='assessor';render();},view==='assessor'));
-        const divider=reportNode('div','mtprev-triage-side-divider','FILTRAR POR SITUAÇÃO');sidebar.append(divider);
-        for(const [key,label,description] of [
-          ['all','Todos os processos','Sem filtro de situação'],
-          ['matched','Sugestões encontradas','Um responsável indicado'],
-          ['review','Escolha necessária','Mais de uma opção'],
-          ['unknown','Sem classificação','Conferência manual']
-        ]) sidebar.append(makeSideButton(label,description,()=>{select.value=key;pageSize=40;render();},select.value===key));
-        if(window.SPA_CDSP_MANAGEMENT_REPORT_PANEL_INITIALIZED){
-          sidebar.append(reportNode('div','mtprev-triage-side-divider','OUTROS RELATÓRIOS'));
-          sidebar.append(makeSideButton('Painel Gerencial','Dashboards da mesa',()=>{
-            modal?.querySelector('.mtprev-triage-head button')?.click();
-            document.dispatchEvent(new Event('mtprev:management:open'));
-          },false));
-        }
-        sidebar.append(reportNode('div','mtprev-triage-side-note','Nenhuma seleção altera expedientes ou distribui tarefas no SPA.'));
-      }
-      // Atualiza a navegação quando a pesquisa ou o tipo de visualização muda.
-      const syncSide=()=>redrawSide();
-      search.addEventListener('input',syncSide);
-      select.addEventListener('change',syncSide);
-      byProcess.addEventListener('click',syncSide);
-      byPerson.addEventListener('click',syncSide);
-      sidebar?.addEventListener('click',event=>{if(event.target.closest('button'))queueMicrotask(redrawSide);});
-      render();redrawSide();
+      render();
     }
-    generate.addEventListener('click',generateReport);
+    function openReport(){
+      if(last && (!lastScope || lastScope===reportScope())){renderReport(makeModal(),last);return;}
+      if(currentController && pendingMain){
+        if(!pendingMain.isConnected){const host=makeModal();host.replaceWith(pendingMain);}
+        return;
+      }
+      void generateReport();
+    }
+    document.addEventListener('mtprev:triage:open',openReport);
+    function preload(){
+      const scope=reportScope();
+      if(currentController && attemptedScope && attemptedScope!==scope){currentController.abort();attemptedScope='';last=null;return;}
+      if(!scope || currentController || attemptedScope===scope || !document.querySelector('.workspace-process-card'))return;
+      attemptedScope=scope;last=null;void generateReport(true);
+    }
+    setTimeout(preload,300);
+    const preloadTimer=setInterval(()=>{if(root.isConnected)preload();else if(document.readyState!=='loading'){clearInterval(preloadTimer);currentController?.abort();document.removeEventListener('mtprev:triage:open',openReport);}},2000);
+    generate.addEventListener('click',()=>generateReport());
     reopen.addEventListener('click',()=>{if(last)renderReport(makeModal(),last);});
     return root;
   }

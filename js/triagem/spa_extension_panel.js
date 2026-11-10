@@ -11400,12 +11400,54 @@
     return response?.ok === true;
   }
 
+  function workspaceDuplicateReport(collection,includeValidated,startedAt) {
+        const grouped = new Map(); let skippedSes=0;
+        // No workspace, analisar todos os cards recuperados na visão filtrada.
+        // Não excluir candidatos pelo assunto/último andamento nesta comparação.
+        for (const item of collection.records) {
+          if (!item.processNumber) continue;
+          const key = item.processNumber.replace(/\D/g, '');
+          if (key.length < 12) continue;
+          let group = grouped.get(key);
+          if (!group) { group = {key, processNumber:item.processNumber, records:[], seen:new Set()}; grouped.set(key, group); }
+          // A mesma linha pode reaparecer após a virtualização. Não usar somente
+          // ID de expediente: algumas versões do workspace não o exibem no card.
+          const uniqueKey = String(item.rowKey || item.pendencyUrl || item.expedienteId || [item.processNumber,item.party,item.distributionDate].join('|'));
+          if (group.seen.has(uniqueKey)) continue;
+          group.seen.add(uniqueKey);
+          group.records.push({...item, distributionDate:normalizeDateOnly(item.distributionDate)});
+        }
+        const groups = Array.from(grouped.values()).filter(group => group.records.length > 1);
+        const report = {groups,scanned:grouped.size,includeValidated:Boolean(includeValidated),
+          generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection,
+          collectionDurationMs:Math.round(Date.now()-startedAt),apiMetrics:collection.apiMetrics || null};
+    return report;
+  }
+
+  let duplicatePreload=null, duplicatePreloadScope='';
+  function preloadWorkspaceDuplicates(){
+    const scope=workspaceDuplicateCacheScope();
+    if(duplicatePreload && duplicatePreload.scope!==scope){duplicatePreload.controller.abort();duplicatePreloadScope='';return;}
+    if(!scope || duplicatePreload || duplicatePreloadScope===scope || !document.querySelector('.workspace-process-card'))return;
+    duplicatePreloadScope=scope;
+    const job={scope,controller:new AbortController(),promise:null};duplicatePreload=job;
+    job.promise=(async()=>{
+      const started=Date.now();
+      const collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:job.controller.signal,allowScroll:false});
+      if(job.controller.signal.aborted || workspaceDuplicateCacheScope()!==scope)return;
+      const report=workspaceDuplicateReport(collection,false,started);
+      if(collection.reason==='complete')await saveWorkspaceDuplicateCache(scope,report);
+    })().catch(error=>{if(error.name!=='AbortError')log('Pré-leitura de duplicados: '+error.message,'error');})
+      .finally(()=>{if(duplicatePreload===job)duplicatePreload=null;});
+  }
+
   async function buildDuplicateReport(includeValidated, options = {}) {
     guardStart();
     const startedAt = Date.now();
     let failure = '';
     try {
       const scope = workspaceDuplicateCacheScope();
+      if(duplicatePreload?.scope===scope && !options.forceRefresh)await duplicatePreload.promise;
       if (scope && !options.forceRefresh) {
         const cached = await readWorkspaceDuplicateCache(scope);
         if (cached && cached.includeValidated === Boolean(includeValidated) &&
@@ -11431,8 +11473,9 @@
         state.duplicateAbortController=collectionController;
         let collection;
         try {
-          collection=await window.SpaAdapter.collectWorkspaceRecords({
+          collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({
             signal:collectionController.signal,
+            force:Boolean(options.forceRefresh),
             onProgress: ({count,total,rounds,pages,concurrency,batchSize,lastCompletedPage,lastCompletedMs,stage}) => {
               if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
               setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`, false, {
@@ -11444,26 +11487,7 @@
         } finally {
           if(state.duplicateAbortController===collectionController)state.duplicateAbortController=null;
         }
-        const grouped = new Map(); let skippedSes=0;
-        // No workspace, analisar todos os cards recuperados na visão filtrada.
-        // Não excluir candidatos pelo assunto/último andamento nesta comparação.
-        for (const item of collection.records) {
-          if (!item.processNumber) continue;
-          const key = item.processNumber.replace(/\D/g, '');
-          if (key.length < 12) continue;
-          let group = grouped.get(key);
-          if (!group) { group = {key, processNumber:item.processNumber, records:[], seen:new Set()}; grouped.set(key, group); }
-          // A mesma linha pode reaparecer após a virtualização. Não usar somente
-          // ID de expediente: algumas versões do workspace não o exibem no card.
-          const uniqueKey = String(item.rowKey || item.pendencyUrl || item.expedienteId || [item.processNumber,item.party,item.distributionDate].join('|'));
-          if (group.seen.has(uniqueKey)) continue;
-          group.seen.add(uniqueKey);
-          group.records.push({...item, distributionDate:normalizeDateOnly(item.distributionDate)});
-        }
-        const groups = Array.from(grouped.values()).filter(group => group.records.length > 1);
-        const report = {groups,scanned:grouped.size,includeValidated:Boolean(includeValidated),
-          generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection,
-          collectionDurationMs:Math.round(Date.now()-startedAt),apiMetrics:collection.apiMetrics || null};
+        const report=workspaceDuplicateReport(collection,includeValidated,startedAt);
         // Somente substituir o relatório salvo depois de uma leitura comprovadamente completa.
         if (collection.reason === 'complete') {
           // Se filtros mudarem durante a coleta, nunca salvar sob outro escopo.
@@ -14901,24 +14925,44 @@
     const triagemPage = document.createElement("div");
     triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
     // Ações operacionais permanecem disponíveis, separadas do relatório consultivo.
-    const triagemAdvanced = document.createElement('details');
+    const triagemAdvanced = document.createElement('section');
     triagemAdvanced.className = 'mtprev-triagem-advanced';
     triagemAdvanced.style.cssText = 'margin:12px 0;border:1px solid #49647a;border-radius:10px;padding:10px;background:#1e3446;color:#e9f2f8';
-    const triagemAdvancedSummary = document.createElement('summary');
-    triagemAdvancedSummary.textContent = 'Ferramentas avançadas · ciência, classificação e abertura de processos';
+    const triagemAdvancedSummary = document.createElement('h3');
+    triagemAdvancedSummary.textContent = 'Ações da mesa';
     triagemAdvancedSummary.style.cssText = 'font-weight:750;cursor:pointer;font-size:12px;line-height:1.5';
     triagemAdvanced.appendChild(triagemAdvancedSummary);
+    const actionHint = document.createElement('p');
+    actionHint.textContent = 'Usam os filtros e lotes do SPA. A seleção do relatório não limita estas ações.';
+    actionHint.style.cssText = 'font-size:11px;line-height:1.5;color:#c5d8e5;margin:6px 0 10px';
+    triagemAdvanced.appendChild(actionHint);
     triagemPage.appendChild(triagemAdvanced);
     const triagemButtons = createButtonGrid();
-    triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
+    triagemButtons.style.gridTemplateColumns = 'repeat(auto-fit,minmax(min(100%,145px),1fr))';
+    triagemButtons.appendChild(createButton("Dar ciência…", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
     appendFullWidthButton(
       triagemButtons,
-      createButton("Abrir Abas", () => openTabsAllPages(currentActionLimit()), "purple")
+      createButton("Abrir processos em abas", () => openTabsAllPages(currentActionLimit()), "purple")
     );
-    triagemAdvanced.appendChild(createTriageClassificationFlow());
-    triagemAdvanced.appendChild(createExpedienteContentControls());
     triagemAdvanced.appendChild(triagemButtons);
+    const addActionPanel = (label, id, section) => {
+      section.id = id;
+      section.hidden = true;
+      if (section.matches('details')) section.open = true;
+      const summary = section.querySelector(':scope > summary');
+      if (summary) summary.hidden = true;
+      const toggle = createButton(label, () => {
+        section.hidden = !section.hidden;
+        toggle.setAttribute('aria-expanded', String(!section.hidden));
+      }, 'blue');
+      toggle.setAttribute('aria-controls', id);
+      toggle.setAttribute('aria-expanded', 'false');
+      triagemButtons.appendChild(toggle);
+      triagemAdvanced.appendChild(section);
+    };
+    addActionPanel('Classificar expedientes', 'mtprev-triage-classification', createTriageClassificationFlow());
+    addActionPanel('Filtrar abertura por conteúdo', 'mtprev-triage-content-filter', createExpedienteContentControls());
 
     const duplicadosPage = document.createElement("div");
     duplicadosPage.className = 'mtprev-duplicates-page';
@@ -15031,7 +15075,9 @@
     if (window.MTPrevTriageWorkspace) {
       triageWorkspace?.dispose();
       triageWorkspace = window.MTPrevTriageWorkspace.create({ getRecords: mtprevPopRecords });
-      triagemAdvanced.appendChild(triageWorkspace.root);
+      const workspaceSection = document.createElement('div');
+      workspaceSection.appendChild(triageWorkspace.root);
+      addActionPanel('Consultar expedientes da caixa', 'mtprev-triage-inbox', workspaceSection);
     }
     content.appendChild(moduleTabs.pages);
     panel.appendChild(content);
@@ -15077,22 +15123,12 @@
     }
 
     if (!VISUAL_CONFIG.autosOnly) createPanel();
+    if (!VISUAL_CONFIG.autosOnly) {
+      setTimeout(preloadWorkspaceDuplicates,400);
+      setInterval(preloadWorkspaceDuplicates,2000);
+    }
     setupExternalDocumentsPanel();
     window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
-    // Reabrir o relatório salvo após atualizar a página, sem fazer nova coleta.
-    if (!VISUAL_CONFIG.autosOnly && /^\/workspace\/?$/.test(location.pathname)) {
-      setTimeout(async()=>{
-        if(document.querySelector('#spa-cdsp-duplicate-report-overlay')) return;
-        let previous='';
-        try {previous=sessionStorage.getItem('mtprev.duplicate.report.open.v1') || '';} catch (_error) {}
-        const scope=workspaceDuplicateCacheScope();
-        if(!previous || !scope || previous!==scope) return;
-        try {
-          const cached=await readWorkspaceDuplicateCache(scope);
-          if(cached && !document.querySelector('#spa-cdsp-duplicate-report-overlay')) showDuplicateReport(cached);
-        } catch (_error) { /* O cache indisponível nunca dispara uma coleta automática. */ }
-      },900);
-    }
     if (!VISUAL_CONFIG.autosOnly) {
       setTimeout(continuePendingTriageClassification, 450);
       setTimeout(continuePendingTriageTaskClosure, 650);

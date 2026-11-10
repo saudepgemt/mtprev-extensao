@@ -475,6 +475,13 @@
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
       if (extensionContextInvalidated) return;
+      if (/^\/workspace\/?$/.test(location.pathname) && !loadedModules.triagem && !loadingModules.triagem) {
+        loadingModules.triagem=true;
+        safeSendMessage({type:'CDSP_GENERAL_INJECT_TRIAGEM'},response=>{
+          const error=safeLastError();delete loadingModules.triagem;
+          if(!error && response?.ok)loadedModules.triagem=true;
+        });
+      }
       const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
       const route = window.location.pathname + window.location.search + window.location.hash + '|' + previewId;
       if (route === rootToolsLastRoute) return;

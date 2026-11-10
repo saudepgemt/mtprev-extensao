@@ -441,6 +441,10 @@
       }
       // Coordenação abre diretamente a janela de gerar o painel gerencial.
       // Não inicia coleta sem que o usuário clique em Gerar.
+      if (item.key === 'triagem' && !restoreOption) {
+        document.dispatchEvent(new Event('mtprev:triage:open'));
+        module=null;persistActiveView();close();return;
+      }
       if (item.key === 'gestao') {
         document.dispatchEvent(new Event('mtprev:management:open'));
         module = null;
@@ -651,26 +655,30 @@
       color:#2b4158;
     }
     /* Cards da mesa: fundo alternado suave, contornos finos e hover inequívoco. */
+    body.mtprev-workspace-readable #workspace-process-results .workspace-process-list {
+      padding-top:12px !important;
+    }
     body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card {
-      background:#ffffff !important;
-      border-radius:7px !important;
-      border:2px solid #8caec4 !important;
-      border-left:4px solid #4f829f !important;
-      border-bottom:2px solid #8caec4 !important;
-      box-shadow:none !important;
+      --mtprev-card-bg:#ffffff;
+      background:var(--mtprev-card-bg) !important;
+      border-radius:12px !important;
+      border:1px solid #bdcfdd !important;
+      border-left:4px solid #668ba5 !important;
+      margin-block:0 12px !important;
+      overflow:hidden;
+      box-shadow:0 2px 5px rgba(30,59,82,.06) !important;
       box-sizing:border-box !important;
       min-width:0 !important;
       transition:background-color 140ms ease,border-color 140ms ease,box-shadow 140ms ease;
     }
     body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card:nth-of-type(even) {
-      background:#eaf3f8 !important;
-      border-left-color:#527b9c !important;
+      --mtprev-card-bg:#eaf3f8;
+      border-left-color:#488598 !important;
     }
     body.mtprev-workspace-readable #workspace-process-results .workspace-process-list > article.workspace-process-card:is(:hover,:focus-within):not(.mtprev-workspace-hover-dismissed) {
-      background:#d8eaf6 !important;
-      border-color:#35789e !important;
-      border-left-color:#145b87 !important;
-      box-shadow:0 3px 12px rgba(18,52,75,.14) !important;
+      border-color:#6e9ab6 !important;
+      border-left-color:#236d96 !important;
+      box-shadow:0 4px 12px rgba(30,59,82,.12) !important;
       position:relative;
       z-index:1;
     }
@@ -692,10 +700,15 @@
       color:#263c54;
     }
     body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__summary {
-      border-top-color:#b3c6d8 !important;
+      border-top-color:#c4d5e2 !important;
     }
     body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__footer {
-      border-top-color:#afc3d4 !important;
+      border-top-color:#c4d5e2 !important;
+    }
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__last-progress,
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__summary small,
+    body.mtprev-workspace-readable .workspace-process-list .workspace-process-card__footer {
+      color:#52677d !important;
     }
     /* Seleção e hover têm linguagem visual diferente: seleção usa traço pontilhado. */
     body.mtprev-workspace-readable .workspace-process-list > article.workspace-process-card:has(.workspace-process-card__checkbox:checked) {
@@ -825,6 +838,31 @@
     const existing = fields.querySelector('[data-mtprev-received-field]');
     if (!raw) { existing?.remove(); return; }
     const title = source?.getAttribute('title') || source?.querySelector('[title]')?.getAttribute('title') || '';
+    const receipt = source?.closest('.workspace-process-card__received');
+    const nativeReceiptFields = Array.from(fields.querySelectorAll('.workspace-process-card__field,[data-workspace-field]')).filter(field =>
+      !field.hasAttribute('data-mtprev-received-field') &&
+      norm(field.querySelector('small,[data-full-label]')?.textContent) === 'recebido'
+    );
+    const dateNodes = [source, receipt, ...Array.from(receipt?.querySelectorAll('*') || []),
+      ...nativeReceiptFields.flatMap(field => [field,...field.querySelectorAll('*')])].filter(Boolean);
+    let exactDate = '';
+    for (const node of dateNodes) {
+      for (const attribute of ['data-full-value','data-copy-value','datetime','data-datetime','data-date','title','data-bs-title','data-bs-original-title','data-original-title','data-tippy-content','aria-label']) {
+        const text = node.getAttribute(attribute) || '';
+        const br = text.match(/\b\d{2}\/\d{2}\/\d{4}(?:\s*(?:às|as)?\s*\d{2}:\d{2})?/);
+        if (br) { exactDate = br[0]; break; }
+        const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnly) { exactDate = dateOnly[3]+'/'+dateOnly[2]+'/'+dateOnly[1]; break; }
+        if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(text)) {
+          const date = new Date(text);
+          if (!Number.isNaN(date.getTime())) {
+            exactDate = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Cuiaba',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
+            break;
+          }
+        }
+      }
+      if (exactDate) break;
+    }
     let field = existing;
     if (!field) {
       field = document.createElement('span');
@@ -839,7 +877,13 @@
       field.append(label,value);
       fields.appendChild(field);
     }
-    field.querySelector('strong').textContent = raw;
+    field.querySelector('strong').textContent = exactDate || raw;
+    if (exactDate) {
+      for (const nativeField of nativeReceiptFields) {
+        const value = nativeField.querySelector('.workspace-process-card__field-value strong,strong,[data-copy-value]');
+        if (value && value.textContent !== exactDate) value.textContent = exactDate;
+      }
+    }
     if (title) field.querySelector('strong').title = title;
   };
   const enhanceCard = card => {
@@ -1049,7 +1093,8 @@
     if (button) {
       button.setAttribute('aria-expanded',String(!collapsed));
       button.setAttribute('aria-label',(collapsed?'Expandir ':'Recolher ')+def.title);
-      button.textContent=collapsed?'▸':'▾';
+      const icon=button.querySelector('.mtprev-workspace-filter-icon');
+      if (icon) icon.textContent=collapsed?'▸':'▾';
     }
   }
 
@@ -1095,7 +1140,10 @@
     const button=make('button','mtprev-workspace-filter-chevron');
     button.type='button';
     const title=make('span','',def.title);
-    head.append(title,button);
+    const icon=make('span','mtprev-workspace-filter-icon');
+    icon.setAttribute('aria-hidden','true');
+    button.append(title,icon);
+    head.append(button);
     const body=make('div','mtprev-workspace-filter-body');
     body.id='mtprev-workspace-filter-'+def.key;
     button.setAttribute('aria-controls',body.id);

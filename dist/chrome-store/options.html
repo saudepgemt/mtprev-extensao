@@ -8,33 +8,131 @@
   <link rel="stylesheet" href="css/options.css">
   <script src="js/shared/mcp_settings.js" defer></script>
   <script src="js/options.js" defer></script>
+  <script src="js/watch_mail_options.js" defer></script>
 </head>
 <body>
-  <main>
-    <header><img src="images/logo-mtprev.png" alt="MTPrev" width="142"><div><p class="eyebrow">EXTENSÃO GERAL</p><h1>Configurações</h1></div></header>
-    <section aria-labelledby="service-title">
-      <h2 id="service-title">Consulta de andamentos do PJe</h2>
-      <p>Este recurso é opcional e fica desativado até você configurá-lo. As consultas enviam o <strong>número do processo e a instância</strong> ao serviço externo abaixo para obter andamentos do TJMT. O acompanhamento de processos também usa esse serviço quando ativado.</p>
-      <p class="host">pje-mcp-worker-tjmt.joaooliveira.workers.dev</p>
-      <p>Use o endereço fornecido pelo administrador desse serviço. A extensão não fornece uma credencial de acesso. Nenhuma senha de assinatura do SPA ou SIGADOC é enviada a ele.</p>
-      <form id="service-form">
-        <label for="endpoint">Endereço completo do serviço (HTTPS)</label>
-        <input id="endpoint" name="endpoint" type="password" autocomplete="off" spellcheck="false" required aria-describedby="endpoint-help">
-        <p id="endpoint-help" class="help">O endereço pode conter uma chave de acesso. Ele fica salvo apenas nas configurações locais da extensão.</p>
-        <label class="check"><input id="consent" type="checkbox" required><span>Autorizo o envio dos números dos processos consultados e da instância a esse serviço para obter andamentos, inclusive nas verificações de acompanhamento que eu ativar.</span></label>
-        <div class="actions"><button type="submit">Salvar e autorizar</button><button id="test-service" type="button" class="secondary">Testar conexão salva</button><button id="disable-service" type="button" class="secondary">Desativar e apagar endereço</button></div>
-      </form>
-      <h3>Usar em outro computador</h3>
-      <p class="help">Exporte a configuração salva e leve o arquivo ao outro computador. Depois de importar, marque a autorização e clique em <strong>Salvar e autorizar</strong>. O arquivo contém o acesso ao MCP; guarde-o separadamente do GitHub.</p>
-      <div class="actions">
-        <button id="export-service" type="button" class="secondary">Exportar configuração MCP</button>
-        <button id="import-service" type="button" class="secondary">Importar configuração MCP</button>
+  <main class="settings-page">
+    <header class="settings-hero">
+      <img src="images/logo-mtprev.png" alt="MTPrev" width="110">
+      <div>
+        <p class="eyebrow">MTPREV • INTEGRAÇÕES</p>
+        <h1>Configurações</h1>
+        <p class="help">Conexões opcionais da extensão. Nenhuma senha do SPA/PJe é solicitada aqui.</p>
       </div>
-      <input id="import-service-file" type="file" accept=".json,application/json" hidden>
+    </header>
+    <nav class="settings-nav" aria-label="Áreas de configuração">
+      <a href="#service-title">PJe / MCP</a>
+      <a href="#watch-mail-title">Notificações por e-mail</a>
+      <a href="#security-title">Segurança</a>
+    </nav>
+
+    <section class="settings-section" aria-labelledby="service-title">
+      <p class="settings-category">ETAPA 1 • CONSULTA EXTERNA</p>
+      <div class="settings-heading">
+        <div><h2 id="service-title">PJe / Servidor MCP</h2><p class="help">Consulta automática de andamentos do TJMT. Opcional: o SPA continua funcionando sem essa conexão.</p></div>
+        <span class="settings-state" id="mcp-connection-state" role="status">Verificando…</span>
+      </div>
+      <div class="settings-flow" aria-label="Funcionamento da integração">
+        <span>MTPrev</span><span aria-hidden="true">→</span><span>Servidor MCP autorizado</span><span aria-hidden="true">→</span><span>PJe TJMT</span>
+      </div>
+      <div class="settings-two">
+        <div class="settings-mini"><strong>1º grau</strong><small>PJe TJMT: consulta identificada automaticamente pelo CNJ</small></div>
+        <div class="settings-mini"><strong>2º grau</strong><small>PJe TJMT: consulta da instância adequada quando identificada</small></div>
+      </div>
+      <p class="help">A extensão envia somente o número CNJ e a instância ao serviço informado. A conexão é <strong>com um servidor MCP externo</strong>, não um login direto no PJe. Confirme sua autorização institucional para usar esse serviço.</p>
+      <form id="service-form">
+        <label for="endpoint">Endereço HTTPS do servidor MCP autorizado</label>
+        <div class="settings-input-row">
+          <input id="endpoint" name="endpoint" type="password" autocomplete="off" spellcheck="false" required aria-describedby="endpoint-help">
+          <button type="button" id="reveal-service" class="secondary settings-mini-button" aria-pressed="false">Mostrar</button>
+        </div>
+        <div class="actions settings-secondary-actions">
+          <button type="button" id="default-service" class="secondary">Usar endereço-base conhecido</button>
+        </div>
+        <p id="endpoint-help" class="help">Domínio permitido: <code>pje-mcp-worker-tjmt.joaooliveira.workers.dev</code>. O endereço-base não garante acesso: algumas instalações exigem caminho ou credencial fornecidos pelo administrador. Nunca cole senhas do PJe nesse campo.</p>
+        <label class="check"><input id="consent" type="checkbox" required><span>Autorizo enviar CNJs e instância ao servidor informado para consultar andamentos, inclusive em acompanhamentos que eu ativar.</span></label>
+        <div class="actions">
+          <button type="submit">Salvar e autorizar MCP</button>
+          <button id="test-service" type="button" class="secondary">Testar conexão</button>
+          <button id="disable-service" type="button" class="danger-outline">Desativar</button>
+        </div>
+      </form>
       <p id="status" role="status" aria-live="polite"></p>
+      <details class="settings-advanced" id="pje-individual-options">
+        <summary>Conexão individual ao PJe pelo MCP (alternativa da CDSP)</summary>
+        <p class="help">Opcional: autenticação individual no servidor MCP, sem cadastrar senhas do PJe na MTPrev. É uma autorização <strong>separada do Gmail</strong> e depende de liberação pelo administrador do servidor para o ID desta extensão.</p>
+        <p class="help">Ao conectar, consultas PJe usarão sua sessão individual. Desconectar volta ao método antigo de endereço MCP salvo, sem apagar esse endereço.</p>
+        <div class="actions">
+          <button type="button" id="pje-individual-connect">Conectar minha conta ao PJe</button>
+          <button type="button" id="pje-individual-disconnect" class="secondary">Desconectar acesso individual</button>
+        </div>
+        <p id="pje-individual-status" role="status" aria-live="polite">Verificando acesso individual…</p>
+      </details>
+      <details class="settings-advanced">
+        <summary>Transferir configuração para outro computador</summary>
+        <p class="help">Exporte somente o endereço MCP. O arquivo pode conter informação de acesso; guarde-o fora do GitHub. Após importar, marque a autorização novamente.</p>
+        <div class="actions">
+          <button id="export-service" type="button" class="secondary">Exportar MCP</button>
+          <button id="import-service" type="button" class="secondary">Importar MCP</button>
+        </div>
+        <input id="import-service-file" type="file" accept=".json,application/json" hidden>
+      </details>
     </section>
-    <section><h2>Senhas de assinatura</h2><p>Informe sua senha no painel da rotina correspondente. A senha de protocolo fica na sessão do navegador; após reiniciá-lo, informe-a novamente antes de uma rotina programada. No SIGADOC, a senha fica na sessão da aba e pode ser apagada limpando o campo no menu.</p></section>
-    <footer><a href="privacy.html" target="_blank" rel="noopener">Política de privacidade</a><span>Arthur Costa Dias · <a href="mailto:arthurcostadias1@gmail.com">Suporte</a></span></footer>
+
+    <section class="settings-section" aria-labelledby="watch-mail-title">
+      <p class="settings-category">ETAPA 2 • COMUNICAÇÃO</p>
+      <h2 id="watch-mail-title">Notificações por e-mail</h2>
+      <p class="help">Escolha como preparar ou enviar avisos. Os destinatários padrão e as exclusões por processo continuam no <strong>Acompanhamento Especial</strong>.</p>
+      <form id="watch-mail-form">
+        <fieldset class="settings-choice" aria-label="Forma de envio">
+          <legend>Como deseja enviar?</legend>
+          <label class="settings-choice-item">
+            <input type="radio" name="watch-mail-mode" value="manual" id="watch-mail-mode-manual">
+            <span><strong>Aplicativo de e-mail • sem OAuth</strong><small>Abre um rascunho no programa de e-mail para você conferir e enviar. Não faz envios automáticos.</small></span>
+          </label>
+          <label class="settings-choice-item">
+            <input type="radio" name="watch-mail-mode" value="oauth" id="watch-mail-mode-oauth" checked>
+            <span><strong>Gmail API • com OAuth</strong><small>Pode enviar avisos automáticos autorizados enquanto o Chrome estiver em funcionamento.</small></span>
+          </label>
+        </fieldset>
+        <div class="settings-mode-note" id="watch-mail-mode-note" aria-live="polite"></div>
+        <label for="watch-mail-sender">Endereço institucional de referência</label>
+        <input id="watch-mail-sender" type="email" placeholder="notificacoes@instituicao.gov.br" autocomplete="email">
+        <p class="help">No modo manual, o remetente real é escolhido no seu programa de e-mail; esta configuração não consegue obrigá-lo a usar uma conta específica.</p>
+        <p class="settings-recipient-note" id="watch-mail-defaults-count">Conferindo destinatários padrão…</p>
+        <label class="check"><input id="watch-mail-consent" type="checkbox"><span>Confirmo que os destinatários estão autorizados a receber dados processuais e que revisarei a classificação e o sigilo de cada comunicação.</span></label>
+        <div id="watch-mail-oauth-controls">
+          <div class="settings-mini">
+            <strong>Identificação do cliente OAuth</strong>
+            <small>ID desta extensão: <code id="watch-mail-extension-id">Verificando…</code></small>
+            <small id="watch-mail-client-id-state">Conferindo o manifesto…</small>
+            <small>O cliente OAuth deve ser do tipo Extensão do Chrome, associado a esse ID e habilitado para Gmail API, com a conta autorizada no Google Cloud.</small>
+          </div>
+          <label class="check"><input id="watch-mail-enabled" type="checkbox"><span>Ativar alertas automáticos por Gmail API (a primeira verificação do processo apenas cria uma referência).</span></label>
+          <div class="actions">
+            <button id="watch-mail-connect" type="button">Conectar Gmail</button>
+            <button id="watch-mail-test" type="button" class="secondary">Enviar teste pelo Gmail</button>
+            <button id="watch-mail-check" type="button" class="secondary">Verificar conexão</button>
+            <button id="watch-mail-disconnect" type="button" class="secondary">Desconectar</button>
+          </div>
+        </div>
+        <div id="watch-mail-manual-controls" hidden>
+          <p class="help">O programa de e-mail instalado no computador precisa estar configurado. O rascunho permite revisar destinatários, assunto e corpo. A MTPrev não terá confirmação de entrega.</p>
+          <button id="watch-mail-compose" type="button">Preparar rascunho de teste</button>
+        </div>
+        <div class="actions settings-save-row"><button type="submit">Salvar preferências</button></div>
+      </form>
+      <p id="watch-mail-status" role="status" aria-live="polite"></p>
+      <details class="settings-advanced"><summary>Preciso enviar automaticamente sem OAuth na extensão</summary>
+        <p>Isso exige um <strong>serviço institucional autenticado</strong> (API ou relay de e-mail), gerenciado fora do navegador. A extensão precisará usar uma credencial de usuário de curta duração; nunca embuta senhas SMTP nem chaves privadas no JavaScript ou no ZIP da loja. Esse serviço ainda não está configurado nesta versão.</p>
+      </details>
+    </section>
+
+    <section class="settings-section" aria-labelledby="security-title">
+      <p class="settings-category">SEGURANÇA</p><h2 id="security-title">Credenciais e dados processuais</h2>
+      <p>Senhas de assinatura devem ser informadas somente na rotina correspondente; não são enviadas ao servidor MCP. Para o envio de e-mail, reveja destinatários e sigilo antes de habilitar notificações. O modo manual não envia nada por conta própria.</p>
+    </section>
+    <footer><a href="privacy.html" target="_blank" rel="noopener">Política de privacidade</a><span>MTPrev · <a href="mailto:arthurcostadias1@gmail.com">Suporte</a></span></footer>
   </main>
 </body>
 </html>
