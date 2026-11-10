@@ -71,7 +71,7 @@
     const response=await request('SPA_CDSP_WORKSPACE_CACHE_GET',{scope:key});
     return response?.ok&&valid(response.collection,key)?response.collection:null;
   }
-  async function collect({signal,onProgress=()=>{},force=false}={}){
+  async function collect({signal,onProgress=()=>{},force=false,allowScroll=true}={}){
     const key=scope();
     if(!key) throw new Error('Cache compartilhado disponivel apenas na mesa do SPA2.');
     if(signal?.aborted) throw new DOMException('Leitura interrompida','AbortError');
@@ -88,7 +88,7 @@
     const job={scope:key,promise:null};active=job;
     job.promise=(async()=>{
       const startedAt=Date.now();
-      const result=await adapter.collectWorkspaceRecords({signal,onProgress});
+      const result=await adapter.collectWorkspaceRecords({signal,onProgress,allowScroll});
       if(result?.reason==='complete'&&result.records?.length===result.total&&scope()===key){
         const collection={version:1,scope:key,savedAt:Date.now(),coverage:{reason:'complete',total:result.total,count:result.records.length,pages:result.pages||0},apiMetrics:result.apiMetrics||null,records:result.records.map(compactRecord)};
         const response=await request('SPA_CDSP_WORKSPACE_CACHE_SAVE',{scope:key,payload:collection},15000).catch(()=>null);

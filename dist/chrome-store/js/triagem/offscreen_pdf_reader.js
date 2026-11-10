@@ -174,6 +174,31 @@ async function extractPdfText(input) {
   return pages.join("\n");
 }
 
+async function pdfPageHasLargeImage(page) {
+  const ops = globalThis.pdfjsLib?.OPS;
+  if (!ops || !page.getOperatorList || !page.view) return false;
+  const area = Math.abs((page.view[2] - page.view[0]) * (page.view[3] - page.view[1]));
+  if (!area) return false;
+  const list = await page.getOperatorList();
+  const stack = [];
+  let matrix = [1, 0, 0, 1, 0, 0];
+  const multiply = (a, b) => [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1],
+    a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3],
+    a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]];
+  for (let index = 0; index < list.fnArray.length; index++) {
+    const op = list.fnArray[index], args = list.argsArray[index];
+    if (op === ops.save) stack.push([...matrix]);
+    else if (op === ops.restore || op === ops.paintFormXObjectEnd) matrix = stack.pop() || [1, 0, 0, 1, 0, 0];
+    else if (op === ops.transform) matrix = multiply(matrix, args);
+    else if (op === ops.paintFormXObjectBegin) {
+      stack.push([...matrix]);
+      if (args[0]) matrix = multiply(matrix, args[0]);
+    } else if ([ops.paintImageXObject, ops.paintInlineImageXObject, ops.paintImageXObjectRepeat].includes(op) &&
+      Math.abs(matrix[0]*matrix[3]-matrix[1]*matrix[2]) > area * 0.35) return true;
+  }
+  return false;
+}
+
 async function searchPdfText(input, query, exact) {
   if (!globalThis.pdfjsLib || typeof globalThis.pdfjsLib.getDocument !== "function") {
     throw new Error("PDF.js nao carregado no leitor interno.");
@@ -199,9 +224,11 @@ async function searchPdfText(input, query, exact) {
   const pdf = await loadingTask.promise;
   let pagesRead = 0;
   let scannedLength = 0;
+  let incompletePages = 0;
+  const pageLimit = Math.min(pdf.numPages, 600);
 
   try {
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent({
         normalizeWhitespace: true,
@@ -210,6 +237,12 @@ async function searchPdfText(input, query, exact) {
       const pageText = combinePdfTextItems(content.items);
       pagesRead += 1;
       scannedLength += normalizeSearchText(pageText).length;
+
+      // Uma capa com texto não torna pesquisável o restante digitalizado do PDF.
+      let incomplete = !pageText.trim();
+      try { incomplete = incomplete || await pdfPageHasLargeImage(page); }
+      catch (_) { incomplete = true; }
+      if (incomplete) incompletePages += 1;
 
       if (typeof page.cleanup === "function") {
         page.cleanup();
@@ -221,6 +254,8 @@ async function searchPdfText(input, query, exact) {
           found: true,
           snippet: buildSearchSnippet(pageText, matchedQuery, exact),
           matchedQuery,
+          page: pageNumber,
+          incompletePages,
           textLength: scannedLength,
           pagesRead,
           totalPages: pdf.numPages
@@ -235,6 +270,8 @@ async function searchPdfText(input, query, exact) {
 
   return {
     found: false,
+    inconclusive: incompletePages > 0 || pagesRead < pdf.numPages || scannedLength === 0,
+    incompletePages,
     snippet: "",
     matchedQuery: "",
     textLength: scannedLength,

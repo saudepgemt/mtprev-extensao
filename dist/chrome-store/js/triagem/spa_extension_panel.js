@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED && document.getElementById("spa-cdsp-panel")) return;
@@ -71,13 +71,10 @@
     { key: "peca_identificar", label: "Peças a identificar", color: "#607d8b" },
   ];
 
-  const PIECE_REPORT_INTERNS = [
-    { key: "beatriz", name: "Beatriz Vitoria Miranda Silva Cerqueira" },
-    { key: "tacita", name: "Tácita Vitória Pereira Gomes" },
-    { key: "matheus", name: "Matheus Augusto Ferreira Brandão" },
-    { key: "enzo", name: "Enzo Luiz Sawiski lamin" },
-    { key: "gabrielle", name: "Gabrielle Rodrigues Silva Espindola" },
-  ];
+  // A tabela de responsáveis da CDSP não pertence à equipe do MTPrev.
+  // Os processos de Peças continuam abrindo e preenchendo os demais campos,
+  // mas a pessoa destinatária da tarefa deve ser escolhida no SPA.
+  const PIECE_REPORT_INTERNS = [];
 
   const state = {
     running: false,
@@ -94,17 +91,13 @@
   const extensionPendingRequests = {};
   const VISUAL_CONFIG = Object.assign({ headerImageUrl: "" }, window.SPA_CDSP_TRIAGEM_CONFIG || {});
   const LOG_LIMIT = 120;
-  const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED";
+  const EXTERNAL_DOCS_OPEN_MINIMIZED_KEY = "SPA_CDSP_EXTERNAL_DOCS_OPEN_MINIMIZED_V2";
   const TRIAGE_CLASSIFICATION_ACTION_KEY = "SPA_CDSP_TRIAGE_CLASSIFICATION_ACTION";
   const TRIAGE_CLOSURE_ACTION_KEY = "SPA_CDSP_TRIAGE_CLOSURE_ACTION";
-  const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "Yasmim Marques Nascimento";
-  const TRIAGE_OFFICE_ASSIGNEES = [
-    "Gabrielle Rodrigues Silva Espindola",
-    "Matheus Augusto Ferreira Brandão",
-    "Beatriz Vitoria Miranda Silva Cerqueira",
-    "Anna Julia Ferreira da Mata",
-    "Yasmim Marques Nascimento"
-  ];
+  // A equipe da CDSP não é uma fonte de designação para o MTPrev.
+  // O responsável pelo ofício é informado e validado no seletor do SPA.
+  const TRIAGE_DEFAULT_OFFICE_ASSIGNEE = "";
+  const TRIAGE_OFFICE_ASSIGNEES = [];
   const TRIAGE_CLOSURE_REASONS = [
     "Ciência da decisão/sentença favorável.",
     "Ciência da remessa à segunda instância.",
@@ -559,7 +552,7 @@
   }
 
   function isProcedureDetailPage() {
-    if (document.querySelector('.workspace-preview__document[data-procedure-id] #workspace-preview-overview')) {
+    if (document.querySelector('.workspace-preview__document[data-procedure-id]')) {
       return Boolean(readMainProcedureId() && readCurrentProcedureProcessNumber());
     }
     if (isProcedureCollectionPage()) return false;
@@ -724,72 +717,135 @@
     ].join("|");
   }
 
+  // A barra MTPrev e o primeiro card da Visao geral. A ordem e mantida
+  // mesmo quando o SPA atualiza dinamicamente o conteudo do expediente.
   function findExternalDocumentsHost() {
-    // SPA2: colocar o painel antes das duas colunas da visão geral, sem espremer os autos.
-    const overview = document.querySelector('.workspace-preview__document #workspace-preview-overview');
-    if (overview && overview.querySelector('.workspace-preview__overview-grid')) return overview;
-    const header =
-      document.querySelector(".procedure-header .card-body") ||
-      document.querySelector(".procedure-header") ||
-      (findExternalDocumentsLink() && findExternalDocumentsLink().closest(".card-body, .card, .content__inner")) ||
-      document.querySelector(".content__inner, main, .container-fluid, .container");
+    const root = document.querySelector('.workspace-preview__document[data-procedure-id]');
+    if (root) {
+      return root.querySelector('#workspace-preview-overview') ||
+        root.querySelector(':scope > .workspace-preview__body') || root;
+    }
+    const header = document.querySelector('.procedure-header .card-body') ||
+      document.querySelector('.procedure-header') ||
+      (findExternalDocumentsLink() && findExternalDocumentsLink().closest('.card-body, .card, .content__inner')) ||
+      document.querySelector('.content__inner, main, .container-fluid, .container');
     if (!header) return null;
-
-    const row = header.querySelector(".row");
+    const row = header.querySelector('.row');
     if (!row) return header;
-
-    const columns = Array.from(row.children).filter((child) =>
-      /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(child.className || "")
-    );
-
+    const columns = [...row.children].filter(col => /\bcol-(?:sm-|md-|lg-|xl-)?6\b/.test(col.className || ''));
     return columns[1] || header;
   }
 
   function placeExternalDocumentsPanel(panel, host) {
-    if (!panel || !host) return;
-    const grid = host.matches && host.matches('#workspace-preview-overview')
-      ? host.querySelector(':scope > .workspace-preview__overview-grid')
-      : null;
-    if (grid) {
-      // Também reposiciona painéis criados em versões anteriores da extensão.
-      if (panel.parentElement !== host || panel.nextElementSibling !== grid) {
-        host.insertBefore(panel, grid);
+    if (!panel || !host || panel.dataset.mtprevWatchDocked === '1') return;
+    if (host.matches?.('#workspace-preview-overview')) {
+      // Sempre no inicio da aba; sem fixed/absolute nem nova barra de rolagem.
+      if (panel.parentElement !== host || panel !== host.firstElementChild) {
+        host.insertBefore(panel, host.firstChild);
       }
       return;
+    }
+    if (host.matches?.('.workspace-preview__document')) {
+      const body = host.querySelector(':scope > .workspace-preview__body');
+      if (body) {
+        if (panel.parentElement !== body || panel !== body.firstElementChild) body.prepend(panel);
+        return;
+      }
     }
     if (panel.parentElement !== host) host.appendChild(panel);
   }
 
+  // Transfere a roda do mouse apenas quando a lista chega ao seu limite.
+  // Primeiro rola o documento do próprio iframe; só depois o SPA que o contém.
+  function chainExternalAutosWheelAtBoundary(event, viewer) {
+    if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return;
+    const scroller = event.target instanceof Element
+      ? event.target.closest(".spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline") : null;
+    if (!scroller || !viewer.contains(scroller)) return;
+
+    const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(window.innerHeight, 400) : 1;
+    const delta = event.deltaY * multiplier;
+    const down = delta > 0;
+    const hasRoom = (node) => down
+      ? node.scrollTop + node.clientHeight < node.scrollHeight - 2
+      : node.scrollTop > 2;
+    if (hasRoom(scroller)) return; // A lista continua com seu rolamento normal.
+
+    const tryAncestors = (start) => {
+      for (let node = start; node; node = node.parentElement) {
+        const computed = node.ownerDocument.defaultView.getComputedStyle(node);
+        if (!/(auto|scroll|overlay)/.test(computed.overflowY) ||
+            node.scrollHeight <= node.clientHeight + 2 || !hasRoom(node)) continue;
+        node.scrollBy({ top: delta, behavior: "auto" });
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    };
+    const tryDocument = (doc) => {
+      const root = doc.scrollingElement;
+      if (!root || root === scroller || !hasRoom(root)) return false;
+      const overflow = doc.defaultView.getComputedStyle(root).overflowY;
+      if (/(hidden|clip)/.test(overflow)) return false;
+      root.scrollBy({ top: delta, behavior: "auto" });
+      event.preventDefault();
+      return true;
+    };
+
+    try {
+      // Nunca saltar diretamente para a página externa se o iframe ainda pode rolar.
+      if (tryAncestors(scroller.parentElement) || tryDocument(document)) return;
+      const frame = window.frameElement; // Null ou SecurityError se não for same-origin.
+      if (!frame) return; // Navegador mantém a rolagem nativa.
+      if (tryAncestors(frame.parentElement)) return;
+      tryDocument(frame.ownerDocument);
+    } catch (_) {
+      // Origem cruzada/iframe isolado: deixa o navegador cuidar da rolagem.
+    }
+  }
+
   function injectExternalDocumentsStyles() {
+    // Apenas o iframe recebe o ajuste; o SPA principal mantém seu CSS atual.
+    if (window.parent !== window) document.documentElement.classList.add("mtprev-autos-in-iframe");
     if (document.querySelector("#spa-cdsp-external-docs-style")) return;
 
     const style = document.createElement("style");
     style.id = "spa-cdsp-external-docs-style";
     style.textContent = `
-      /* SPA2: painel de autos em toda a largura, antes de Situação atual e Dados. */
-      .workspace-preview__document #workspace-preview-overview > #spa-cdsp-external-docs-panel {
-        min-width: 0;
-        max-width: 100%;
-        width: 100%;
-        margin: 0 0 18px;
-        box-sizing: border-box;
+      /* No iframe, o conteúdo do leitor não deve ser cortado pelo limite antigo. */
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel {
+        max-height: none !important;
+        overscroll-behavior-y: auto;
       }
-      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        min-width: 0;
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        max-height: none !important;
+        overflow: visible !important;
+        min-height: 0;
       }
-      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        width: min(610px, 100%);
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel :is(.spa-cdsp-external-docs-list, .spa-cdsp-movements-timeline) {
+        max-height: min(72dvh, 900px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: auto;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
       }
-      .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
-        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      .workspace-preview__document > #spa-cdsp-external-docs-panel {
+        display:block !important;position:relative !important;
+        box-sizing:border-box !important;width:calc(100% - 32px) !important;
+        max-width:none !important;min-width:0 !important;margin:16px !important;
+        grid-column:1 / -1 !important;clear:both !important;align-self:stretch !important;
       }
-      @media (max-width: 760px) {
-        .workspace-preview__document #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+      @media(max-width:760px) {
+        .workspace-preview__document > #spa-cdsp-external-docs-panel {
+          width:calc(100% - 20px) !important;margin:10px !important;
         }
+      }
+
+      .workspace-preview__overview-grid #spa-cdsp-external-docs-panel {
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
       }
       #spa-cdsp-external-docs-panel {
         margin: 14px 0 0 0;
@@ -1891,6 +1947,550 @@
         #spa-cdsp-external-docs-panel .spa-cdsp-movement-deadline-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+      }
+
+      /* MTPrev UI 2026 — visual da linha do tempo. Apenas apresentação. */
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        container-type: inline-size;
+        border-radius: 16px;
+        border: 1px solid #315e7e;
+        background: #0c2136;
+        box-shadow: 0 14px 35px rgba(7, 20, 38, .22);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+        line-height: 1.45;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-header {
+        padding: 16px 18px;
+        gap: 18px;
+        border-bottom: 1px solid #335f7e;
+        background: linear-gradient(110deg, #0e2b49 0%, #143e68 55%, #102c4a 100%);
+        flex-wrap: wrap;
+      }
+      #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-title {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: 12px;
+        align-items: center;
+        flex: 1 1 260px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        display: grid;
+        grid-column: 1;
+        grid-row: 1 / 3;
+        place-items: center;
+        align-self: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: linear-gradient(140deg, #237bcc, #14436d);
+        border: 1px solid #4d91c5;
+        box-shadow: 0 8px 20px rgba(0,0,0,.15);
+        color: #fff;
+        font-size: 26px;
+        line-height: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        grid-column: 2;
+        grid-row: 1;
+        color: #fff;
+        font-size: clamp(14px, 1.5vw, 20px);
+        font-weight: 800;
+        line-height: 1.22;
+        overflow-wrap: anywhere;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        grid-column: 2;
+        grid-row: 2;
+        color: #c4dbea;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {
+        flex-wrap: wrap;
+        gap: 7px;
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-memory {
+        min-height: 36px;
+        box-sizing: border-box;
+        border-radius: 9px;
+        padding: 8px 11px;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.2;
+        transition: background-color .15s ease, border-color .15s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete {
+        background: #24486b;
+        border-color: #507391;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button:hover,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions .spa-cdsp-external-docs-process-complete:hover {
+        background: #33628d;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg, #0e2941, #112b44);
+        padding: 13px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 10px;
+        padding: 0 0 9px;
+        gap: 7px;
+        border: 0;
+        border-bottom: 1px solid #315a76;
+        border-radius: 0;
+        background: transparent;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {flex: 1 1 120px; max-width: 220px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 7px;
+        min-height: 37px;
+        padding: 9px 12px;
+        border: 1px solid #3a6081;
+        border-radius: 10px;
+        background: #0b243b;
+        color: #d1e3f4;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:focus-visible + span {
+        outline: 3px solid #74c5ff;
+        outline-offset: 2px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option span::before {
+        content: "▤";
+        font-size: 17px;
+        line-height: 1;
+        color: #9fcff4;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="folder"]) span::before {content: "▱";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="spaTimeline"]) span::before {content: "☷";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:has(input[value="movements"]) span::before {content: "⛓";}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option input:checked + span {
+        color: #fff;
+        background: linear-gradient(135deg, #1676d3, #2361c1);
+        border-color: #61b6fc;
+        box-shadow: inset 0 -3px 0 #5cc1ff;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-status {
+        color: #c5d7e7;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row {
+        grid-template-columns: minmax(0,1fr);
+        gap: 8px;
+        margin-bottom: 0;
+        padding: 11px;
+        border: 1px solid #315a79;
+        border-radius: 12px 12px 0 0;
+        background: #193a58;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-input {
+        flex: 1 1 240px;
+        min-width: 0;
+        min-height: 38px;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid #9bbad1;
+        background: #f8fbff;
+        color: #15334e;
+        font-size: 12px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > *,
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls > .spa-cdsp-external-docs-process-wrap {
+        flex: 0 1 auto;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        border-radius: 9px;
+        min-height: 38px;
+        background: #12304c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button {
+        background: #e7f2fc;
+        color: #193b5b;
+        border-color: #c9d9e8;
+        min-height: 37px;
+        box-shadow: 0 2px 6px rgba(0,0,0,.1);
+        white-space: normal;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-quick-controls .spa-cdsp-external-docs-button:hover {
+        background: #d1e7fa;
+        color: #133a5c;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
+        margin: 0 0 11px;
+        padding: 10px 11px;
+        border: 1px solid #315a79;
+        border-top: 0;
+        border-radius: 0 0 12px 12px;
+        background: #173550;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 8px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search-row > .spa-cdsp-external-docs-process-wrap {
+        align-self: stretch;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-option {
+        margin: 9px 14px 0 0;
+        vertical-align: middle;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        border-radius: 13px;
+        max-height: min(66vh, 770px);
+        background: #edf5fc;
+        border: 1px solid #456a86;
+        overflow: hidden;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {
+        position: relative;
+        max-height: min(64vh, 750px);
+        overflow: auto;
+        padding: 14px 14px 14px 31px;
+        background: linear-gradient(110deg, #f1f7fe, #eaf4fc);
+        color: #162f49;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 24px;
+        bottom: 20px;
+        width: 2px;
+        background: #bad7f5;
+        pointer-events: none;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day {
+        position: relative;
+        margin-bottom: 12px;
+        padding-left: 4px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {
+        content: "";
+        position: absolute;
+        top: 11px;
+        left: -19px;
+        width: 13px;
+        height: 13px;
+        border: 3px solid #f4faff;
+        border-radius: 50%;
+        background: #1c71c9;
+        box-shadow: 0 0 0 2px #b5d5f1;
+        z-index: 1;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid #c9def2;
+        margin: 0 0 7px;
+        padding: 7px 13px;
+        border-radius: 999px;
+        background: #dcebf9;
+        color: #12529a;
+        font: 800 12px/1.3 Inter, system-ui, sans-serif;
+        text-align: left;
+        cursor: pointer;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {
+        content: "⌃";
+        flex: 0 0 auto;
+        color: #1a66ad;
+        font-size: 20px;
+        line-height: 1;
+        transition: transform .16s ease;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-title::after {
+        transform: rotate(180deg);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-collapsed > .spa-cdsp-external-docs-day-items {display: none;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-items {display: grid;gap: 7px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {
+        grid-template-columns: 26px minmax(0,1fr) auto;
+        gap: 12px;
+        min-width: 0;
+        padding: 13px;
+        border: 1px solid #cbdff1;
+        border-radius: 12px;
+        background: #fff;
+        color: #122c47;
+        box-shadow: 0 2px 7px rgba(31, 67, 102, .045);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item + .spa-cdsp-external-docs-item {margin-top: 0;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {
+        min-width: 0;
+        position: relative;
+        padding-left: 52px;
+        min-height: 42px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {
+        content: "▤";
+        position: absolute;
+        top: 1px;
+        left: 0;
+        display: grid;
+        place-items: center;
+        height: 40px;
+        width: 40px;
+        color: #1766b8;
+        background: #e8f3fe;
+        border-radius: 13px;
+        font-size: 24px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-title {
+        color: #122e4d;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.28;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-description {
+        color: #455c75;
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-chip {
+        border-radius: 999px;
+        background: #e7f1fb;
+        color: #225c9b;
+        padding: 4px 8px;
+        font-size: 10.5px;
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 35px;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #087754;
+        color: #fff;
+        white-space: nowrap;
+        box-shadow: 0 4px 10px rgba(8, 119, 84, .16);
+      }
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open::before {content: "↗";font-size: 14px;}
+      #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-open:hover {background: #0a8e65;}
+      #spa-cdsp-external-docs-panel button:focus-visible,
+      #spa-cdsp-external-docs-panel a:focus-visible {outline: 3px solid #6dbcfb;outline-offset: 2px;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-body {
+        background: linear-gradient(180deg,#0e2941,#112b44) !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-list {
+        background: #eef5fc !important;
+        color: #162f49 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item {
+        background: #fff !important;
+        border-color: #cbdff1 !important;
+        color: #122c47 !important;
+      }
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-title {color:#122e4d !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-item-description {color:#455c75 !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-chip {background:#e7f1fb !important;color:#225c9b !important;}
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-search,
+      html.cdsp-spa-dark-mode #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern .spa-cdsp-external-docs-content-input {
+        background:#f8fbff !important;color:#15334e !important;border-color:#9bbad1 !important;
+      }
+      @container (max-width: 760px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {padding:12px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions {width:100%;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option {max-width:none;flex:1 1 130px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item {grid-template-columns: 24px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item-actions {grid-column:2;justify-content:flex-start;}
+      }
+      @container (max-width: 460px) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title {grid-template-columns:36px minmax(0,1fr);}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {height:36px;width:36px;font-size:21px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {padding:8px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2) {padding-left:0;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-item > div:nth-child(2)::before {display:none;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {padding:9px 9px 9px 27px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list::before {left:15px;}
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day::before {left:-18px;}
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-button,
+        #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-day-title::after {transition:none;}
+      }
+      /* SPA2 / preview em iframe: card nativo e UMA rolagem principal.
+         O iframe (ou a aba Visão geral) rola o conteúdo completo; a lista de
+         andamentos não abre uma segunda área de rolagem dentro do processo. */
+      html.mtprev-autos-in-iframe #workspace-preview-overview > #spa-cdsp-external-docs-panel,
+      html.mtprev-autos-in-iframe .workspace-preview__body > #spa-cdsp-external-docs-panel {
+        display: block !important;
+        position: relative !important;
+        inset: auto !important;
+        float: none !important;
+        clear: both !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 16px 0 !important;
+        grid-column: 1 / -1 !important;
+        box-sizing: border-box !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        color: #26374c !important;
+        background: #fff !important;
+        border: 1px solid #d9e3ed !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(28, 48, 74, .07) !important;
+        overflow: visible !important;
+        max-height: none !important;
+        overscroll-behavior-y: auto !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {
+        background: #f7f9fc !important;
+        border-bottom: 1px solid #e0e7ef !important;
+        border-radius: 12px 12px 0 0;
+        padding: 13px 16px !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        color: #243952 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        color: #60748a !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        color: #1969b0 !important;
+        border: 1px solid #d3e5f9 !important;
+        background: #e8f3fe !important;
+        box-shadow: none !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-body {
+        color: #26374c !important;
+        background: #fff !important;
+        padding: 14px 16px !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source {
+        border-bottom-color: #e2e9f2 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-source-option:not(:has(input:checked)) span {
+        color: #3f5870 !important;
+        background: #f1f5fa !important;
+        border-color: #dae3ed !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-status {
+        color: #536a80 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-search-row,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-search {
+        background: #f5f8fc !important;
+        border-color: #dce6ef !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-exact-option {
+        color: #253a53 !important;
+        background: #e9f1f9 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-memory {
+        color: #40596f !important;
+        background: #edf3f9 !important;
+        border-color: #d5e1ed !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-actions > .spa-cdsp-external-docs-button,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-process-complete {
+        color: #244662 !important;
+        background: #e9f0f8 !important;
+        border-color: #d0dce8 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movements-timeline {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overscroll-behavior-y: auto !important;
+        scrollbar-gutter: auto !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-viewer {
+        background: #fff !important;
+        border-color: #e0e7ef !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movements-timeline,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-list {
+        background: #f8fafc !important;
+        color: #26374c !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-card {
+        background: #fff !important;
+        color: #26374c !important;
+        border-color: #e2e9f0 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-title,
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-date {
+        color: #243952 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-movement-description {
+        color: #536a80 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-content-results {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      /* Barra de ferramentas escura, compacta e recolhida por padrao.
+         A area de documentos continua com rolagem natural do iframe. */
+      html.mtprev-autos-in-iframe #workspace-preview-overview > #spa-cdsp-external-docs-panel {
+        margin: 0 0 14px !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-modern {
+        border: 1px solid #244c60 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-header {
+        min-height: 54px;
+        background: linear-gradient(100deg, #193a4b, #276077) !important;
+        border-bottom-color: rgba(255,255,255,.12) !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title strong {
+        color: #f6fbff !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title span:not(.spa-cdsp-external-docs-title-icon) {
+        color: #c4dce8 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .spa-cdsp-external-docs-title-icon {
+        background: #214b62 !important;
+        color: #9adcf9 !important;
+        border-color: #477a92 !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel.spa-cdsp-external-docs-collapsed .spa-cdsp-external-docs-actions > :not(.mtprev-autos-toggle) {
+        display: none !important;
+      }
+      html.mtprev-autos-in-iframe #spa-cdsp-external-docs-panel .mtprev-autos-toggle {
+        background: rgba(255,255,255,.14) !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        color: #fff !important;
       }
     `;
     document.head.appendChild(style);
@@ -4006,10 +4606,20 @@
       const day = document.createElement("section");
       day.className = "spa-cdsp-external-docs-day";
 
-      const dayTitle = document.createElement("div");
+      // Agrupar por data em seções recolhíveis, sem alterar documentos ou requisições.
+      const dayTitle = document.createElement("button");
+      dayTitle.type = "button";
       dayTitle.className = "spa-cdsp-external-docs-day-title";
       dayTitle.textContent = date + " · " + groupItems.length + " " + unitLabel;
-      day.appendChild(dayTitle);
+      dayTitle.setAttribute("aria-expanded", "true");
+      dayTitle.title = "Recolher ou expandir os registros desta data";
+      const dayItems = document.createElement("div");
+      dayItems.className = "spa-cdsp-external-docs-day-items";
+      dayTitle.addEventListener("click", () => {
+        const collapsed = day.classList.toggle("spa-cdsp-external-docs-day-collapsed");
+        dayTitle.setAttribute("aria-expanded", String(!collapsed));
+      });
+      day.append(dayTitle, dayItems);
 
       for (const item of groupItems) {
         const row = document.createElement("article");
@@ -4064,7 +4674,7 @@
           actions.appendChild(open);
         }
         if (actions.childElementCount) row.appendChild(actions);
-        day.appendChild(row);
+        dayItems.appendChild(row);
       }
 
       list.appendChild(day);
@@ -4582,17 +5192,17 @@
   }
 
   function createExternalDocumentsPanel(sources, processNumber) {
-    // No SPA2, a aba inicial é o andamento do MNI/PJe quando o CNJ é válido.
-    // Se não houver numeração consultável, use a linha do tempo interna do SPA2.
-    const isSpa2Process = Boolean(document.querySelector('.workspace-preview__document #workspace-preview-overview'));
     const defaultSourceKey =
-      isSpa2Process && sources?.movements?.url ? "movements" :
-      sources?.spaTimeline?.url ? "spaTimeline" :
-      sources?.autos?.url ? "autos" :
-      sources?.folder?.url ? "folder" : "movements";
+      sources && sources.spaTimeline && sources.spaTimeline.url ? 'spaTimeline' :
+      sources && sources.autos && sources.autos.url
+        ? "autos"
+        : sources && sources.folder && sources.folder.url
+        ? "folder"
+        : "movements";
 
     const panel = document.createElement("section");
     panel.id = "spa-cdsp-external-docs-panel";
+    panel.classList.add("spa-cdsp-external-docs-modern");
     panel.dataset.processNumber = processNumber;
     panel.dataset.source = defaultSourceKey;
     panel.dataset.url = sources[defaultSourceKey] ? sources[defaultSourceKey].url : "";
@@ -4609,13 +5219,17 @@
     title.className = "spa-cdsp-external-docs-title";
 
     const titleText = document.createElement("strong");
-    titleText.textContent = "Documentos do processo";
+    titleText.textContent = location.hostname === "pge.mt.spa.coreplan.com.br"
+      ? "Andamentos e PDFs · SPA2" : "Autos e documentos do processo";
 
     const subtitle = document.createElement("span");
     subtitle.textContent = processNumber || "Processo identificado na pendência";
 
-    title.appendChild(titleText);
-    title.appendChild(subtitle);
+    const titleBadge = document.createElement("span");
+    titleBadge.className = "spa-cdsp-external-docs-title-icon";
+    titleBadge.setAttribute("aria-hidden", "true");
+    titleBadge.textContent = "▤";
+    title.append(titleBadge, titleText, subtitle);
 
     const actions = document.createElement("div");
     actions.className = "spa-cdsp-external-docs-actions";
@@ -4670,7 +5284,7 @@
 
     const minimizedMemoryInput = document.createElement("input");
     minimizedMemoryInput.type = "checkbox";
-    minimizedMemoryInput.checked = storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY);
+    minimizedMemoryInput.checked = storageGet(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, "1") !== "0";
 
     const minimizedMemoryText = document.createElement("span");
     minimizedMemoryText.textContent = "Abrir minimizado";
@@ -4678,7 +5292,7 @@
     minimizedMemory.appendChild(minimizedMemoryInput);
     minimizedMemory.appendChild(minimizedMemoryText);
 
-    const toggleButton = createExternalDocumentsButton("Recolher", "spa-cdsp-external-docs-button-secondary");
+    const toggleButton = createExternalDocumentsButton("Recolher", "spa-cdsp-external-docs-button-secondary mtprev-autos-toggle");
 
     actions.appendChild(loadButton);
     actions.appendChild(processCompleteWrap);
@@ -4778,8 +5392,8 @@
     ];
     const movementPgeStateFilterDefinition = {
       id: "pge_state_inline",
-      label: "PGE/Estado",
-      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO",
+      label: "Estado / MTPrev",
+      terms: "PROCURADORIA GERAL DO ESTADO DE MATO GROSSO;ESTADO DE MATO GROSSO;FUNDAÇÃO MATO GROSSO PREVIDÊNCIA;MATO GROSSO PREVIDÊNCIA;MTPREV",
     };
     const selectedQuickFilters = new Set();
     const quickFilterInputs = {};
@@ -4831,11 +5445,11 @@
     const pgeStateOption = document.createElement("label");
     pgeStateOption.className = "spa-cdsp-external-docs-exact-option";
     pgeStateOption.style.display = "none";
-    pgeStateOption.title = "Filtrar o Andamento PJE por Estado/PGE.";
+    pgeStateOption.title = "Filtrar o Andamento PJe por Estado de Mato Grosso ou Fundação Mato Grosso Previdência (MTPrev).";
     const pgeStateInput = document.createElement("input");
     pgeStateInput.type = "checkbox";
     const pgeStateText = document.createElement("span");
-    pgeStateText.textContent = "PGE/Estado";
+    pgeStateText.textContent = "Estado / MTPrev";
     pgeStateOption.appendChild(pgeStateInput);
     pgeStateOption.appendChild(pgeStateText);
     searchTools.appendChild(pgeStateOption);
@@ -5141,6 +5755,9 @@
 
     const viewer = document.createElement("div");
     viewer.className = "spa-cdsp-external-docs-viewer";
+    if (window.parent !== window) {
+      viewer.addEventListener("wheel", (event) => chainExternalAutosWheelAtBoundary(event, viewer), { passive: false });
+    }
 
     const placeholder = document.createElement("div");
     placeholder.className = "spa-cdsp-external-docs-placeholder";
@@ -6055,11 +6672,10 @@
     });
 
     resetExternalDocumentSourceView();
-    // SPA2: abrir expandido com os andamentos PJe da numeração atual.
-    // Não buscar PDFs nem as outras fontes automaticamente; permanecem sob demanda.
+    // Na abertura, carregar a linha do tempo do SPA2; PDFs continuam sob demanda.
     setTimeout(() => {
       if (!panel.isConnected) return;
-      if (isSpa2Process) loadActiveExternalSource({ force: false });
+      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: false });
       else loadAllExternalSources({ force: false });
     }, 0);
 
@@ -6110,7 +6726,7 @@
     });
 
     loadButton.addEventListener("click", () => {
-      if (isSpa2Process) loadActiveExternalSource({ force: true });
+      if (sources.spaTimeline?.url) loadActiveExternalSource({ force: true });
       else loadAllExternalSources({ force: true });
     });
 
@@ -6462,9 +7078,7 @@
       toggleButton.textContent = collapsed ? "Expandir" : "Recolher";
     }
 
-    // No SPA2 o painel inicia aberto; o usuário pode recolher manualmente.
-    setExternalDocumentsCollapsed(isSpa2Process ? false : storageGetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY));
-    if (isSpa2Process) minimizedMemory.style.display = "none";
+    setExternalDocumentsCollapsed(minimizedMemoryInput.checked);
 
     minimizedMemoryInput.addEventListener("change", () => {
       storageSetBool(EXTERNAL_DOCS_OPEN_MINIMIZED_KEY, minimizedMemoryInput.checked);
@@ -6487,31 +7101,30 @@
   }
 
   function refreshExternalDocumentsPanel() {
-    const existingPanel = document.querySelector("#spa-cdsp-external-docs-panel");
-
+    const existingPanel=document.querySelector('#spa-cdsp-external-docs-panel');
+    // Acompanhamento Especial está exibindo esta mesma instância de Autos.
+    // Não a mover nem destruir enquanto a pessoa confere o expediente.
+    if (existingPanel?.dataset.mtprevWatchDocked==='1') return;
     if (!isProcedureDetailPage()) {
       if (existingPanel) existingPanel.remove();
       return;
     }
-
-    const processNumber = readCurrentProcedureProcessNumber();
-    const sources = buildExternalDocumentSources();
-    const sourceSignature = getExternalDocumentSourceSignature(sources);
-    const host = findExternalDocumentsHost();
-
-    if (!sourceSignature.replace(/\|/g, "") || !host) {
+    const processNumber=readCurrentProcedureProcessNumber();
+    const sources=buildExternalDocumentSources();
+    const signature=getExternalDocumentSourceSignature(sources);
+    const host=findExternalDocumentsHost();
+    if (!signature.replace(/\|/g,'') || !host) {
       if (existingPanel) existingPanel.remove();
       return;
     }
-
-    if (existingPanel && existingPanel.dataset.processNumber === processNumber && existingPanel.dataset.sourcesSignature === sourceSignature) {
-      placeExternalDocumentsPanel(existingPanel, host);
+    if (existingPanel && existingPanel.dataset.processNumber===processNumber &&
+        existingPanel.dataset.sourcesSignature===signature) {
+      placeExternalDocumentsPanel(existingPanel,host);
       return;
     }
     if (existingPanel) existingPanel.remove();
-
     injectExternalDocumentsStyles();
-    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources, processNumber), host);
+    placeExternalDocumentsPanel(createExternalDocumentsPanel(sources,processNumber),host);
   }
 
   function setupExternalDocumentsPanel() {
@@ -8068,7 +8681,8 @@
         throw new Error("Nao foi possivel selecionar a Manifestacao Sugerida informada.");
       }
       const hasAssessor = Boolean(String(action.assessor || "").trim());
-      if (hasAssessor && !(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
+      if (!hasAssessor) throw new Error("Selecione um assessor para concluir a designação no SPA.");
+      if (!(await chooseSpaSelectWithRetries(assessor, action.assessor, true, 3))) {
         throw new Error("O assessor nao foi preenchido automaticamente. Selecione-o manualmente antes de salvar.");
       }
       if (!setFormFieldValue(observation, action.processObservation || "")) {
@@ -10633,12 +11247,72 @@
     };
   }
 
-  function setDuplicateLoading(loading, message, error = false) {
+  function formatDuplicateDuration(ms) {
+    if (!Number.isFinite(Number(ms)) || Number(ms) < 0) return 'não informado';
+    if(Number(ms)<10000) return `${(Number(ms)/1000).toFixed(1).replace('.',',')}s`;
+    const secs=Math.round(Number(ms)/1000);
+    const mins=Math.floor(secs/60), rem=secs%60;
+    return mins ? `${mins}min ${String(rem).padStart(2,'0')}s` : `${secs}s`;
+  }
+
+  function formatDuplicateEta(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return 'calculando tempo estimado';
+    const totalSeconds = Math.round(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) return `${seconds}s restantes`;
+    if (minutes < 60) return `${minutes}min ${String(seconds).padStart(2, '0')}s restantes`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${String(minutes % 60).padStart(2, '0')}min restantes`;
+  }
+
+  function setDuplicateLoading(loading, message, error = false, meta = null) {
+    if (loading && !state.duplicateLoadingStartedAt) state.duplicateLoadingStartedAt = Date.now();
+    if (!loading) state.duplicateLoadingStartedAt = 0;
     document.querySelectorAll('.mtprev-duplicates-loading').forEach(node => {
+      const title = node.querySelector?.('.mtprev-duplicates-loading__title');
+      const info = node.querySelector?.('.mtprev-duplicates-loading__meta');
+      const fill = node.querySelector?.('.mtprev-duplicates-loading__fill');
+      const bar = node.querySelector?.('.mtprev-duplicates-loading__bar');
+      const hasStructured = Boolean(title && info && fill && bar);
       node.hidden = !loading && !message;
-      if (message || loading) node.textContent = message || 'Carregando duplicados…';
       node.dataset.tone = error ? 'error' : 'info';
       node.setAttribute('role', error ? 'alert' : 'status');
+      if (!hasStructured) {
+        if (message || loading) node.textContent = message || 'Carregando duplicados…';
+        return;
+      }
+      const current = Number(meta?.current);
+      const total = Number(meta?.total);
+      const rounds = Number(meta?.rounds);
+      const pages = Number(meta?.pages);
+      const batchSize = Number(meta?.batchSize) || 100;
+      const fromApi = meta?.stage === 'api-parallel';
+      const concurrency = Number(meta?.concurrency);
+      const progress = total > 0 && current >= 0 ? Math.max(0, Math.min(100, (current / total) * 100)) : 8;
+      const elapsed = state.duplicateLoadingStartedAt ? Date.now() - state.duplicateLoadingStartedAt : 0;
+      const eta = current > 0 && total > current ? ((elapsed / current) * (total - current)) : NaN;
+      title.textContent = message || 'Gerando relatório de duplicados…';
+      if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+        const lots = fromApi
+          ? (Number.isFinite(rounds) && Number.isFinite(pages)
+            ? `Lotes de até ${batchSize} · concluídos ${rounds}/${pages}`
+            : `Lotes de até ${batchSize}`)
+          : `Leitura incremental do SPA · etapa ${Number.isFinite(rounds) ? rounds : 0}`;
+        const concurrencyLabel = Number.isFinite(concurrency) && concurrency > 1 ? ` · ${concurrency} em paralelo` : '';
+        const lastPageInfo=Number.isSafeInteger(meta?.lastCompletedPage) && Number.isFinite(meta?.lastCompletedMs)
+          ? ` · página ${meta.lastCompletedPage} concluída em ${formatDuplicateDuration(meta.lastCompletedMs)}` : '';
+        info.textContent = `Fazendo requisição de ${current}/${total} processos · ${lots}${concurrencyLabel}${lastPageInfo} · ${formatDuplicateEta(eta)}`;
+      } else {
+        info.textContent = error ? 'Não foi possível concluir a leitura.' : 'Preparando leitura da mesa de trabalho…';
+      }
+      fill.style.width = `${progress}%`;
+      const inRefresh=node.closest('.mtprev-duplicate-refresh-overlay') !== null;
+      fill.style.background = error ? '#d65b5b' : '#1676b2';
+      bar.style.cssText = 'margin-top:10px;height:11px;border-radius:999px;background:'+(inRefresh?'#dae6f0':'#142231')+';overflow:hidden;border:1px solid '+(inRefresh?'#adc5d6':'#34516b')+';';
+      fill.style.cssText += ';display:block;height:100%;border-radius:999px;transition:width 220ms ease;';
+      title.style.cssText = 'font-size:14px;font-weight:700;color:'+(inRefresh?'#184764':'#eaf4fb')+';';
+      info.style.cssText = 'margin-top:6px;font-size:12px;line-height:1.4;color:'+(inRefresh?'#3d617a':'#b7cadb')+';';
     });
     document.querySelector('.mtprev-duplicates-page')?.setAttribute('aria-busy', String(loading));
     document.querySelectorAll('.mtprev-duplicates-page button').forEach(button => {
@@ -10675,11 +11349,19 @@
     const response = await requestExtensionMessage('SPA_CDSP_DUP_CACHE_GET', { scope }, 6500);
     const cached = response?.ok && response.report;
     if (!cached || cached.version !== 1 || !Array.isArray(cached.groups) ||
-        cached.coverage?.reason !== 'complete' || !Number.isFinite(cached.coverage?.count)) return null;
+        cached.coverage?.reason !== 'complete' || !Number.isSafeInteger(cached.coverage?.count) ||
+        !Number.isSafeInteger(cached.coverage?.total) ||
+        cached.coverage.count !== cached.coverage.total) return null;
+    // Preserva o cache antigo quando a mesa nao mudou, mas nunca reutiliza
+    // um relatorio de outra quantidade de processos.
+    const currentTotal = window.SpaAdapter?.workspaceCounts?.().total;
+    if (Number.isSafeInteger(currentTotal) && currentTotal !== cached.coverage.total) return null;
     return {
       workspace: true,
       fromCache: true,
       generatedAt: cached.generatedAt,
+      collectionDurationMs: cached.collectionDurationMs,
+      apiMetrics: cached.apiMetrics,
       groups: cached.groups,
       scanned: cached.scanned,
       skippedSes: cached.skippedSes || 0,
@@ -10706,6 +11388,8 @@
     const cached = {
       version: 1,
       generatedAt: new Date(report.generatedAt).toISOString(),
+      collectionDurationMs: report.collectionDurationMs,
+      apiMetrics: report.apiMetrics,
       groups, scanned: report.scanned,
       skippedSes: report.skippedSes || 0,
       includeValidated: Boolean(report.includeValidated),
@@ -10716,49 +11400,7 @@
     return response?.ok === true;
   }
 
-  async function buildDuplicateReport(includeValidated, options = {}) {
-    guardStart();
-    let failure = '';
-    try {
-      const scope = workspaceDuplicateCacheScope();
-      const onWorkspaceProgress = ({count,total}) => {
-        if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
-        setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`);
-      };
-      let preloaded = null;
-      if (scope && window.SpaAdapter?.getWorkspacePreload) {
-        setDuplicateLoading(true, 'Aguardando os lotes carregados ao abrir a mesa…');
-        try { preloaded = await window.SpaAdapter.getWorkspacePreload({onProgress:onWorkspaceProgress}); }
-        catch (error) {
-          if (state.stopped || error?.name === 'AbortError') throw error;
-          log('Leitura inicial indisponível: ' + error.message, 'error');
-        }
-        if (workspaceDuplicateCacheScope() !== scope) throw new Error('Os filtros da mesa mudaram. Gere o relatório novamente.');
-        if (preloaded?.reason !== 'complete') preloaded = null;
-      }
-      if (scope && !options.forceRefresh && !preloaded) {
-        const cached = await readWorkspaceDuplicateCache(scope);
-        if (cached && workspaceDuplicateCacheScope() === scope) {
-          showDuplicateReport(cached);
-          setStatus('Relatório salvo carregado');
-          return;
-        }
-      }
-      setDuplicateLoading(true, 'Gerando relatório de duplicados…');
-      // A rota /workspace não usa DataTables (#procedures-box). Detectar
-      // pela rota e pelos cards reais, não por um wrapper opcional.
-      const inWorkspace = /^\/workspace\/?$/.test(window.location.pathname);
-      if (inWorkspace) {
-        if (!window.SpaAdapter?.collectWorkspaceRecords) {
-          throw new Error('Leitor do workspace não carregado. Verifique spa_adapter.js e recarregue a página.');
-        }
-        const detectedCards = window.SpaAdapter.locate('workspace', 'cards').nodes;
-        if (!detectedCards.length) {
-          throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
-        }
-        const collection = preloaded || await window.SpaAdapter.collectWorkspaceRecords({
-          batchSize:100, allowScroll:false, onProgress:onWorkspaceProgress
-        });
+  function workspaceDuplicateReport(collection,includeValidated,startedAt) {
         const grouped = new Map(); let skippedSes=0;
         // No workspace, analisar todos os cards recuperados na visão filtrada.
         // Não excluir candidatos pelo assunto/último andamento nesta comparação.
@@ -10777,7 +11419,75 @@
         }
         const groups = Array.from(grouped.values()).filter(group => group.records.length > 1);
         const report = {groups,scanned:grouped.size,includeValidated:Boolean(includeValidated),
-          generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection};
+          generatedAt:new Date(),skippedSes,pages:0,workspace:true,coverage:collection,
+          collectionDurationMs:Math.round(Date.now()-startedAt),apiMetrics:collection.apiMetrics || null};
+    return report;
+  }
+
+  let duplicatePreload=null, duplicatePreloadScope='';
+  function preloadWorkspaceDuplicates(){
+    const scope=workspaceDuplicateCacheScope();
+    if(duplicatePreload && duplicatePreload.scope!==scope){duplicatePreload.controller.abort();duplicatePreloadScope='';return;}
+    if(!scope || duplicatePreload || duplicatePreloadScope===scope || !document.querySelector('.workspace-process-card'))return;
+    duplicatePreloadScope=scope;
+    const job={scope,controller:new AbortController(),promise:null};duplicatePreload=job;
+    job.promise=(async()=>{
+      const started=Date.now();
+      const collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:job.controller.signal,allowScroll:false});
+      if(job.controller.signal.aborted || workspaceDuplicateCacheScope()!==scope)return;
+      const report=workspaceDuplicateReport(collection,false,started);
+      if(collection.reason==='complete')await saveWorkspaceDuplicateCache(scope,report);
+    })().catch(error=>{if(error.name!=='AbortError')log('Pré-leitura de duplicados: '+error.message,'error');})
+      .finally(()=>{if(duplicatePreload===job)duplicatePreload=null;});
+  }
+
+  async function buildDuplicateReport(includeValidated, options = {}) {
+    guardStart();
+    const startedAt = Date.now();
+    let failure = '';
+    try {
+      const scope = workspaceDuplicateCacheScope();
+      if(duplicatePreload?.scope===scope && !options.forceRefresh)await duplicatePreload.promise;
+      if (scope && !options.forceRefresh) {
+        const cached = await readWorkspaceDuplicateCache(scope);
+        if (cached && cached.includeValidated === Boolean(includeValidated) &&
+            workspaceDuplicateCacheScope() === scope) {
+          showDuplicateReport(cached);
+          setStatus('Relatório salvo carregado');
+          return true;
+        }
+      }
+      setDuplicateLoading(true, 'Gerando relatório de duplicados…');
+      // A rota /workspace não usa DataTables (#procedures-box). Detectar
+      // pela rota e pelos cards reais, não por um wrapper opcional.
+      const inWorkspace = /^\/workspace\/?$/.test(window.location.pathname);
+      if (inWorkspace) {
+        if (!window.SpaAdapter?.collectWorkspaceRecords) {
+          throw new Error('Leitor do workspace não carregado. Verifique spa_adapter.js e recarregue a página.');
+        }
+        const detectedCards = window.SpaAdapter.locate('workspace', 'cards').nodes;
+        if (!detectedCards.length) {
+          throw new Error('Nenhum card .workspace-process-card encontrado. Aguarde a lista aparecer e tente novamente.');
+        }
+        const collectionController=new AbortController();
+        state.duplicateAbortController=collectionController;
+        let collection;
+        try {
+          collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({
+            signal:collectionController.signal,
+            force:Boolean(options.forceRefresh),
+            onProgress: ({count,total,rounds,pages,concurrency,batchSize,lastCompletedPage,lastCompletedMs,stage}) => {
+              if(state.stopped)throw new DOMException('Carregamento interrompido','AbortError');
+              setDuplicateLoading(true, `Lendo workspace: ${count} de ${total ?? '?'} processos…`, false, {
+                current: count,total,rounds,pages,concurrency,batchSize,
+                lastCompletedPage,lastCompletedMs,stage
+              });
+            }
+          });
+        } finally {
+          if(state.duplicateAbortController===collectionController)state.duplicateAbortController=null;
+        }
+        const report=workspaceDuplicateReport(collection,includeValidated,startedAt);
         // Somente substituir o relatório salvo depois de uma leitura comprovadamente completa.
         if (collection.reason === 'complete') {
           // Se filtros mudarem durante a coleta, nunca salvar sob outro escopo.
@@ -10790,7 +11500,7 @@
         }
         showDuplicateReport(report);
         setStatus(collection.reason === 'complete' ? 'Relatório pronto' : 'Relatório parcial — revisar cobertura');
-        return;
+        return true;
       }
       if (window.SpaAdapter?.route().kind === 'workspace' && !window.SpaAdapter.locate('triagem','list').nodes.length) {
         const previews = window.SpaAdapter.workspacePreviewRecords();
@@ -10848,12 +11558,14 @@
       showDuplicateReport(report);
       log("Relatorio de duplicados gerado: " + report.groups.length + " grupo(s) exibido(s).", "ok");
       setStatus("Relatorio pronto");
+      return true;
     } catch (error) {
       failure = error.name === 'AbortError'
-        ? 'Relatório interrompido. Clique em Relatorio Duplicados para tentar novamente.'
+        ? 'Relatório interrompido. Clique em Gerar Relatório para tentar novamente.'
         : 'Não foi possível gerar o relatório: ' + error.message;
       log("Erro no relatorio de duplicados: " + error.message, "error");
       setStatus("Erro no relatorio");
+      return false;
     } finally {
       setDuplicateLoading(false, failure, Boolean(failure));
       state.running = false;
@@ -11158,6 +11870,11 @@
 
   function showWorkspaceDuplicateReport(report) {
     document.querySelector('#spa-cdsp-duplicate-report-overlay')?.remove();
+    // A aba pode ser recarregada com o relatório aberto: só restaurar do cache local.
+    const reportScope=workspaceDuplicateCacheScope();
+    if (reportScope && report.coverage?.reason==='complete' && (report.fromCache || report.savedToChrome)) {
+      try { sessionStorage.setItem('mtprev.duplicate.report.open.v1',reportScope); } catch (_error) {}
+    }
     const overlay = document.createElement('div');
     overlay.id = 'spa-cdsp-duplicate-report-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:1000001;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(5,14,27,.76);font-family:system-ui,Arial,sans-serif;color:#213248;';
@@ -11166,12 +11883,12 @@
     sheet.setAttribute('role','dialog');
     sheet.setAttribute('aria-modal','true');
     sheet.setAttribute('aria-label','Relatório de processos duplicados');
-    sheet.style.cssText = 'width:min(1340px,100%);max-height:calc(100dvh - 28px);overflow:auto;background:#f2f5f9;border:1px solid #d7e1ee;border-radius:13px;box-shadow:0 24px 75px rgba(0,0,0,.42);';
+    sheet.style.cssText = 'width:min(1340px,100%);max-height:calc(100dvh - 28px);overflow:auto;background:#edf3f8;border:1px solid #9fb7c9;border-radius:16px;box-shadow:0 24px 75px rgba(0,0,0,.42);';
     const styles = document.createElement('style');
     styles.textContent = `
-      #spa-cdsp-duplicate-report-overlay .md-header{position:sticky;top:0;z-index:3;background:#1c2833;color:#fff;padding:15px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-      #spa-cdsp-duplicate-report-overlay .md-main{padding:14px 16px 18px;display:grid;gap:13px;color:#25354a}
-      #spa-cdsp-duplicate-report-overlay .md-button{border:1px solid transparent;background:#247bba;color:#fff;border-radius:6px;padding:8px 11px;cursor:pointer;font:650 12px/1.25 system-ui,Arial,sans-serif;white-space:normal}
+      #spa-cdsp-duplicate-report-overlay .md-header{position:sticky;top:0;z-index:3;background:linear-gradient(110deg,#203f56 0%,#235a76 70%,#266e96 100%);color:#fff;padding:17px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:3px solid #1c7896}
+      #spa-cdsp-duplicate-report-overlay .md-main{padding:16px 18px 20px;display:grid;gap:12px;color:#253b51}
+      #spa-cdsp-duplicate-report-overlay .md-button{border:1px solid transparent;background:#1f6fa4;color:#fff;border-radius:8px;padding:9px 12px;cursor:pointer;font:650 12px/1.25 system-ui,Arial,sans-serif;white-space:normal}
       #spa-cdsp-duplicate-report-overlay .md-button:hover:not(:disabled){background:#135a94;filter:brightness(1.04)}
       #spa-cdsp-duplicate-report-overlay .md-button:disabled{opacity:.55;cursor:not-allowed}
       #spa-cdsp-duplicate-report-overlay .md-button.md-muted-btn{background:#e9eff5;border-color:#cbd7e2;color:#213248}
@@ -11183,11 +11900,38 @@
       #spa-cdsp-duplicate-report-overlay .md-button.md-amber{background:#936200}
       #spa-cdsp-duplicate-report-overlay .md-button.md-amber:hover:not(:disabled){background:#774f00}
       #spa-cdsp-duplicate-report-overlay .md-button:focus-visible,#spa-cdsp-duplicate-report-overlay a:focus-visible,#spa-cdsp-duplicate-report-overlay :is(input,select,summary):focus-visible{outline:3px solid #20a6c4;outline-offset:2px}
-      #spa-cdsp-duplicate-report-overlay .md-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
-      #spa-cdsp-duplicate-report-overlay .md-stat{background:#fff;border-radius:8px;border:1px solid #e3e9f0;border-left:4px solid #26768f;padding:11px;box-shadow:0 1px 4px rgba(31,54,83,.06);min-width:0}
-      #spa-cdsp-duplicate-report-overlay .md-stat small{display:block;color:#52677b;font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.02em;line-height:1.3;margin-bottom:6px}
-      #spa-cdsp-duplicate-report-overlay .md-stat strong{font-size:23px;color:#25354a;font-weight:850}
+      #spa-cdsp-duplicate-report-overlay .md-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+      #spa-cdsp-duplicate-report-overlay .md-stat{display:flex;align-items:center;gap:12px;background:#fff;border-radius:12px;border:1px solid #d8e4ef;padding:14px;box-shadow:0 3px 12px rgba(31,54,83,.07);min-width:0}
+      #spa-cdsp-duplicate-report-overlay .md-stat small{display:block;color:#536d86;font-size:10.5px;font-weight:750;letter-spacing:.01em;line-height:1.3;margin-bottom:5px}
+      #spa-cdsp-duplicate-report-overlay .md-stat strong{font-size:23px;color:#223f59;font-weight:850;font-variant-numeric:tabular-nums}
+      #spa-cdsp-duplicate-report-overlay .md-stat__icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:11px;background:#e7f3fb}
+      #spa-cdsp-duplicate-report-overlay .md-stat__icon img{width:22px;height:22px;display:block;opacity:.85}
+      #spa-cdsp-duplicate-report-overlay .md-stat__copy{min-width:0}
+      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+2) .md-stat__icon{background:#e6f4f0}
+      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+3) .md-stat__icon{background:#eff0fc}
+      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+4) .md-stat__icon{background:#fff2df}
+      #spa-cdsp-duplicate-report-overlay .md-summary-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#577088;font-size:12px;line-height:1.45}
+      #spa-cdsp-duplicate-report-overlay .md-summary-line .md-note-dot{color:#86a1b5}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo{width:53px;height:42px;object-fit:contain;flex-shrink:0}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback{font-size:16px;font-weight:900;color:#60bfd1;flex-shrink:0}
+      #spa-cdsp-duplicate-report-overlay .md-header__logo-fallback[hidden]{display:none}
+      #spa-cdsp-duplicate-report-overlay .md-group{border-radius:10px;border-color:#cbdce9;box-shadow:0 1px 3px rgba(31,54,83,.05)}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary{min-height:46px}
+      #spa-cdsp-duplicate-report-overlay .md-group.md-match-perfect>summary{background:#ddf3e7}
+      #spa-cdsp-duplicate-report-overlay .md-group.md-match-high>summary{background:#e2f0f7}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary:hover{background:#cfe5f2}
+      #spa-cdsp-duplicate-report-overlay .md-toolbar{padding:10px;background:#fff;border:1px solid #d8e4ef;border-radius:10px}
+      #spa-cdsp-duplicate-report-overlay .md-quiet-hint{font-size:11px;color:#637c92}
+
+      #spa-cdsp-duplicate-report-overlay .mtprev-duplicate-refresh-overlay{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:16px;background:rgba(7,17,30,.78);backdrop-filter:blur(3px)}
+      #spa-cdsp-duplicate-report-overlay .mtprev-duplicate-refresh-card{width:min(580px,100%);padding:22px;color:#1e3b54;background:#f7fafc;border:2px solid #79afca;border-radius:14px;box-shadow:0 20px 65px rgba(0,0,0,.4);display:grid;gap:12px}
+      #spa-cdsp-duplicate-report-overlay .mtprev-duplicate-refresh-card h2{font-size:19px;margin:0;color:#1a4965}
+      #spa-cdsp-duplicate-report-overlay .mtprev-duplicate-refresh-card p{font-size:13px;line-height:1.5;margin:0;color:#465e75}
+      #spa-cdsp-duplicate-report-overlay .mtprev-duplicate-refresh-actions{display:flex;justify-content:flex-end}
       #spa-cdsp-duplicate-report-overlay .md-toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+      #spa-cdsp-duplicate-report-overlay .md-check-all{display:inline-flex;align-items:center;gap:7px;border:1px solid #ccdbea;background:#fff;border-radius:7px;padding:9px 11px;color:#25354a;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+      #spa-cdsp-duplicate-report-overlay .md-check-all input,#spa-cdsp-duplicate-report-overlay .md-group-check input{width:16px;height:16px;accent-color:#17658d;cursor:pointer}
+      #spa-cdsp-duplicate-report-overlay .md-group-check{display:inline-flex;align-items:center;gap:5px;min-width:28px;cursor:pointer}
       #spa-cdsp-duplicate-report-overlay .md-toolbar input{flex:1;min-width:190px}
       #spa-cdsp-duplicate-report-overlay .md-toolbar :is(input,select){color:#25354a;background:#fff;border:1px solid #cfdeeb;padding:10px;border-radius:7px;font:13px system-ui,Arial,sans-serif}
       #spa-cdsp-duplicate-report-overlay .md-group{border:1px solid #d3e0eb;background:#fff;border-radius:8px;margin-bottom:10px;overflow:hidden}
@@ -11217,7 +11961,14 @@
       #spa-cdsp-duplicate-report-overlay .md-subline small{color:#63738a;font-weight:750}
       #spa-cdsp-duplicate-report-overlay .md-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px}
       #spa-cdsp-duplicate-report-overlay .md-notice{font-size:12px;color:#536881;line-height:1.5}
+      #spa-cdsp-duplicate-report-overlay .md-notice:empty{display:none}
       #spa-cdsp-duplicate-report-overlay .md-banner{padding:10px 12px;border:1px solid #d6e1ec;background:#eaf2fa;border-radius:7px}
+      /* Ajustes finais: depois das regras herdadas do relatório, para não serem sobrescritos. */
+      #spa-cdsp-duplicate-report-overlay .md-group{border-radius:10px;border-color:#cbdce9;box-shadow:0 1px 3px rgba(31,54,83,.05)}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary{min-height:46px}
+      #spa-cdsp-duplicate-report-overlay .md-group.md-match-perfect>summary{background:#ddf3e7}
+      #spa-cdsp-duplicate-report-overlay .md-group.md-match-high>summary{background:#e2f0f7}
+      #spa-cdsp-duplicate-report-overlay .md-group>summary:hover{background:#cfe5f2;filter:none}
       @media(max-width:1120px){#spa-cdsp-duplicate-report-overlay .md-fields{grid-template-columns:repeat(5,minmax(0,1fr))}}
       @media(max-width:760px){#spa-cdsp-duplicate-report-overlay .md-stats{grid-template-columns:repeat(2,minmax(0,1fr))}#spa-cdsp-duplicate-report-overlay .md-fields{grid-template-columns:repeat(2,minmax(0,1fr))}#spa-cdsp-duplicate-report-overlay .md-main{padding:11px}#spa-cdsp-duplicate-report-overlay .md-header{padding:12px}#spa-cdsp-duplicate-report-overlay .md-group>summary .md-button{padding:6px}}
     `;
@@ -11234,10 +11985,22 @@
       return node;
     };
     const header=el('header','md-header');
+    const brandLogo=el('img','md-header__logo');
+    // Este painel roda no mundo MAIN: chrome.runtime nao existe nessa execucao.
+    // A URL e recebida do background ao injetar o painel.
+    const mtprevImageUrl = VISUAL_CONFIG.headerImageUrl || '';
+    if (mtprevImageUrl) brandLogo.src = mtprevImageUrl;
+    brandLogo.alt='MTPrev';
+    const logoFallback=el('span','md-header__logo-fallback','MTPrev');
+    logoFallback.hidden=Boolean(mtprevImageUrl);
+    brandLogo.addEventListener('load',()=>{logoFallback.hidden=true;brandLogo.hidden=false;});
+    brandLogo.addEventListener('error',()=>{brandLogo.hidden=true;logoFallback.hidden=false;});
+    if (!mtprevImageUrl) brandLogo.hidden=true;
+    header.append(brandLogo,logoFallback);
     const title=el('div');title.style.flex='1';title.style.minWidth='230px';
     const titleName=el('div','', 'Relatório de processos duplicados');
     titleName.style.cssText='font-size:17px;font-weight:800;';
-    const subtitle=el('div','', 'Grupos por número do processo · partes ativas · distribuição · conferência de expedientes');
+    const subtitle=el('div','', 'Comparação de processos da mesa · revisão de expedientes');
     subtitle.style.cssText='font-size:11px;color:#c1d0e0;margin-top:4px;';
     title.append(titleName,subtitle);header.appendChild(title);
     const bulkClosure=button('Sugestões em lote (0)','md-amber');
@@ -11245,13 +12008,58 @@
     bulkClosure.title='Selecione manualmente os expedientes a revisar. A fila é preparada um por vez, nunca faz gravações paralelas.';
     const refresh=button('Atualizar');
     refresh.addEventListener('click', async () => {
+      if (refresh.disabled) return;
       refresh.disabled=true;
-      try { await buildDuplicateReport(report.includeValidated, {forceRefresh:true}); }
-      catch(error){log('Falha ao atualizar relatório: '+error.message,'error');}
-      finally{if(overlay.isConnected)refresh.disabled=false;}
+      const glass=document.createElement('div');
+      glass.className='mtprev-duplicate-refresh-overlay';
+      glass.setAttribute('role','dialog');
+      glass.setAttribute('aria-modal','true');
+      glass.setAttribute('aria-label','Atualizando relatório de duplicados');
+      const card=document.createElement('div');
+      card.className='mtprev-duplicate-refresh-card';
+      const heading=document.createElement('h2');heading.textContent='Atualizando relatório';
+      const hint=document.createElement('p');hint.textContent='Consultando novamente a mesa de trabalho para substituir o cache somente após leitura completa.';
+      const progress=document.createElement('div');
+      progress.className='mtprev-duplicates-loading';
+      progress.setAttribute('role','status');
+      progress.innerHTML='<div class="mtprev-duplicates-loading__title">Preparando leitura…</div><div class="mtprev-duplicates-loading__meta">Identificando total de processos…</div><div class="mtprev-duplicates-loading__bar"><span class="mtprev-duplicates-loading__fill"></span></div>';
+      progress.hidden=false;
+      progress.style.cssText='padding:14px;background:#fff;border-radius:10px;border:1px solid #d0e2ee;color:#213d56;';
+      const elapsed=document.createElement('p');elapsed.setAttribute('role','timer');elapsed.textContent='Tempo decorrido: 0s';
+      const actions=document.createElement('div');actions.className='mtprev-duplicate-refresh-actions';
+      const cancel=button('Interromper leitura','md-muted-btn');
+      cancel.addEventListener('click',()=>{
+        state.stopped=true;
+        state.duplicateAbortController?.abort();
+        cancel.disabled=true;
+        hint.textContent='Interrupção solicitada. O relatório salvo anteriormente será preservado.';
+      });
+      actions.append(cancel);card.append(heading,hint,progress,elapsed,actions);glass.appendChild(card);sheet.appendChild(glass);
+      const started=Date.now();
+      const clock=setInterval(()=>{
+        if(glass.isConnected)elapsed.textContent='Tempo decorrido: '+formatDuplicateDuration(Date.now()-started);
+      },1000);
+      try {
+        const ok=await buildDuplicateReport(report.includeValidated,{forceRefresh:true});
+        if (!ok && glass.isConnected) {
+          hint.textContent='Falha ou interrupção na atualização. O relatório anterior e seu cache foram preservados.';
+          const done=button('Voltar ao relatório','md-muted-btn');done.addEventListener('click',()=>glass.remove());
+          actions.replaceChildren(done);
+          elapsed.textContent='Tempo até interromper: '+formatDuplicateDuration(Date.now()-started);
+        }
+      } catch(error) {
+        hint.textContent='Falha na atualização: '+(error?.message || String(error));
+        const done=button('Voltar ao relatório','md-muted-btn');done.addEventListener('click',()=>glass.remove());actions.replaceChildren(done);
+      } finally {
+        clearInterval(clock);
+        if(overlay.isConnected)refresh.disabled=false;
+      }
     });
     const close=button('Fechar','md-muted-btn');
-    close.addEventListener('click',()=>overlay.remove());
+    close.addEventListener('click',()=>{
+      try {sessionStorage.removeItem('mtprev.duplicate.report.open.v1');} catch (_error) {}
+      overlay.remove();
+    });
     header.append(bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
@@ -11260,27 +12068,36 @@
     const savedDate=new Date(report.generatedAt);
     const savedText=Number.isNaN(savedDate.getTime())?'data não informada':savedDate.toLocaleString('pt-BR');
     const cacheInfo=report.fromCache
-      ? `Relatório salvo no navegador · ${savedText}. Clique em Atualizar para consultar a mesa novamente.`
+      ? `Relatório salvo · ${savedText}. Atualize para consultar novamente.`
       : report.savedToChrome
-        ? `Relatório gerado e salvo em ${savedText}. Reabrir não realiza novas consultas.`
+        ? `Relatório salvo · ${savedText}. Reabrir não consulta o SPA.`
         : complete
-          ? 'Leitura concluída, mas o armazenamento local ainda não foi confirmado.'
-          : 'Leitura parcial: o resultado não substitui a última análise completa salva.';
+          ? 'Leitura concluída · armazenamento local não confirmado.'
+          : 'Leitura parcial · relatório anterior preservado.';
     main.appendChild(el('div','md-notice md-banner',cacheInfo));
-    const coverageInfo=el('div','md-notice',
-      `${complete?'Leitura completa':'Cobertura não confirmada'} · ${cardCount} card(s) analisado(s)`+
-      (coverage.total!==null && coverage.total!==undefined ? ` de ${coverage.total} informado(s)`:' · total não informado')+
-      ' · Visão e filtros da mesa selecionada.');
-    coverageInfo.setAttribute('role','status');main.appendChild(coverageInfo);
+    const coverageInfo=el('div','md-summary-line');
+    coverageInfo.setAttribute('role','status');
+    coverageInfo.appendChild(el('span','',
+      `${complete?'Leitura completa':'Leitura parcial'}: ${cardCount}/${coverage.total ?? '?'} processos`));
+    if (Number.isFinite(Number(report.collectionDurationMs))) {
+      const duration=el('span','',`Tempo total: ${formatDuplicateDuration(report.collectionDurationMs)}`);
+      if (report.apiMetrics?.slowestPage) {
+        const m=report.apiMetrics;
+        duration.title=`Página mais lenta: ${m.slowestPage.page} (${formatDuplicateDuration(m.slowestPage.ms)}). Última página (${m.lastPage?.count ?? '?'} processos): ${formatDuplicateDuration(m.lastPage?.ms)}.`;
+      }
+      coverageInfo.append(el('span','md-note-dot','•'),duration);
+    }
+    coverageInfo.append(el('span','md-note-dot','•'),el('span','','Dados da mesa e filtros selecionados'));
+    main.appendChild(coverageInfo);
     const tabStatus=el('div','md-notice');tabStatus.setAttribute('role','status');main.appendChild(tabStatus);
     const entries=(report.groups || []).map(group=>({...group,evidence:workspaceDuplicateEvidence(group)}))
       .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
-    const totalCandidateTabs=workspaceDuplicateCandidateUrls(entries).length;
     let tabsOpening=false;
     const openCandidates=async (groups,scope)=>{
       if(tabsOpening)return;
       const count=workspaceDuplicateCandidateUrls(groups).length;
       if(!count){tabStatus.textContent='Nenhum link individual de expediente encontrado.';return;}
+      if(count>5){tabStatus.textContent='Por segurança, este grupo tem mais de 5 abas. Abra os expedientes individualmente.';return;}
       tabsOpening=true;
       tabStatus.textContent=`Abrindo ${count} expediente(s) em abas separadas...`;
       try {
@@ -11297,18 +12114,41 @@
     const scores=entries.map(group=>group.evidence.score);
     const allRecords=entries.reduce((sum,group)=>sum+group.records.length,0);
     const stats=[
-      ['Duplicados exibidos',entries.length],
-      ['Expedientes candidatos',allRecords],
-      ['Três campos iguais',scores.filter(score=>score===100).length],
-      ['Grupos escaneados',report.scanned ?? '—'],
-      ['Alta semelhança (85–100)',scores.filter(score=>score>=85).length],
-      ['Distribuição diferente',entries.filter(group=>group.evidence.pairs.some(pair=>pair.dates==='diferentes')).length],
-      ['Outros candidatos',scores.filter(score=>score<85).length],
-      ['Cards analisados',cardCount]
+      ['Grupos duplicados',entries.length,'content_copy'],
+      ['Expedientes candidatos',allRecords,'inbox'],
+      ['Três campos iguais',scores.filter(score=>score===100).length,'fact_check'],
+      ['Grupos analisados',report.scanned ?? '—','format_list_numbered'],
+      ['Alta semelhança',scores.filter(score=>score>=85).length,'check_circle'],
+      ['Distribuição diferente',entries.filter(group=>group.evidence.pairs.some(pair=>pair.dates==='diferentes')).length,'calendar_month'],
+      ['Outros candidatos',scores.filter(score=>score<85).length,'filter_alt'],
+      ['Processos lidos',cardCount,'summarize']
     ];
+    const statIconPaths={
+      content_copy:'M8 4h12v16H8z M4 8H2V2h14v2',
+      inbox:'M4 4h16v15H4z M4 14h5l2 3h2l2-3h5',
+      fact_check:'M4 4h16v16H4z M7 9h4 M7 14h4 M14 9l2 2 3-4 M14 16l2 2 3-4',
+      format_list_numbered:'M8 6h13 M8 12h13 M8 18h13 M3 5h1v4 M3 11h2l-2 3h2 M3 17h2l-2 3h2',
+      check_circle:'M20 11V6l-3-3H8L4 7v10l4 4h8l4-4 M8 12l3 3 6-7',
+      calendar_month:'M4 5h16v16H4z M8 2v6 M16 2v6 M4 10h16 M8 14h3v3H8z',
+      filter_alt:'M3 5h18L14 13v7l-4-2v-5z',
+      summarize:'M5 3h11l3 3v15H5z M8 11h8 M8 15h8 M8 19h6'
+    };
     const statRow=el('div','md-stats');
-    for(const [label,value] of stats){
-      const stat=el('div','md-stat');stat.append(el('small','',label),el('strong','',value));statRow.appendChild(stat);
+    for(const [label,value,icon] of stats){
+      const stat=el('div','md-stat');
+      const iconBox=el('span','md-stat__icon');
+      // SVG inline: funciona no mundo MAIN, sem depender de chrome.runtime.
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('viewBox','0 0 24 24');
+      svg.setAttribute('width','23');svg.setAttribute('height','23');
+      svg.setAttribute('fill','none');svg.setAttribute('stroke','#1e7698');
+      svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');
+      svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',statIconPaths[icon] || statIconPaths.summarize);
+      svg.appendChild(path);iconBox.appendChild(svg);
+      const copy=el('div','md-stat__copy');copy.append(el('small','',label),el('strong','',value));
+      stat.append(iconBox,copy);statRow.appendChild(stat);
     }
     main.appendChild(statRow);
     const toolbar=el('div','md-toolbar');
@@ -11317,7 +12157,12 @@
     const threshold=el('select');threshold.setAttribute('aria-label','Filtrar por pontuação de semelhança');
     [['0','Todas as suspeitas'],['85','Alta semelhança (85–100)'],['100','Três campos iguais (100)']]
       .forEach(([value,label])=>{const opt=el('option','',label);opt.value=value;threshold.appendChild(opt);});
-    toolbar.append(search,threshold);main.appendChild(toolbar);
+    const selectAllLabel=el('label','md-check-all');
+    const selectAllCheckbox=el('input');selectAllCheckbox.type='checkbox';
+    selectAllCheckbox.setAttribute('aria-label','Marcar até 100 grupos exibidos, selecionando o último expediente de cada grupo');
+    const selectAllText=el('span','', 'Marcar até 100 exibidos');
+    selectAllLabel.append(selectAllCheckbox,selectAllText);
+    toolbar.append(search,threshold,selectAllLabel);main.appendChild(toolbar);
     const resultLine=el('div','md-notice');main.appendChild(resultLine);
     const list=el('div');main.appendChild(list);
     const expandedGroups=new Set();
@@ -11332,6 +12177,31 @@
       bulkClosure.textContent=`Sugestões em lote (${selectedForClosure.size})`;
       bulkClosure.disabled=!selectedForClosure.size;
     };
+    const groupLastCandidate=group=>{
+      const records=group.records || [];
+      const record=records[records.length-1];
+      return record && keyForClosure(record) ? {
+        key:keyForClosure(record),record,groupNumber:group.processNumber || '',score:group.evidence.score
+      } : null;
+    };
+    let currentlyShown=[];
+    const syncSelectAll=()=>{
+      const eligible=currentlyShown.map(groupLastCandidate).filter(Boolean).slice(0,100);
+      const selected=eligible.filter(item=>selectedForClosure.has(item.key)).length;
+      selectAllCheckbox.disabled=!eligible.length;
+      selectAllCheckbox.checked=eligible.length>0 && selected===eligible.length;
+      selectAllCheckbox.indeterminate=selected>0 && selected<eligible.length;
+      selectAllText.textContent=`Marcar até 100 exibidos (${selected}/${eligible.length})`;
+      syncBulkClosure();
+    };
+    selectAllCheckbox.addEventListener('change',()=>{
+      const eligible=currentlyShown.map(groupLastCandidate).filter(Boolean).slice(0,100);
+      for (const item of eligible) {
+        if(selectAllCheckbox.checked)selectedForClosure.set(item.key,item);
+        else selectedForClosure.delete(item.key);
+      }
+      render();
+    });
     const normalized=value=>String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const render=()=>{
       list.replaceChildren();
@@ -11339,7 +12209,9 @@
       const shown=entries.filter(group=>group.evidence.score>=Number(threshold.value) &&
         (!query || [group.processNumber,...(group.records||[]).map(record=>record.party || '')]
           .some(value=>normalized(value).includes(query))));
-      resultLine.textContent=`${shown.length} grupo(s) exibido(s) · Clique na faixa azul ou verde para expandir. Pontuação por critérios, não probabilidade estatística.`;
+      currentlyShown=shown;
+      syncSelectAll();
+      resultLine.textContent=`${shown.length} grupos exibidos · Marcar o grupo seleciona o último expediente para revisão.`;
       if(!shown.length){list.appendChild(el('div','md-notice','Nenhum grupo corresponde aos filtros. Isso não confirma a ausência de duplicatas.'));return;}
       shown.forEach(group=>{
         const id=group.key || group.processNumber;
@@ -11350,17 +12222,36 @@
           if(details.open)expandedGroups.add(id);else expandedGroups.delete(id);
         });
         const heading=el('summary');
+        const candidate=groupLastCandidate(group);
+        const groupLabel=el('label','md-group-check');
+        const groupCheck=el('input');groupCheck.type='checkbox';
+        groupCheck.checked=Boolean(candidate && selectedForClosure.has(candidate.key));
+        groupCheck.disabled=!candidate;
+        groupCheck.title=candidate
+          ? `Selecionar para revisão o último expediente do grupo (ID ${candidate.record.expedienteId}).`
+          : 'O último expediente não tem um ID interno válido. Expanda para selecionar manualmente.';
+        // Clicar na marcação não abre/recolhe o grupo.
+        groupCheck.addEventListener('click',event=>event.stopPropagation());
+        groupLabel.addEventListener('click',event=>event.stopPropagation());
+        groupCheck.addEventListener('change',()=>{
+          if (!candidate)return;
+          if (groupCheck.checked)selectedForClosure.set(candidate.key,candidate);
+          else selectedForClosure.delete(candidate.key);
+          render();
+        });
+        groupLabel.appendChild(groupCheck);
         const number=el('span','md-number',group.processNumber || 'Processo não identificado');
         const count=el('span','md-pill',`${group.records.length} pendência(s)`);
         const scoreText=score===100?'Três campos iguais':score>=85?'Alta semelhança':score>=50?'Revisar':'Baixa';
         const pill=el('span','md-pill'+(score===100?' md-mint':score<85?(score<50?' md-low':' md-amber'):' md-mint'),`${score}/100 · ${scoreText}`);
         const openGroup=button('Abrir grupo','md-purple');
-        openGroup.disabled=!workspaceDuplicateCandidateUrls([group]).length;
+        const groupLinkCount=workspaceDuplicateCandidateUrls([group]).length;
+        openGroup.disabled=!groupLinkCount || groupLinkCount>5;
         openGroup.title='Abrir um link por expediente deste grupo em abas separadas.';
         openGroup.addEventListener('click',event=>{
           event.preventDefault();event.stopPropagation();void openCandidates([group],'grupo selecionado');
         });
-        heading.append(number,count,pill,openGroup);details.appendChild(heading);
+        heading.append(groupLabel,number,count,pill,openGroup);details.appendChild(heading);
         const best=group.evidence.pairs[0];
         if(best){
           details.appendChild(el('div','md-pair',
@@ -11383,7 +12274,8 @@
             if(!recordKey)return;
             if(selectCheck.checked)selectedForClosure.set(recordKey,{record,groupNumber:group.processNumber || '',score});
             else selectedForClosure.delete(recordKey);
-            syncBulkClosure();
+            if(candidate && candidate.key===recordKey)groupCheck.checked=selectCheck.checked;
+            syncSelectAll();
           });
           selectLabel.append(selectCheck,el('span','',`Expediente ${index+1}`));
           rowTitle.append(selectLabel,el('span','md-notice',record.status || 'Candidato à conferência'));
@@ -11545,20 +12437,9 @@
     search.addEventListener('input',render);threshold.addEventListener('change',render);render();
     main.appendChild(el('div','md-notice',
       'A mesma numeração pode constar de várias tarefas sem que haja duplicidade. A pontuação compara campos disponíveis, não PDFs. '+
-      '“Sugerir encerramento” exige seleção de motivo e confirmação, e só é habilitado quando a URL identifica uma pendência compatível. Não há encerramento automático pela análise.'));
+      'A seleção em grupo prioriza o último expediente, mas não comprova qual deve ser encerrado. “Sugerir encerramento” exige seleção de motivo e confirmação. Não há encerramento automático pela análise.'));
     sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
-    // A abertura automatica acontece apenas após coleta completa nova.
-    if(report.fromCache){
-      tabStatus.textContent='Relatório salvo reaberto: as abas não são abertas novamente. Use os controles de cada grupo ou expediente para abrir os links.';
-    } else if(!complete){
-      tabStatus.textContent='Coleta parcial: abertura automática desativada. Use os controles de cada grupo ou expediente para abrir os links.';
-    } else if(totalCandidateTabs>60){
-      tabStatus.textContent=`${totalCandidateTabs} links encontrados: abertura automática desativada para este volume. Use os controles de cada grupo ou expediente para abrir os links.`;
-    } else if(totalCandidateTabs){
-      void openCandidates(entries,'automático após a análise');
-    } else {
-      tabStatus.textContent='Análise concluída: nenhum candidato possui link para abertura.';
-    }
+    tabStatus.textContent='Abertura em massa desativada para evitar sobrecarregar o navegador. Use Abrir em um expediente específico, ou selecione candidatos para revisão.';
   }
 
   function showDuplicateReport(report) {
@@ -12041,12 +12922,10 @@
     return compactRepeatedText(value) || fallback || "";
   }
 
-  function pieceCategoryNeedsIntern(categoryKey) {
-    return (
-      categoryKey === "contestacao_com_agravo" ||
-      categoryKey === "contestacao_sem_agravo" ||
-      categoryKey === "contestacao_possivel_agravo"
-    );
+  function pieceCategoryNeedsIntern(_categoryKey) {
+    // Sem IDs de usuários confirmados do MTPrev, não fazemos atribuição automática
+    // a profissionais de outro órgão. O formulário do SPA continua editável.
+    return false;
   }
 
   function pieceReportRecord(row, index, pageNumber) {
@@ -14045,28 +14924,67 @@
 
     const triagemPage = document.createElement("div");
     triagemPage.appendChild(createMtprevPopSupport("diagnostic"));
+    // Ações operacionais permanecem disponíveis, separadas do relatório consultivo.
+    const triagemAdvanced = document.createElement('section');
+    triagemAdvanced.className = 'mtprev-triagem-advanced';
+    triagemAdvanced.style.cssText = 'margin:12px 0;border:1px solid #49647a;border-radius:10px;padding:10px;background:#1e3446;color:#e9f2f8';
+    const triagemAdvancedSummary = document.createElement('h3');
+    triagemAdvancedSummary.textContent = 'Ações da mesa';
+    triagemAdvancedSummary.style.cssText = 'font-weight:750;cursor:pointer;font-size:12px;line-height:1.5';
+    triagemAdvanced.appendChild(triagemAdvancedSummary);
+    const actionHint = document.createElement('p');
+    actionHint.textContent = 'Usam os filtros e lotes do SPA. A seleção do relatório não limita estas ações.';
+    actionHint.style.cssText = 'font-size:11px;line-height:1.5;color:#c5d8e5;margin:6px 0 10px';
+    triagemAdvanced.appendChild(actionHint);
+    triagemPage.appendChild(triagemAdvanced);
     const triagemButtons = createButtonGrid();
-    triagemButtons.appendChild(createButton("Dar Ciência", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
+    triagemButtons.style.gridTemplateColumns = 'repeat(auto-fit,minmax(min(100%,145px),1fr))';
+    triagemButtons.appendChild(createButton("Dar ciência…", () => takeScienceAllPages(currentActionLimit(), { confirm: true }), "teal"));
     triagemButtons.appendChild(createButton("Atualizar Lista", refreshProceduresTable, "blue"));
     appendFullWidthButton(
       triagemButtons,
-      createButton("Abrir Abas", () => openTabsAllPages(currentActionLimit()), "purple")
+      createButton("Abrir processos em abas", () => openTabsAllPages(currentActionLimit()), "purple")
     );
-    triagemPage.appendChild(createTriageClassificationFlow());
-    triagemPage.appendChild(createExpedienteContentControls());
-    triagemPage.appendChild(triagemButtons);
+    triagemAdvanced.appendChild(triagemButtons);
+    const addActionPanel = (label, id, section) => {
+      section.id = id;
+      section.hidden = true;
+      if (section.matches('details')) section.open = true;
+      const summary = section.querySelector(':scope > summary');
+      if (summary) summary.hidden = true;
+      const toggle = createButton(label, () => {
+        section.hidden = !section.hidden;
+        toggle.setAttribute('aria-expanded', String(!section.hidden));
+      }, 'blue');
+      toggle.setAttribute('aria-controls', id);
+      toggle.setAttribute('aria-expanded', 'false');
+      triagemButtons.appendChild(toggle);
+      triagemAdvanced.appendChild(section);
+    };
+    addActionPanel('Classificar expedientes', 'mtprev-triage-classification', createTriageClassificationFlow());
+    addActionPanel('Filtrar abertura por conteúdo', 'mtprev-triage-content-filter', createExpedienteContentControls());
 
     const duplicadosPage = document.createElement("div");
     duplicadosPage.className = 'mtprev-duplicates-page';
+    const duplicateIntro = document.createElement('div');
+    duplicateIntro.style.cssText = 'font-size:12px;color:#b9cad8;line-height:1.45;margin:2px 0 10px 0;';
+    duplicateIntro.textContent = 'Gera o relatório completo da mesa de trabalho em lotes automáticos de até 100 processos, usando o total atual informado pelo workspace.';
+    duplicadosPage.appendChild(duplicateIntro);
     const duplicateLoading = document.createElement('div');
     duplicateLoading.className = 'mtprev-duplicates-loading';
     duplicateLoading.hidden = true;
     duplicateLoading.setAttribute('role', 'status');
+    duplicateLoading.innerHTML =
+      '<div class="mtprev-duplicates-loading__title"></div>' +
+      '<div class="mtprev-duplicates-loading__meta"></div>' +
+      '<div class="mtprev-duplicates-loading__bar"><span class="mtprev-duplicates-loading__fill"></span></div>';
+    duplicateLoading.style.cssText =
+      'margin:0 0 12px 0;padding:12px;border:1px solid #48627a;border-radius:10px;background:#223446;color:#e7f1f8;';
     duplicadosPage.appendChild(duplicateLoading);
     const duplicadosButtons = createButtonGrid();
     appendFullWidthButton(
       duplicadosButtons,
-      createButton("Relatorio Duplicados", () => buildDuplicateReport(false), "info")
+      createButton("Gerar Relatório", () => buildDuplicateReport(false), "info")
     );
     const cancelDuplicateCollection = createButton('Interromper leitura', () => {
       state.stopped = true;
@@ -14093,6 +15011,9 @@
     pecasPage.appendChild(pecasHint);
 
     const filtrosPage = document.createElement("div");
+    filtrosPage.appendChild(createDateControls());
+    filtrosPage.appendChild(createLimitControls());
+    filtrosPage.appendChild(createActiveFiltersSummary());
     filtrosPage.appendChild(createPageBatchControls());
     filtrosPage.appendChild(createJurisdictionControls());
     filtrosPage.appendChild(createDeadlineControls());
@@ -14144,7 +15065,9 @@
 
     header.appendChild(title);
     header.appendChild(status);
-    header.appendChild(quickStopButton);
+    // No módulo embutido, não exibir a ação solta "Encerrar".
+    // No painel independente, mantém o controle de interrupção de automação.
+    if (!embedded) header.appendChild(quickStopButton);
     header.appendChild(toggleButton);
     panel.appendChild(header);
     content.appendChild(createHealthLogo());
@@ -14152,11 +15075,10 @@
     if (window.MTPrevTriageWorkspace) {
       triageWorkspace?.dispose();
       triageWorkspace = window.MTPrevTriageWorkspace.create({ getRecords: mtprevPopRecords });
-      content.appendChild(triageWorkspace.root);
+      const workspaceSection = document.createElement('div');
+      workspaceSection.appendChild(triageWorkspace.root);
+      addActionPanel('Consultar expedientes da caixa', 'mtprev-triage-inbox', workspaceSection);
     }
-    content.appendChild(createDateControls());
-    content.appendChild(createLimitControls());
-    content.appendChild(createActiveFiltersSummary());
     content.appendChild(moduleTabs.pages);
     panel.appendChild(content);
     (embedded ? embeddedHost : document.body).appendChild(panel);
@@ -14178,6 +15100,10 @@
     openTabsAllPages: openTabsAllPages,
     openDuplicateTabsAllPages: openDuplicateTabsAllPages,
     buildPieceReport: buildPieceReport,
+    activateTriagePanel: () => {
+      if (!document.getElementById('spa-cdsp-panel')) createPanel();
+      return Boolean(document.getElementById('spa-cdsp-panel'));
+    },
     refreshExternalDocumentsPanel: refreshExternalDocumentsPanel,
     closeMarkedAllPages: closeMarkedAllPages,
     log: log,
@@ -14196,11 +15122,17 @@
       return;
     }
 
-    createPanel();
+    if (!VISUAL_CONFIG.autosOnly) createPanel();
+    if (!VISUAL_CONFIG.autosOnly) {
+      setTimeout(preloadWorkspaceDuplicates,400);
+      setInterval(preloadWorkspaceDuplicates,2000);
+    }
     setupExternalDocumentsPanel();
     window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
-    setTimeout(continuePendingTriageClassification, 450);
-    setTimeout(continuePendingTriageTaskClosure, 650);
+    if (!VISUAL_CONFIG.autosOnly) {
+      setTimeout(continuePendingTriageClassification, 450);
+      setTimeout(continuePendingTriageTaskClosure, 650);
+    }
     log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
   }
 
@@ -14444,10 +15376,11 @@
 
     const activeAssessorChoices = [];
     const assessor = searchableChoice("Designar ao assessor(a)", activeAssessorChoices, (choice) => {
-      flowState.assessor = choice ? choice.value : "";
+      // Nome livre é apenas uma proposta: o formulário SPA validará a pessoa.
+      flowState.assessor = choice ? choice.value : assessor.input.value.trim();
     });
-    assessor.input.placeholder = "Carregando equipe...";
-    assessor.input.disabled = true;
+    assessor.input.placeholder = "Selecione assessor ou digite nome habilitado no SPA";
+    assessor.input.disabled = false;
     form.appendChild(assessor.wrapper);
 
     const officeBox = document.createElement("div");
@@ -14514,7 +15447,8 @@
     form.appendChild(classifyButton);
 
     function canClassify() {
-      if (!flowState.manifestation || !flowState.hasOffice) return false;
+      // Classificar e designar exige uma escolha humana de assessor.
+      if (!flowState.assessor.trim() || !flowState.manifestation || !flowState.hasOffice) return false;
       return flowState.hasOffice !== "yes" || Boolean(
         flowState.officeObservation && flowState.officeObservation.value && String(flowState.officeAssignee || "").trim()
       );
@@ -14523,14 +15457,13 @@
     function refresh() {
       observationSlot.innerHTML = "";
       if (flowState.hasOffice === "yes") {
-        const officeAssignee = searchableChoice(
-          "Responsável pelo Ofício",
-          TRIAGE_OFFICE_ASSIGNEES.map((label) => ({ label: label, value: label })),
-          (choice) => { flowState.officeAssignee = choice ? choice.value : ""; }
-        );
-        officeAssignee.input.value = flowState.officeAssignee || TRIAGE_DEFAULT_OFFICE_ASSIGNEE;
-        officeAssignee.input.placeholder = "Pesquisar responsável...";
-        observationSlot.appendChild(officeAssignee.wrapper);
+        const officeAssignee = inputField("Responsável pelo Ofício", "Nome habilitado no SPA", false);
+        officeAssignee.input.value = flowState.officeAssignee;
+        officeAssignee.input.addEventListener("input", () => {
+          flowState.officeAssignee = officeAssignee.input.value.trim();
+          classifyButton.disabled = !canClassify();
+        });
+        observationSlot.appendChild(officeAssignee.label);
         const officeObservation = searchableChoice("Observação do Ofício", TRIAGE_OFFICE_OBSERVATIONS, (choice) => {
           flowState.officeObservation = choice;
         });
@@ -14550,7 +15483,7 @@
       classifyButton.style.cursor = classifyButton.disabled ? "not-allowed" : "pointer";
     }
 
-    const classificationSection = createPanelSection("Classificar Processo", false);
+    const classificationSection = createPanelSection("Classificar Processo / Designar ao assessor", true);
     classificationSection.body.appendChild(form);
     section.body.appendChild(classificationSection.section);
 

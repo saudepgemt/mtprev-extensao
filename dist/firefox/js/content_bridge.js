@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (window.CDSP_GENERAL_BRIDGE_INITIALIZED) return;
@@ -25,6 +25,8 @@
   ];
 
   const TRIAGEM_ALLOWED_TYPES = [
+    "SPA_CDSP_WORKSPACE_CACHE_GET",
+    "SPA_CDSP_WORKSPACE_CACHE_SAVE",
     "SPA_CDSP_DUP_CACHE_GET",
     "SPA_CDSP_DUP_CACHE_SAVE",
     "SPA_CDSP_OPEN_BACKGROUND_TABS",
@@ -131,16 +133,6 @@
       offsetTop = centerRect.top - shellRect.top;
       width = centerRect.width;
       height = centerRect.height;
-    }
-    const loading = shell.querySelector('.mtprev-orbit__loading:not([hidden])');
-    if (loading && !shell.classList.contains('mtprev-radial-operational')) {
-      const rect = shell.getBoundingClientRect();
-      const status = loading.getBoundingClientRect();
-      const right = Math.max(offsetLeft + width, status.right - rect.left);
-      const bottom = Math.max(offsetTop + height, status.bottom - rect.top);
-      offsetLeft = Math.min(offsetLeft, status.left - rect.left);
-      offsetTop = Math.min(offsetTop, status.top - rect.top);
-      width = right - offsetLeft; height = bottom - offsetTop;
     }
     const minLeft = margin - offsetLeft, minTop = margin - offsetTop;
     const maxLeft = Math.max(minLeft, window.innerWidth - offsetLeft - width - margin);
@@ -483,6 +475,13 @@
   function installRootToolsWatcher() {
     const evaluateRoute = () => {
       if (extensionContextInvalidated) return;
+      if (/^\/workspace\/?$/.test(location.pathname) && !loadedModules.triagem && !loadingModules.triagem) {
+        loadingModules.triagem=true;
+        safeSendMessage({type:'CDSP_GENERAL_INJECT_TRIAGEM'},response=>{
+          const error=safeLastError();delete loadingModules.triagem;
+          if(!error && response?.ok)loadedModules.triagem=true;
+        });
+      }
       const previewId = document.querySelector('.workspace-preview__document[data-procedure-id]')?.getAttribute('data-procedure-id') || '';
       const route = window.location.pathname + window.location.search + window.location.hash + '|' + previewId;
       if (route === rootToolsLastRoute) return;

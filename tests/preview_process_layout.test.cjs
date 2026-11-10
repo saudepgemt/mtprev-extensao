@@ -70,15 +70,19 @@ test('Expedientes é ativado via botão nativo, com tentativas limitadas e respe
 
 test('Lê até três movimentações em ordem decrescente sem inventar histórico',()=>{
   const code=part('  function mtprevReadTimeline(','  function mtprevFindAndamentosNav(');
-  const makeNode=(label,time)=>({
+  const makeNode=(label,time,actor='Pessoa de teste')=>({
     textContent:label+' '+time.replace('T',' '),getAttribute:()=>null,contains:()=>false,
-    querySelector:sel=>sel.includes('time[datetime]')?{getAttribute:()=>time}:sel.includes('timeline-title')?{textContent:label}:null
+    querySelector:sel=>sel.includes('time[datetime]')?{getAttribute:()=>time}:sel.includes('timeline-title')?{textContent:label}:sel.includes('timeline-user')?{textContent:actor}:null
   });
   const nodes=[makeNode('Antigo','2025-07-01T12:00:00'),makeNode('Novo','2025-08-31T21:40:00'),makeNode('Segundo','2025-08-31T21:39:00'),makeNode('Terceiro','2025-08-28T17:17:00')];
   const cx=vm.createContext({MTPREV_TIMELINE_ITEMS:'.timeline-item'});
   vm.runInContext(code+'\nthis.read=mtprevReadTimeline;',cx);
   const result=cx.read({querySelectorAll:()=>nodes});
   assert.deepEqual(Array.from(result,x=>x.title),['Novo','Segundo','Terceiro']);
+  assert.equal(result[0].actor,'Pessoa de teste');
+  assert.equal(result[0].node,undefined,'dados do resumo não carregam referências DOM');
+  const highlighted=cx.read({querySelectorAll:()=>nodes},true);
+  assert.equal(highlighted[0].node,nodes[1],'destaque usa a mesma ordem cronológica do resumo');
 });
 
 test('A busca da timeline é limitada ao processo e à própria origem do SPA',()=>{

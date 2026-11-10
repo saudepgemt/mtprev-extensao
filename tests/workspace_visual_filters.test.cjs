@@ -31,7 +31,9 @@ test('Campo recebido é extraído do SPA e não inventa data a partir de andamen
   assert.match(code,/workspace-process-card__received strong/);
   assert.match(code,/raw/);
   assert.match(code,/if \(!raw\) \{ existing\?\.remove\(\); return; \}/);
-  assert.doesNotMatch(code,/Date\(|timeline|31\/08\/2025/);
+  assert.doesNotMatch(code,/Date\.now\(|timeline|31\/08\/2025/);
+  assert.match(code,/node\.getAttribute\(attribute\)/);
+  assert.match(code,/textContent = exactDate \|\| raw/);
   assert.match(radial,/dataset.mtprevReceivedField = '1'/);
 });
 
@@ -56,8 +58,9 @@ test('Filtros são sticky com limite de altura e recuam ao fluxo normal no celul
 
 test('Paleta alternada e contornos reforçados sem conflito com o hover',()=>{
   assert.match(radial,/nth-of-type\(even\)/);
-  assert.match(radial,/background:#eaf3f8 !important/);
-  assert.match(radial,/border-left:4px solid #4f829f !important/);
+  assert.match(radial,/--mtprev-card-bg:#eaf3f8/);
+  assert.match(radial,/background:var\(--mtprev-card-bg\) !important/);
+  assert.match(radial,/border-left:4px solid #668ba5 !important/);
   assert.match(radial,/:hover,:focus-within/);
   assert.doesNotMatch(bridge,/border-left:5px solid #4f7293/);
   assert.doesNotMatch(bridge,/background:#ffffff !important;\s*border-radius:0 !important/);

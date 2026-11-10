@@ -234,7 +234,7 @@
           "prazos ultimos"
           "relacionados situacao"
           "dados eventos" !important;
-        gap:12px !important;
+        gap:16px !important;
         width:100% !important;
         max-width:none !important;
         min-width:0 !important;
@@ -324,6 +324,191 @@
       #workspace-preview-overview .mtprev-recent-placeholder {font-size:12px;line-height:1.5;color:#6c7e91;margin:0;}
       #workspace-preview-overview .mtprev-recent-footer {display:flex;justify-content:flex-end;margin-top:2px;}
       #workspace-preview-overview .mtprev-recent-view-all {border:1px solid #b7cee2;border-radius:7px;background:#edf5fb;color:#165c8c;cursor:pointer;padding:5px 9px;font-size:11px;font-weight:650;}
+      /* Ritmo uniforme, sem alterar a paleta ou os controles nativos. */
+      #workspace-preview-overview .mtprev-card-header {
+        min-height:48px !important;
+        padding:10px 14px !important;
+        gap:12px !important;
+      }
+      #workspace-preview-overview .mtprev-card-header strong {
+        font-size:13px !important;
+        min-width:0;
+        overflow-wrap:anywhere;
+      }
+      #workspace-preview-overview .mtprev-card-control {
+        width:30px !important;height:30px !important;
+        flex:0 0 30px;
+      }
+      #workspace-preview-overview .mtprev-card-control:focus-visible {
+        outline:2px solid currentColor;
+        outline-offset:2px;
+      }
+      #workspace-preview-overview .mtprev-overview-cell:is(.mtprev-cell-prazos,.mtprev-cell-ultimos) {
+        align-self:stretch !important;
+        display:flex;
+      }
+      #workspace-preview-overview .mtprev-overview-cell:is(.mtprev-cell-prazos,.mtprev-cell-ultimos) > .mtprev-managed-card {
+        flex:1 1 auto;
+      }
+      #workspace-preview-overview .mtprev-managed-card.mtprev-card-collapsed {
+        align-self:flex-start !important;
+      }
+      #workspace-preview-overview .mtprev-managed-card.mtprev-card-collapsed .mtprev-card-header {
+        border-bottom:0 !important;
+        border-radius:10px !important;
+      }
+      #workspace-preview-overview .workspace-preview__section.mtprev-managed-card > :not(.mtprev-card-header):not(.workspace-preview__section-heading) {
+        margin-left:14px !important;margin-right:14px !important;
+      }
+      #workspace-preview-overview .workspace-preview__section.mtprev-managed-card > .workspace-preview__section-heading {
+        padding:10px 14px !important;
+      }
+      #workspace-preview-overview .mtprev-managed-card > :last-child:not(.mtprev-card-header) {
+        margin-bottom:14px !important;
+      }
+      #workspace-preview-overview .workspace-preview__section-tools {
+        display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+      }
+      #workspace-preview-overview .workspace-preview__relationship-tabs {
+        display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+        padding-top:12px;
+        margin-bottom:12px !important;
+      }
+      #workspace-preview-overview .workspace-preview__relationship-tabs button {
+        min-height:36px;
+        padding:8px 12px;
+      }
+      #workspace-preview-overview .workspace-preview__facts {
+        gap:12px !important;
+        padding-top:12px;
+      }
+      #workspace-preview-overview .workspace-preview__field {
+        min-width:0;
+        line-height:1.5;
+        padding-block:6px;
+      }
+      #workspace-preview-overview .workspace-preview__field :is(strong,a) {
+        white-space:normal !important;
+        overflow-wrap:anywhere;
+      }
+      #workspace-preview-overview .mtprev-recent-body {
+        padding:14px !important;
+        box-sizing:border-box !important;
+        gap:10px;
+      }
+      #workspace-preview-overview #mtprev-recent-movements > .mtprev-recent-body {
+        margin:0 !important;
+        width:100% !important;
+        min-width:0 !important;
+      }
+      #workspace-preview-overview .mtprev-cell-prazos :is(
+        .workspace-preview__deadline,
+        .workspace-preview__deadline-item,
+        .workspace-preview__deadline-card,
+        .workspace-preview__deadlines > article,
+        .workspace-preview__deadlines > li,
+        .workspace-preview__deadlines > div
+      ) {
+        background:#f0f6fa !important;
+        border-color:#c4d8e4 !important;
+      }
+      #workspace-preview-overview .mtprev-recent-item {
+        padding:10px;
+        gap:10px;
+      }
+      #workspace-preview-overview .mtprev-recent-item small {font-size:11px;}
+      #workspace-preview-overview #mtprev-recent-movements {
+        border-color:#91b5c5 !important;
+        box-shadow:0 3px 12px rgba(28,64,85,.12) !important;
+      }
+      #workspace-preview-overview #mtprev-recent-movements > .mtprev-card-header {
+        border-bottom:3px solid #4b8fa6 !important;
+      }
+      #workspace-preview-overview .mtprev-recent-item {
+        background:#f0f6fa;
+        border-color:#c4d8e4;
+        padding:12px;
+        border-radius:9px;
+      }
+      #workspace-preview-overview .mtprev-recent-item strong {
+        font-size:13px;
+        line-height:1.5;
+        color:#1c4055;
+      }
+      #workspace-preview-overview .mtprev-recent-item small {
+        color:#506b80;
+        margin-top:5px;
+      }
+      #workspace-preview-overview .mtprev-recent-item:first-child {
+        background:#e2eff5;
+        border-color:#7faabd;
+      }
+      #workspace-preview-overview .mtprev-recent-item:first-child::before {
+        background:#27586c;
+      }
+      #workspace-preview-overview .mtprev-recent-latest {
+        display:inline-block;
+        margin-bottom:6px;
+        padding:3px 8px;
+        border-radius:5px;
+        background:#27586c;
+        color:#fff;
+        font:650 10px/1.4 system-ui,'Segoe UI',sans-serif;
+        letter-spacing:.02em;
+      }
+      #workspace-preview-overview .mtprev-recent-view-all {
+        min-height:34px;
+        padding:7px 12px;
+      }
+      #workspace-preview-overview .mtprev-recent-person {
+        margin-top:7px;
+        color:#234f65;
+        font:650 12px/1.5 'Segoe UI',Arial,sans-serif;
+        overflow-wrap:anywhere;
+      }
+      .workspace-preview__document .mtprev-timeline-recent {
+        background:#f0f6fa !important;
+        border-color:#a6c5d5 !important;
+        box-shadow:inset 4px 0 #4b8fb7 !important;
+      }
+      .workspace-preview__document .mtprev-timeline-latest {
+        background:#e2eff5 !important;
+        border-color:#7faabd !important;
+        box-shadow:inset 5px 0 #27586c !important;
+      }
+      .workspace-preview__document .mtprev-movement-person,
+      .workspace-preview__document .mtprev-movement-person :is(span,a) {
+        font-family:'Segoe UI',Arial,sans-serif !important;
+        font-size:14px !important;
+        font-weight:700 !important;
+        line-height:1.5 !important;
+        color:#193e55 !important;
+        opacity:1 !important;
+        white-space:normal !important;
+        overflow-wrap:anywhere !important;
+        text-overflow:clip !important;
+      }
+      /* Identificação de quem realizou o andamento, restrita à timeline do processo. */
+      .workspace-preview__document :is(.workspace-preview__timeline-item,.workspace-preview__timeline-entry,.workspace-preview__movement,.workspace-preview__activity,.timeline-item,.timeline__item,.timeline-entry)
+      :is([class*="timeline-user"],[class*="timeline-author"],[class*="timeline-actor"],[class*="timeline__user"],[class*="timeline__author"],[class*="movement-user"],[class*="activity-author"]) {
+        font-size:13px !important;
+        font-weight:650 !important;
+        line-height:1.55 !important;
+        color:#234f65 !important;
+        white-space:normal !important;
+        overflow-wrap:anywhere;
+        text-overflow:clip !important;
+        max-width:100%;
+      }
+      .workspace-preview__document :is(.workspace-preview__timeline-item,.workspace-preview__timeline-entry,.workspace-preview__movement,.workspace-preview__activity,.timeline-item,.timeline__item,.timeline-entry)
+      :is([class*="timeline-user"],[class*="timeline-author"],[class*="timeline-actor"],[class*="timeline__user"],[class*="timeline__author"],[class*="movement-user"],[class*="activity-author"])
+      :is(a,span):not([class*="avatar"]):not([class*="icon"]):not([aria-hidden="true"]) {
+        font-size:inherit !important;
+        font-weight:inherit !important;
+        color:inherit !important;
+        white-space:normal !important;
+        overflow-wrap:anywhere;
+      }
       .workspace-preview__document .mtprev-users-tab.mtprev-users-selected {color:#1767bf !important;font-weight:700 !important;border-bottom:2px solid #1767bf !important;}
       .workspace-preview__document .mtprev-users-pane {display:block;padding:12px 0 16px;min-width:0;}
       .workspace-preview__document .mtprev-users-pane[hidden] {display:none !important;}
@@ -362,19 +547,7 @@
       collapse.setAttribute('aria-label', collapse.title);
       collapse.setAttribute('aria-expanded', String(!closed));
     });
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'mtprev-card-control';
-    close.textContent = '×';
-    close.title = 'Fechar ' + label;
-    close.setAttribute('aria-label', close.title);
-    close.addEventListener('click', event => {
-      event.preventDefault(); event.stopPropagation();
-      card.classList.add('mtprev-card-closed');
-      const restore = overview.querySelector(':scope > .mtprev-restore-cards');
-      if (restore) restore.hidden = false;
-    });
-    actions.append(collapse, close);
+    actions.append(collapse);
     header.append(title, actions);
     card.prepend(header);
     const nativeHeading = card.querySelector(':scope > .workspace-preview__section-heading');
@@ -533,7 +706,7 @@
   const mtprevRecentByRoot = new WeakMap();
   const MTPREV_TIMELINE_ITEMS = '.workspace-preview__timeline-item,.workspace-preview__timeline-entry,.workspace-preview__movement,.workspace-preview__activity,.timeline-item,.timeline__item,.timeline-entry';
 
-  function mtprevReadTimeline(documentOrNode) {
+  function mtprevReadTimeline(documentOrNode, includeNodes = false) {
     const items = Array.from(documentOrNode?.querySelectorAll(MTPREV_TIMELINE_ITEMS) || []);
     return items.filter(node => !items.some(other => other !== node && other.contains(node)))
       .map(node => {
@@ -547,8 +720,17 @@
         let title = String(titleNode?.textContent || '').replace(/\s+/g,' ').trim();
         if (!title || title.length > 190) title = fullText.slice(0, 145);
         const dateLabel = match ? match[0] : String(node.querySelector('time')?.textContent || '').replace(/\s+/g,' ').trim().slice(0,80);
-        const actor = String(node.querySelector('[class*="timeline-user"],[class*="timeline-author"],[class*="movement-user"],[class*="activity-author"]')?.textContent || '').replace(/\s+/g,' ').trim().slice(0,100);
-        return {title:title.slice(0,190),dateLabel,actor,dateMs:Number.isFinite(dateMs)?dateMs:0};
+        let actorNode = node.querySelector('.mtprev-movement-person,[class*="timeline-user"],[class*="timeline-author"],[class*="movement-user"],[class*="activity-author"]');
+        if (!actorNode) {
+          const avatar = node.querySelector('[class*="avatar"]');
+          actorNode = Array.from(avatar?.parentElement?.children || []).find(sibling =>
+            sibling !== avatar && !sibling.contains(avatar) &&
+            !sibling.matches('img,svg,button,time,[class*="avatar"]') &&
+            !sibling.querySelector('img,svg,button,time') && sibling.textContent.trim()
+          );
+        }
+        const actor = String(actorNode?.textContent || '').replace(/\s+/g,' ').trim().slice(0,160);
+        return {title:title.slice(0,190),dateLabel,actor,dateMs:Number.isFinite(dateMs)?dateMs:0,...(includeNodes ? {node} : {})};
       }).filter(Boolean).filter((item,index,list)=>list.findIndex(other=>other.title===item.title && other.dateLabel===item.dateLabel)===index)
       .sort((a,b)=> a.dateMs && b.dateMs ? b.dateMs-a.dateMs : 0).slice(0,3);
   }
@@ -571,11 +753,21 @@
         const item = document.createElement('div');
         item.className = 'mtprev-recent-item';
         const main = document.createElement('div');
+        if (entry === entries[0]) {
+          const badge = document.createElement('span');
+          badge.className = 'mtprev-recent-latest';
+          badge.textContent = 'Mais recente';
+          main.appendChild(badge);
+        }
         const title = document.createElement('strong');
         title.textContent = entry.title;
         const meta = document.createElement('small');
-        meta.textContent = [entry.dateLabel,entry.actor].filter(Boolean).join(' · ') || 'Andamento registrado no SPA';
+        meta.textContent = entry.dateLabel || 'Andamento registrado no SPA';
         main.append(title,meta);
+        const person = document.createElement('div');
+        person.className = 'mtprev-recent-person';
+        person.textContent = entry.actor || 'Autor não informado pelo SPA';
+        main.appendChild(person);
         item.append(main);
         body.appendChild(item);
       }
@@ -658,8 +850,89 @@
     return cell;
   }
 
+  function mtprevEnhanceMovementPeople(root) {
+    if (!root) return;
+    for (const item of root.querySelectorAll(MTPREV_TIMELINE_ITEMS)) {
+      // O nome pode ser um irmão do avatar, sem classe de autor no SPA.
+      for (const avatar of item.querySelectorAll('[class*="avatar"]')) {
+        const row = avatar.parentElement;
+        if (!row || row === item) continue;
+        for (const sibling of row.children) {
+          if (sibling === avatar || sibling.contains(avatar) ||
+              sibling.matches('img,svg,button,time,[class*="avatar"]') ||
+              sibling.querySelector('img,svg,button,time')) continue;
+          if (sibling.textContent.trim() && sibling.textContent.trim().length <= 160) {
+            sibling.classList.add('mtprev-movement-person');
+          }
+        }
+      }
+    }
+  }
+
+  function mtprevShowReceivedDate(root) {
+    const facts = root?.querySelector('#workspace-preview-overview .workspace-preview__facts');
+    if (!facts) return;
+    const attributes = ['datetime','data-datetime','data-date','data-bs-original-title','data-original-title','title','aria-label'];
+    for (const label of facts.querySelectorAll('span,small,dt,label,div')) {
+      if (mtprevCleanLabel(label.textContent) !== 'recebido' || label.children.length) continue;
+      const field = label.closest('.workspace-preview__fact,.workspace-preview__field') || label.parentElement;
+      if (!field) continue;
+      const candidates = Array.from(field.querySelectorAll('time,abbr,strong,[datetime],[title],[data-bs-original-title],[data-original-title]'));
+      for (const value of candidates) {
+        if (value === label || value.contains(label)) continue;
+        const sources = attributes.map(attr => value.getAttribute(attr)).filter(Boolean);
+        let dateLabel = '';
+        for (const source of sources) {
+          const br = source.match(/\b\d{2}\/\d{2}\/\d{4}(?:\s*(?:às|as)?\s*\d{2}:\d{2})?/);
+          if (br) { dateLabel = br[0]; break; }
+          const dateOnly = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (dateOnly) { dateLabel = dateOnly[3]+'/'+dateOnly[2]+'/'+dateOnly[1]; break; }
+          if (/^\d{4}-\d{2}-\d{2}(?:[T\s]|$)/.test(source)) {
+            const date = new Date(source);
+            if (!Number.isNaN(date.getTime())) {
+              dateLabel = new Intl.DateTimeFormat('pt-BR', {
+                timeZone:'America/Cuiaba',day:'2-digit',month:'2-digit',year:'numeric',
+                ...(/[T\s]\d{2}:\d{2}/.test(source) ? {hour:'2-digit',minute:'2-digit'} : {})
+              }).format(date);
+              break;
+            }
+          }
+        }
+        if (dateLabel && value.textContent !== dateLabel) value.textContent = dateLabel;
+        if (dateLabel) break;
+      }
+    }
+  }
+
   function mtprevLayoutProcessPreview() {
     const root = mtprevGetPreviewRoot();
+    if (root) {
+      mtprevPreviewStyle();
+      mtprevEnhanceMovementPeople(root);
+      mtprevShowReceivedDate(root);
+      const recentNodes = mtprevReadTimeline(root, true).map(entry => entry.node);
+      const highlighted = new Map();
+      for (const item of root.querySelectorAll(MTPREV_TIMELINE_ITEMS)) {
+        const index = recentNodes.indexOf(item);
+        if (index < 0) continue;
+        // A linha inclui o ícone e o trilho; colorir somente a superfície do cartão.
+        let surface = item.querySelector('[class*="timeline-content"],[class*="timeline__content"],[class*="timeline-card"],[class*="timeline-body"]');
+        if (!surface) {
+          const person = item.querySelector('.mtprev-movement-person,[class*="avatar"]');
+          let candidate = person?.parentElement;
+          while (candidate && candidate.parentElement !== item) candidate = candidate.parentElement;
+          if (candidate && candidate !== item && candidate.textContent.trim().length > (person?.textContent.trim().length || 0)) surface = candidate;
+        }
+        highlighted.set(surface || item, index);
+      }
+      for (const old of root.querySelectorAll('.mtprev-timeline-recent,.mtprev-timeline-latest')) {
+        if (!highlighted.has(old)) old.classList.remove('mtprev-timeline-recent','mtprev-timeline-latest');
+      }
+      for (const [surface,index] of highlighted) {
+        surface.classList.add('mtprev-timeline-recent');
+        surface.classList.toggle('mtprev-timeline-latest', index === 0);
+      }
+    }
     const overview = root?.querySelector('#workspace-preview-overview');
     const grid = overview?.querySelector('.workspace-preview__overview-grid');
     if (!root || !overview || !grid) return;
