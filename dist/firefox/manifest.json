@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MTPrev - Extensão Geral",
-  "version": "2.0.74",
+  "version": "2.0.75",
   "author": "Arthur Costa Dias",
   "description": "Menu MTPrev no SPA com relatórios, fluxo de correção, autos, ofícios e duplicados por PDF.",
   "permissions": [
@@ -24,10 +24,13 @@
     "https://sigadoc.mt.gov.br/*",
     "https://docs.google.com/*",
     "https://gmail.googleapis.com/*",
-    "https://openidconnect.googleapis.com/*"
+    "https://openidconnect.googleapis.com/*",
+    "https://sheets.googleapis.com/*"
   ],
   "background": {
     "scripts": [
+      "js/shared/audit_core.js",
+      "js/audit_sheets_background.js",
       "js/shared/mtprev_triage_rules.js",
       "js/vendor/pdf.min.js",
       "js/triagem/offscreen_pdf_reader.js",
@@ -62,14 +65,18 @@
         "js/content_bridge.js",
         "js/shared/spa_mail_contacts.js",
         "js/process_watch_panel.js",
-        "js/extrator/content.js"
+        "js/extrator/content.js",
+        "js/shared/mtprev_workspace_cache.js",
+        "js/shared/audit_core.js",
+        "js/audit_panel.js"
       ],
       "css": [
         "css/extrator.css",
         "css/menu.css",
         "css/radial_menu.css",
         "css/process_watch.css",
-        "css/theme.css"
+        "css/theme.css",
+        "css/audit.css"
       ],
       "run_at": "document_idle"
     },

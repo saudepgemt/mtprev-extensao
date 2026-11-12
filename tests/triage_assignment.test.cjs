@@ -71,7 +71,7 @@ test('cancelamento interrompe a verificação',async()=>{
  const ctx=context();const controller=new AbortController();controller.abort();
  await assert.rejects(ctx.excludeAssignedSpaRecords([{procedureId:'1'}],{signal:controller.signal}),{name:'AbortError'});
 });
-test('andamentos usam grupos de 100 e no máximo oito consultas simultâneas',async()=>{
+test('andamentos usam grupos de 100 e no máximo 16 consultas simultâneas',async()=>{
  let active=0,peak=0,calls=0;const events=[];
  const ctx=context({DOMParser:class{parseFromString(){return doc(['Processo classificado (IA)']);}},fetch:async()=>{
   calls++;active++;peak=Math.max(peak,active);
@@ -80,7 +80,7 @@ test('andamentos usam grupos de 100 e no máximo oito consultas simultâneas',as
  }});
  const records=Array.from({length:205},(_,i)=>({procedureId:String(i+1)}));
  await ctx.excludeAssignedSpaRecords(records,{onProgress:event=>events.push(event)});
- assert.equal(calls,205);assert.equal(peak,8);
+ assert.equal(calls,205);assert.equal(peak,16);
  assert.deepEqual([...new Set(events.map(e=>e.batch))],[1,2,3]);
  assert.ok(events.some(e=>e.checked===100 && e.batch===1));
  assert.ok(events.some(e=>e.checked===200 && e.batch===2));

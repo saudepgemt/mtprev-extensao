@@ -15,6 +15,7 @@ unlimitedStorage: permite armazenar PDFs de trabalho no IndexedDB local da exten
 notifications: informa alterações encontradas nos processos que o usuário escolheu acompanhar. Os avisos podem exibir o número do processo.
 
 ACESSO A SITES
+https://sheets.googleapis.com/*: integração opcional e desativada por padrão com a planilha compartilhada indicada pela equipe. Após conexão OAuth individual e habilitação nas opções, lê e grava eventos de produtividade e lotes de protocolo. Solicita o escopo spreadsheets apenas no fluxo de conexão. Os registros incluem processo, autor do andamento, datas, prazos disponíveis, quantidades e resultado observado. Não envia senhas, cookies, tokens nem PDFs. A fila local permite sincronizar após falhas de rede.
 https://spa.pge.mt.gov.br/* e https://pge.mt.spa.coreplan.com.br/*: versões do SPA nas quais o painel atua. Leitura da caixa e de documentos, relatórios e execução de ações de trabalho solicitadas pelo usuário, com o acesso que ele já possui no sistema.
 https://www.sigadoc.mt.gov.br/* e https://sigadoc.mt.gov.br/*: preenchimento e processamento dos documentos e ofícios relacionados ao trabalho no SPA, incluindo assinatura/tramitação acionadas pelo usuário.
 https://pje.tjmt.jus.br/* e https://pje2.tjmt.jus.br/*: acesso a páginas e documentos do PJe/TJMT usados nas consultas e pesquisas processuais, respeitando a sessão do usuário.

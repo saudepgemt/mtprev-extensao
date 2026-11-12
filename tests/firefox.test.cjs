@@ -65,7 +65,8 @@ test('Firefox empacota dependencias completas e exclui arquivos do ambiente de t
   assert.ok(context.MTPrevTriageRules);
   assert.ok(context.pdfjsLib.getDocument);
   assert.ok(context.MTPrevPdfReader.searchPdfText);
-  assert.equal(listeners.length, 4, 'leitor, rotinas, OAuth e acompanhamento iniciam uma vez');
+  assert.ok(context.MTPrevAuditService);
+  assert.equal(listeners.length, 5, 'leitor, rotinas, OAuth, acompanhamento e auditoria iniciam uma vez');
 });
 
 test('build falha ao faltar um arquivo obrigatorio, sem omitir funcoes silenciosamente', (t) => {
@@ -168,8 +169,9 @@ test('Chrome continua importando as dependencias pelo service worker', () => {
   const imported = [];
   context.importScripts = (file) => { imported.push(file); run(`js/${file}`); };
   run('js/background.js');
-  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'shared/mtprev_pje_individual_oauth.js', 'vendor/pdf.min.js', 'watch_mail_template.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
-  assert.equal(listeners.length, 3);
+  assert.deepEqual(imported, ['shared/mtprev_triage_rules.js', 'shared/mtprev_pje_individual_oauth.js', 'shared/audit_core.js', 'audit_sheets_background.js', 'vendor/pdf.min.js', 'watch_mail_template.js', 'watch_mail_oauth.js', 'process_watch_background.js']);
+  assert.equal(listeners.length, 4);
+  assert.ok(context.MTPrevAuditService);
   assert.ok(context.pdfjsLib.getDocument);
 });
 

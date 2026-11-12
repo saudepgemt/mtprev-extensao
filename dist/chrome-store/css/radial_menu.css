@@ -1922,3 +1922,8 @@ body.mtprev-workspace-readable.mtprev-workspace-filter-dock .mtprev-filter-inlin
     padding:0 0 12px !important;
   }
 }
+/* Progresso da triagem dentro do próprio atalho do menu. */
+.mtprev-triage-tile-loading .mtprev-orbit__disc{position:relative;overflow:visible;}
+.mtprev-triage-tile-loading .mtprev-orbit__disc::after{content:"";position:absolute;inset:-7px;box-sizing:border-box;border:2px solid #84d0e744;border-top-color:#84d0e7;border-right-color:#84d0e7;border-radius:50%;pointer-events:none;animation:mtprev-triage-spin .8s linear infinite;}
+@keyframes mtprev-triage-spin{to{transform:rotate(360deg);}}
+@media(prefers-reduced-motion:reduce){.mtprev-triage-tile-loading .mtprev-orbit__disc::after{animation:none;}}

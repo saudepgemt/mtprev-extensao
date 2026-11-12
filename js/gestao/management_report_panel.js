@@ -3991,6 +3991,8 @@
         .finally(()=>{excelButton.disabled=false;excelButton.textContent='Exportar Excel';});
     });actions.appendChild(excelButton);
     const closeButton=createElement('button','Fechar');closeButton.type='button';closeButton.className='mtprev-mgmt-close';
+    const auditButton=createElement('button','Produtividade e protocolos');auditButton.type='button';
+    auditButton.addEventListener('click',()=>document.dispatchEvent(new Event('mtprev:audit:open')));actions.appendChild(auditButton);
     closeButton.addEventListener('click',closeModal);actions.appendChild(closeButton);
     header.appendChild(actions);dialog.appendChild(header);
     const body=createElement('div','');body.className='mtprev-mgmt-body';

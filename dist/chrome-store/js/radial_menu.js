@@ -360,6 +360,7 @@
         {title:'Duplicados',icon:'content_copy',run:()=>selectShortcut('triagem','Duplicados',true)},
         {title:'Peças',icon:'description',run:()=>selectShortcut('triagem','Peças',true)},
         {title:'Gerencial',icon:'account_tree',run:()=>selectShortcut('gestao')},
+        {title:'Produtividade',icon:'history',run:()=>{close();document.dispatchEvent(new Event('mtprev:audit:open'));}},
         {title:'Prazos',icon:'event',run:()=>selectShortcut('prazos')},
         {title:'Acompanhar',icon:'radar',special:true,run:openWatch},
         {title:'Autos e PDFs',icon:'format_list_numbered',run:openAutos},
@@ -378,6 +379,8 @@
         const button=create('button','mtprev-orbit__item','',ring);
         button.classList.add('mtprev-menu-tile');
         button.type='button';button.setAttribute('aria-label',item.title);
+        if(item.title==='Triagem')button.dataset.triageTile='true';
+        if(item.title==='Duplicados')button.dataset.duplicatesTile='true';
         if(item.special) button.classList.add('mtprev-orbit__special');
         if(item.isBack) button.classList.add('mtprev-orbit__item--back');
         const disc=create('span','mtprev-orbit__disc','',button);
@@ -389,8 +392,14 @@
           const badge=create('span','mtprev-watch-option-badge',watchUnread > 99 ? '99+' : String(watchUnread),button);
           badge.setAttribute('aria-hidden','true');badge.hidden=watchUnread===0;
         }
-        button.addEventListener('click',item.run);
+        button.addEventListener('click',()=>{
+          if(item.title==='Duplicados' && stage.dataset.duplicatesState==='loading')return;
+          if(item.title==='Triagem' && stage.dataset.triageState==='loading')document.dispatchEvent(new Event('mtprev:triage:open'));
+          else item.run();
+        });
       });
+      syncTriageTile();
+      syncDuplicatesTile();
       layout();
       requestAnimationFrame(()=>{
         if(expanded){ring.inert=false;ring.classList.add('is-open');center.setAttribute('aria-expanded','true');}
@@ -413,11 +422,37 @@
       paint(entries());
       center.focus({ preventScroll: true });
     }
+    function syncTriageTile(){
+      const button=ring.querySelector('[data-triage-tile]');
+      if(!button)return;
+      const loading=stage.dataset.triageState==='loading';
+      button.classList.toggle('mtprev-triage-tile-loading',loading);
+      button.setAttribute('aria-busy',String(loading));
+      button.title=loading?'Triagem em andamento. Clique para interromper.':stage.dataset.triageState==='ready'?'Abrir triagem salva':'Triagem';
+      button.querySelector('.mtprev-orbit__label').textContent=loading?`Triagem · ${stage.dataset.triageProgress||0}%`:'Triagem';
+    }
+    document.addEventListener('mtprev:triage:progress',()=>syncTriageTile());
     document.addEventListener('mtprev:triage:loading',()=>{
       module=null;directShortcut='';page=0;open();
     });
-    document.addEventListener('mtprev:duplicates:ready',()=>close());
-    document.addEventListener('mtprev:duplicates:error',()=>notice('Não foi possível gerar o relatório de duplicados. Aguarde a leitura atual terminar e tente novamente.'));
+    function syncDuplicatesTile(){
+      const button=ring.querySelector('[data-duplicates-tile]');
+      if(!button)return;
+      const loading=stage.dataset.duplicatesState==='loading';
+      button.classList.toggle('mtprev-triage-tile-loading',loading);
+      button.setAttribute('aria-busy',String(loading));
+      button.disabled=loading;
+      button.title=loading?'Gerando relatório de duplicados…':'Duplicados';
+      const progress=stage.dataset.duplicatesProgress||'0';
+      button.querySelector('.mtprev-orbit__label').textContent=loading?`Duplicados · ${progress}%`:'Duplicados';
+    }
+    document.addEventListener('mtprev:duplicates:progress',event=>{
+      stage.dataset.duplicatesState='loading';
+      if(event.detail?.value!=null)stage.dataset.duplicatesProgress=String(event.detail.value);
+      syncDuplicatesTile();
+    });
+    document.addEventListener('mtprev:duplicates:ready',()=>{stage.dataset.duplicatesState='ready';syncDuplicatesTile();close();});
+    document.addEventListener('mtprev:duplicates:error',()=>{stage.dataset.duplicatesState='error';syncDuplicatesTile();notice('Não foi possível gerar o relatório de duplicados. Aguarde a leitura atual terminar e tente novamente.');});
     function close() {
       expanded = false; generation++; clearTimeout(timer); collapseItems();
       shell.classList.remove('mtprev-grid-open');
@@ -452,7 +487,7 @@
       }
       if (item.key === 'triagem' && restoreOption === 'Duplicados') {
         module=null;directShortcut='';persistActiveView();open();
-        notice('Preparando relatório de duplicados…');
+        stage.dataset.duplicatesState='loading';stage.dataset.duplicatesProgress='0';syncDuplicatesTile();
         document.dispatchEvent(new Event('mtprev:duplicates:open'));return;
       }
       if (item.key === 'gestao') {
