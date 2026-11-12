@@ -24,6 +24,56 @@ Seu princípio é simples: **automatizar o trabalho repetitivo e deixar as decis
 
 > **Versão indicada no manifesto do projeto:** `0.0.1`. Algumas funcionalidades podem variar conforme a versão dos arquivos instalada e a interface disponibilizada pelo SPA.
 
+## Extensão em ação
+
+As gravações abaixo mostram o sistema com a extensão MTPrev. Expanda a demonstração que deseja acompanhar ou abra o GIF pelo link correspondente.
+
+Os arquivos são grandes; o carregamento pode levar alguns instantes, dependendo da conexão.
+
+<details>
+<summary><strong>Acesso ao sistema</strong> — expandir demonstração</summary>
+
+<p align="center">
+  <img src="src/login.gif" alt="Demonstração: Acesso ao sistema com a extensão MTPrev" width="1000" />
+</p>
+
+[Abrir o GIF](src/login.gif)
+
+</details>
+
+<details>
+<summary><strong>Triagem de processos e expedientes</strong> — expandir demonstração</summary>
+
+<p align="center">
+  <img src="src/triagem.gif" alt="Demonstração: Triagem de processos e expedientes com a extensão MTPrev" width="1000" />
+</p>
+
+[Abrir o GIF](src/triagem.gif)
+
+</details>
+
+<details>
+<summary><strong>Conferência de possíveis duplicatas</strong> — expandir demonstração</summary>
+
+<p align="center">
+  <img src="src/duplicados.gif" alt="Demonstração: Conferência de possíveis duplicatas com a extensão MTPrev" width="1000" />
+</p>
+
+[Abrir o GIF](src/duplicados.gif)
+
+</details>
+
+<details>
+<summary><strong>Painel gerencial</strong> — expandir demonstração</summary>
+
+<p align="center">
+  <img src="src/gerencial.gif" alt="Demonstração: Painel gerencial com a extensão MTPrev" width="1000" />
+</p>
+
+[Abrir o GIF](src/gerencial.gif)
+
+</details>
+
 ## O que você encontra no MTPrev
 
 ### Menu radial
@@ -179,6 +229,7 @@ O repositório está organizado desta forma:
 | `js/` | Painéis, automações, integrações e rotinas em segundo plano. |
 | `css/` | Aparência do menu radial, painéis e temas. |
 | `images/` | Logo, ícones e recursos visuais. |
+| `src/` | GIFs de demonstração do uso da extensão. |
 | `data/` | Arquivos auxiliares utilizados por determinados relatórios. |
 | `docs/` | Documentação técnica e notas sobre a adaptação ao SPA. |
 | `tests/` | Testes automatizados e páginas locais de validação. |

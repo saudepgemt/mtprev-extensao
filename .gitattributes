@@ -1,0 +1,4 @@
+src/login.gif filter=lfs diff=lfs merge=lfs -text
+src/triagem.gif filter=lfs diff=lfs merge=lfs -text
+src/duplicados.gif filter=lfs diff=lfs merge=lfs -text
+src/gerencial.gif filter=lfs diff=lfs merge=lfs -text
