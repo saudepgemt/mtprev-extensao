@@ -138,6 +138,25 @@ O Git não leva a configuração salva no navegador nem o arquivo privado `.loca
 
 Se o serviço responder HTTP 401/403, confira a credencial; HTTP 404 indica que é preciso conferir o endereço completo. Os builds `dist/local-test` e `dist/firefox-local-test` contêm configurações privadas e não fazem parte da distribuição para GitHub.
 
+## Produtividade e protocolos na planilha compartilhada (2.75)
+
+A integração usa as abas `Produtividade` e `Protocolos` da planilha **Logs SPA — MTPrev** informada pela equipe. Todos os integrantes usam a mesma planilha; cada um conecta sua própria conta Google com acesso de edição. A autorização do conector usado no chat não substitui a autorização da extensão no navegador.
+
+1. No projeto Google Cloud do cliente OAuth de `manifest.json`, habilite a **Google Sheets API** e autorize o escopo `https://www.googleapis.com/auth/spreadsheets`. Confira o ID da extensão associado ao cliente e as contas permitidas na tela de consentimento. A conexão por `chrome.identity.getAuthToken` está disponível no Chrome/Edge; o pacote Firefox mantém os demais recursos, mas não implementa esse OAuth do Chrome.
+2. Recarregue o pacote atualizado da extensão e as abas SPA. Em **Configurações → Produtividade e protocolos**, clique em **Conectar Google Sheets**. Confirme a conta e habilite a integração, depois salve.
+3. O evento padrão de produtividade é **Minuta enviada ao(à) procurador(a)**. Eventos encontrados nas prévias abertas do SPA são registrados com a integração habilitada. Abra **Produtividade** no menu (ou **Produtividade e protocolos** no Painel Gerencial). **Importar produtividade da mesa** lê os andamentos dos processos da visão atual e envia os eventos encontrados. A importação não recupera processos de outras caixas ou eventos que o SPA não retornou.
+4. O relatório lê os registros já sincronizados da planilha e permite filtrar o período, consultar ranking e histórico dos lotes. **Sincronizar pendentes** reenvia a fila local; uma tentativa automática também ocorre enquanto o navegador estiver aberto e a integração habilitada.
+
+Os cabeçalhos das duas abas são o contrato da integração e não devem ser renomeados. Datas são gravadas como texto ISO 8601 com fuso. O autor é lido do andamento, nunca do assessor sugerido ou da conta Google conectada. Reimportações e consultas deduplicam pelo identificador estável do evento. Em caso de envio com resposta perdida, a próxima sincronização confere os IDs remotos; linhas duplicadas por duas instalações simultâneas são desconsideradas no ranking por esse mesmo identificador.
+
+**Dispensas não contam.** Se o tipo de peça não estiver disponível no SPA, o evento é salvo com `dispensa = nao_informado` e fica fora do ranking até a conferência da equipe: preencha `sim` para dispensa ou `nao` para peça produtiva. Datas de prazo e recebimento só são consideradas se o evento trouxer esses campos exatos; a ausência aparece como informação não disponível. O painel mostra tanto a situação do prazo quanto o tempo recebimento → envio quando há evidência suficiente.
+
+O log cobre os protocolos executados pelas rotinas da extensão e a submissão manual do formulário nativo `#massive-form` em `/procedures/massive/2760` nas abas com a extensão ativa. Não é um extrato universal de protocolos do SPA. Seleção, assinatura e submissão não comprovam recebimento individual: **enviado_sem_confirmacao** só vira **sucesso_confirmado** quando uma mensagem explícita do SPA quantifica os processos protocolados e corresponde ao lote. Navegação isolada ou mensagem de assinatura não confirma sucesso. Falhas sem quantidade por item permanecem sem contagem individual confirmada.
+
+A fila não contém senhas de assinatura, cookies, tokens ou PDFs. O acesso aos registros e a retenção no Google são controlados pelo compartilhamento da planilha. A autenticação e os seletores precisam ser homologados em sessão real antes de usar os números como indicadores oficiais.
+
+Documentação Google: [autenticação da extensão](https://developer.chrome.com/docs/extensions/reference/api/identity) e [gravação de valores na planilha](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/append).
+
 ## Cuidados importantes
 
 O MTPrev foi criado para **ajudar a conferir e organizar**, não para tomar decisões processuais de forma autônoma. Antes de marcar uma tarefa como conferida, sugerir encerramento, assinar um documento ou iniciar qualquer tramitação, confira as informações no sistema oficial.

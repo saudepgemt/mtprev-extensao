@@ -8,6 +8,7 @@ function buildFirefox(sourceRoot = path.resolve(__dirname, ".."), outputRoot = p
   const manifest = JSON.parse(fs.readFileSync(path.join(sourceRoot, "manifest.json"), "utf8"));
   manifest.background = {
     scripts: [
+      "js/shared/audit_core.js", "js/audit_sheets_background.js",
       "js/shared/mtprev_triage_rules.js",
       "js/vendor/pdf.min.js",
       "js/triagem/offscreen_pdf_reader.js",

@@ -9,6 +9,8 @@
   <script src="js/shared/mcp_settings.js" defer></script>
   <script src="js/options.js" defer></script>
   <script src="js/watch_mail_options.js" defer></script>
+  <script src="js/shared/audit_core.js" defer></script>
+  <script src="js/audit_options.js" defer></script>
 </head>
 <body>
   <main class="settings-page">
@@ -128,6 +130,21 @@
       </details>
     </section>
 
+    <section class="settings-section" aria-labelledby="audit-title">
+      <p class="settings-category">PRODUTIVIDADE E PROTOCOLOS</p><h2 id="audit-title">Integração com Google Sheets</h2>
+      <p>Grave o histórico dos lotes e consulte o ranking na planilha <a href="https://docs.google.com/spreadsheets/d/1zRJqH93nnZSn5fZcUHYy5mtRs7gkaFkS6_XBngNyyRM/edit" target="_blank" rel="noopener">Logs SPA — MTPrev</a>. A conta conectada precisa ter acesso de edição.</p>
+      <form id="audit-form">
+        <p>Conta: <strong id="audit-account">Não conectada</strong></p>
+        <button id="audit-connect" type="button">Conectar Google Sheets</button>
+        <label for="audit-event">Evento do SPA que conta como peça minutada</label>
+        <select id="audit-event"><option value="">Selecionar a regra de produtividade</option></select>
+        <p class="help">Regra padrão: Minuta enviada ao(à) procurador(a). Conte um único evento por peça. Dispensas são excluídas; eventos sem tipo de peça aguardam conferência da coluna dispensa na planilha. O autor e a data vêm do andamento. O prazo só é aferido quando há data exata vinculada ao evento.</p>
+        <label class="check"><input type="checkbox" id="audit-enabled"><span>Habilitar o registro dos lotes de protocolo observados pela extensão e a importação de produtividade para esta planilha.</span></label>
+        <div class="actions"><button type="submit">Salvar integração</button><button type="button" id="audit-sync">Sincronizar pendentes</button></div>
+      </form>
+      <p id="audit-status" role="status" aria-live="polite"></p>
+      <p class="help">Requer Sheets API habilitada no projeto OAuth da extensão. Senhas de assinatura e tokens não são enviados à planilha. O relatório fica em “Produtividade” no menu MTPrev e no Painel Gerencial.</p>
+    </section>
     <section class="settings-section" aria-labelledby="security-title">
       <p class="settings-category">SEGURANÇA</p><h2 id="security-title">Credenciais e dados processuais</h2>
       <p>Senhas de assinatura devem ser informadas somente na rotina correspondente; não são enviadas ao servidor MCP. Para o envio de e-mail, reveja destinatários e sigilo antes de habilitar notificações. O modo manual não envia nada por conta própria.</p>

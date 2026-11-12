@@ -10,6 +10,7 @@ const RUNTIME_FILES = [
   "js/shared/active_team_database.js", "js/shared/mtprev_triage_rules.js",
   "js/shared/mtprev_workspace_cache.js", "js/shared/pdf_cover.js",
   "js/shared/mcp_settings.js", "js/shared/spa_mail_contacts.js",
+  "js/shared/audit_core.js", "js/audit_sheets_background.js", "js/audit_options.js", "js/audit_panel.js", "css/audit.css",
   "js/extrator/content.js", "js/gestao/management_report_panel.js",
   "js/prazos/deadline_report_panel.js", "js/triagem/spa_extension_panel.js",
   "js/triagem/mtprev_pop_panel.js", "js/triagem/offscreen_pdf_reader.js",

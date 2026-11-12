@@ -11267,6 +11267,11 @@
   }
 
   function setDuplicateLoading(loading, message, error = false, meta = null) {
+    if(loading && duplicateMenuOpening){
+      const total=Number(meta?.total),current=Number(meta?.current);
+      const value=total>0 && Number.isFinite(current)?Math.max(0,Math.min(100,Math.floor(current/total*100))):null;
+      document.dispatchEvent(new CustomEvent('mtprev:duplicates:progress',{detail:{value}}));
+    }
     if (loading && !state.duplicateLoadingStartedAt) state.duplicateLoadingStartedAt = Date.now();
     if (!loading) state.duplicateLoadingStartedAt = 0;
     document.querySelectorAll('.mtprev-duplicates-loading').forEach(node => {
@@ -11445,7 +11450,12 @@
     const job={scope,controller:new AbortController(),promise:null};duplicatePreload=job;
     job.promise=(async()=>{
       const started=Date.now();
-      const collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({signal:job.controller.signal,allowScroll:false});
+      const collection=await (window.MTPrevWorkspaceCache?.collect || window.SpaAdapter.collectWorkspaceRecords)({
+        signal:job.controller.signal,allowScroll:false,
+        onProgress:({count,total,rounds,pages})=>{
+          if(duplicateMenuOpening)setDuplicateLoading(true,`Lendo workspace: ${count} de ${total ?? '?'} processos…`,false,{current:count,total,rounds,pages});
+        }
+      });
       if(job.controller.signal.aborted || workspaceDuplicateCacheScope()!==scope)return;
       const report=workspaceDuplicateReport(collection,false,started);
       if(collection.reason==='complete')await saveWorkspaceDuplicateCache(scope,report);
@@ -11913,15 +11923,12 @@
       #spa-cdsp-duplicate-report-overlay .md-button.md-amber:hover:not(:disabled){background:#774f00}
       #spa-cdsp-duplicate-report-overlay .md-button:focus-visible,#spa-cdsp-duplicate-report-overlay a:focus-visible,#spa-cdsp-duplicate-report-overlay :is(input,select,summary):focus-visible{outline:3px solid #20a6c4;outline-offset:2px}
       #spa-cdsp-duplicate-report-overlay .md-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-      #spa-cdsp-duplicate-report-overlay .md-stat{display:flex;align-items:center;gap:12px;background:#fff;border-radius:12px;border:1px solid #d8e4ef;padding:14px;box-shadow:0 3px 12px rgba(31,54,83,.07);min-width:0}
-      #spa-cdsp-duplicate-report-overlay .md-stat small{display:block;color:#536d86;font-size:10.5px;font-weight:750;letter-spacing:.01em;line-height:1.3;margin-bottom:5px}
-      #spa-cdsp-duplicate-report-overlay .md-stat strong{font-size:23px;color:#223f59;font-weight:850;font-variant-numeric:tabular-nums}
-      #spa-cdsp-duplicate-report-overlay .md-stat__icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:11px;background:#e7f3fb}
-      #spa-cdsp-duplicate-report-overlay .md-stat__icon img{width:22px;height:22px;display:block;opacity:.85}
+      #spa-cdsp-duplicate-report-overlay .md-stat{display:flex;align-items:center;gap:12px;background:#233f51;border-radius:9px;border:1px solid #486779;padding:14px;box-shadow:none;min-width:0}
+      #spa-cdsp-duplicate-report-overlay .md-stat small{display:block;color:#d3e5ed;font-size:12px;font-weight:600;letter-spacing:.01em;line-height:1.3;margin-bottom:5px}
+      #spa-cdsp-duplicate-report-overlay .md-stat strong{font-size:25px;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}
+      #spa-cdsp-duplicate-report-overlay .md-stat__icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:6px;background:#1c3647}
+      #spa-cdsp-duplicate-report-overlay .md-stat__icon img{width:22px;height:22px;display:block;filter:brightness(0) saturate(100%) invert(80%) sepia(19%) saturate(760%) hue-rotate(153deg) brightness(98%) contrast(91%)}
       #spa-cdsp-duplicate-report-overlay .md-stat__copy{min-width:0}
-      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+2) .md-stat__icon{background:#e6f4f0}
-      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+3) .md-stat__icon{background:#eff0fc}
-      #spa-cdsp-duplicate-report-overlay .md-stat:nth-child(4n+4) .md-stat__icon{background:#fff2df}
       #spa-cdsp-duplicate-report-overlay .md-summary-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#577088;font-size:12px;line-height:1.45}
       #spa-cdsp-duplicate-report-overlay .md-summary-line .md-note-dot{color:#86a1b5}
       #spa-cdsp-duplicate-report-overlay .md-header__logo{width:53px;height:42px;object-fit:contain;flex-shrink:0}
@@ -12075,32 +12082,7 @@
     header.append(bulkClosure,refresh,close);sheet.appendChild(header);
     const main=el('main','md-main');
     const coverage=report.coverage || {records:[],reason:'partial'};
-    const complete=coverage.reason==='complete';
     const cardCount=coverage.count ?? coverage.records?.length ?? 0;
-    const savedDate=new Date(report.generatedAt);
-    const savedText=Number.isNaN(savedDate.getTime())?'data não informada':savedDate.toLocaleString('pt-BR');
-    const cacheInfo=report.fromCache
-      ? `Relatório salvo · ${savedText}. Atualize para consultar novamente.`
-      : report.savedToChrome
-        ? `Relatório salvo · ${savedText}. Reabrir não consulta o SPA.`
-        : complete
-          ? 'Leitura concluída · armazenamento local não confirmado.'
-          : 'Leitura parcial · relatório anterior preservado.';
-    main.appendChild(el('div','md-notice md-banner',cacheInfo));
-    const coverageInfo=el('div','md-summary-line');
-    coverageInfo.setAttribute('role','status');
-    coverageInfo.appendChild(el('span','',
-      `${complete?'Leitura completa':'Leitura parcial'}: ${cardCount}/${coverage.total ?? '?'} processos`));
-    if (Number.isFinite(Number(report.collectionDurationMs))) {
-      const duration=el('span','',`Tempo total: ${formatDuplicateDuration(report.collectionDurationMs)}`);
-      if (report.apiMetrics?.slowestPage) {
-        const m=report.apiMetrics;
-        duration.title=`Página mais lenta: ${m.slowestPage.page} (${formatDuplicateDuration(m.slowestPage.ms)}). Última página (${m.lastPage?.count ?? '?'} processos): ${formatDuplicateDuration(m.lastPage?.ms)}.`;
-      }
-      coverageInfo.append(el('span','md-note-dot','•'),duration);
-    }
-    coverageInfo.append(el('span','md-note-dot','•'),el('span','','Dados da mesa e filtros selecionados'));
-    main.appendChild(coverageInfo);
     const tabStatus=el('div','md-notice');tabStatus.setAttribute('role','status');main.appendChild(tabStatus);
     const entries=(report.groups || []).map(group=>({...group,evidence:workspaceDuplicateEvidence(group)}))
       .sort((a,b)=>b.evidence.score-a.evidence.score || String(a.processNumber).localeCompare(String(b.processNumber)));
@@ -12451,7 +12433,6 @@
       'A mesma numeração pode constar de várias tarefas sem que haja duplicidade. A pontuação compara campos disponíveis, não PDFs. '+
       'A seleção em grupo prioriza o último expediente, mas não comprova qual deve ser encerrado. “Sugerir encerramento” exige seleção de motivo e confirmação. Não há encerramento automático pela análise.'));
     sheet.appendChild(main);overlay.appendChild(sheet);document.body.appendChild(overlay);
-    tabStatus.textContent='Abertura em massa desativada para evitar sobrecarregar o navegador. Use Abrir em um expediente específico, ou selecione candidatos para revisão.';
   }
 
   function showDuplicateReport(report) {
@@ -15141,8 +15122,11 @@
     }
     setupExternalDocumentsPanel();
     window.SPA_CDSP_EXTENSION_PANEL_INITIALIZED = true;
-    if (!VISUAL_CONFIG.autosOnly) {
+    if (!VISUAL_CONFIG.autosOnly || window.sessionStorage.getItem(TRIAGE_CLASSIFICATION_ACTION_KEY) || window.sessionStorage.getItem('MTPREV_TRIAGE_CARD_HANDOFF')) {
       setTimeout(continuePendingTriageClassification, 450);
+      setTimeout(openTriageCardHandoff, 500);
+    }
+    if (!VISUAL_CONFIG.autosOnly) {
       setTimeout(continuePendingTriageTaskClosure, 650);
     }
     log("Painel carregado. Defina uma quantidade ou deixe 0/vazio para processar tudo.", "ok");
@@ -15277,22 +15261,99 @@
     return section.section;
   }
 
-  function createTriageClassificationFlow() {
-    const section = createPanelSection("Fluxo de Triagem", false);
+  function readTriageCardHandoff() {
+    const key = "MTPREV_TRIAGE_CARD_HANDOFF";
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      const draft = JSON.parse(raw);
+      if (!draft || !Number.isFinite(draft.createdAt) || Date.now() - draft.createdAt > 5 * 60 * 1000 || draft.createdAt > Date.now()) {
+        window.sessionStorage.removeItem(key);
+        return null;
+      }
+      if (String(draft.procedureId || "") !== currentProcedureId() || !currentProcedureId()) return null;
+      window.sessionStorage.removeItem(key);
+      return draft;
+    } catch (_) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+  }
+
+  function openTriageCardHandoff() {
+    const draft = readTriageCardHandoff();
+    if (!draft) return;
+    const dialog = document.createElement("dialog");
+    dialog.className = "mtprev-triage-action-dialog";
+    dialog.setAttribute("aria-label", "Triagem do processo selecionado");
+    const style = document.createElement("style");
+    style.textContent = `
+      .mtprev-triage-action-dialog{box-sizing:border-box;width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid #598299;border-radius:12px;background:#edf3f7;color:#193d50;font:13px system-ui,'Segoe UI',sans-serif;box-shadow:0 12px 42px #0b24364d;overflow:auto;}
+      .mtprev-triage-action-dialog::backdrop{background:#102c40a6;}
+      .mtprev-triage-action-header{display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(105deg,#1b3c50,#246379);color:#fff;}
+      .mtprev-triage-action-header img{width:64px;height:42px;object-fit:contain;padding:5px;border:1px solid #548da5;border-radius:9px;background:#18394c;}
+      .mtprev-triage-action-header h2{margin:0;font:750 17px system-ui;color:#fff;}
+      .mtprev-triage-action-header p{margin:4px 0 0;font-size:12px;color:#e0eff7;overflow-wrap:anywhere;}
+      .mtprev-triage-action-header button{margin-left:auto;flex-shrink:0;border:1px solid #598299;border-radius:7px;background:#233f51;color:#fff;padding:8px 12px;font:600 12px system-ui;cursor:pointer;}
+      .mtprev-triage-action-body{padding:18px;}
+      .mtprev-triage-action-intro{margin:0 0 16px;color:#4c6b7c;line-height:1.5;}
+      .mtprev-triage-action-dialog .mtprev-triage-action-form{gap:16px!important;padding:16px;border:1px solid #cfdee7;border-radius:8px;background:#f5f9fc;}
+      .mtprev-triage-action-dialog .mtprev-triage-action-label{color:#274a62!important;font:650 12px system-ui!important;}
+      .mtprev-triage-action-dialog input[type=text]{background:#fff!important;color:#254253!important;border:1px solid #aac6d6!important;border-radius:6px!important;font:400 13px system-ui!important;min-height:40px!important;padding:10px 12px!important;}
+      .mtprev-triage-action-dialog .mtprev-triage-action-menu{background:#fff!important;border-color:#aac6d6!important;}
+      .mtprev-triage-action-dialog .mtprev-triage-action-menu button{color:#254253!important;font:400 13px system-ui!important;}
+      .mtprev-triage-action-dialog .mtprev-triage-action-menu button:hover{background:#e1eff5!important;}
+      .mtprev-triage-action-dialog .mtprev-triage-office-choice{background:#fff!important;color:#254253!important;border-color:#aac6d6!important;font:500 13px system-ui!important;padding:12px!important;}
+      .mtprev-triage-action-dialog input[type=radio]{accent-color:#175e7e;}
+      .mtprev-triage-action-dialog .mtprev-triage-confirm{background:#175e7e!important;color:#fff!important;border:0!important;border-radius:7px!important;padding:12px 16px!important;font:700 13px system-ui!important;}
+      .mtprev-triage-action-dialog .mtprev-triage-confirm:disabled{background:#d9e5ec!important;color:#536d7e!important;opacity:1!important;}
+      .mtprev-triage-action-dialog :is(button,input):focus-visible{outline:2px solid #267aa3!important;outline-offset:2px;}
+      @media(max-width:500px){.mtprev-triage-action-header{gap:10px;padding:12px;}.mtprev-triage-action-header img{display:none;}.mtprev-triage-action-body{padding:12px;}}
+    `;
+    const header = document.createElement("header");
+    header.className = "mtprev-triage-action-header";
+    if (VISUAL_CONFIG.headerImageUrl) {
+      const image = document.createElement("img");image.src=VISUAL_CONFIG.headerImageUrl;image.alt="MTPrev";header.appendChild(image);
+    }
+    const title = document.createElement("div");
+    const heading = document.createElement("h2");
+    heading.textContent = "Triagem e designação";
+    const process = document.createElement("p");
+    process.textContent = "Processo " + (readCurrentProcedureProcessNumber() || draft.procedureId);
+    title.append(heading,process);header.appendChild(title);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Fechar";
+    close.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => dialog.remove(), { once: true });
+    header.appendChild(close);
+    const body = document.createElement("div");body.className="mtprev-triage-action-body";
+    const intro = document.createElement("p");intro.className="mtprev-triage-action-intro";
+    intro.textContent="Revise a manifestação e o assessor responsável. Informe se haverá ofício para habilitar a confirmação da triagem.";
+    body.append(intro,createTriageClassificationFlow(draft));
+    dialog.append(style,header,body);
+    document.body.appendChild(dialog);
+    dialog.showModal();
+  }
+
+  function createTriageClassificationFlow(draft = null) {
+    const section = createPanelSection("Fluxo de Triagem", Boolean(draft));
     const flowState = {
-      additionalInfo: "",
-      manifestation: "",
-      assessor: "",
+      additionalInfo: draft?.additionalInfo || "",
+      manifestation: TRIAGE_MANIFESTATION_OPTIONS.includes(draft?.manifestation) ? draft.manifestation : "",
+      assessor: draft?.assessor || "",
       hasOffice: "",
       officeObservation: null,
       officeAssignee: TRIAGE_DEFAULT_OFFICE_ASSIGNEE,
-      processObservation: ""
+      processObservation: draft?.processObservation || ""
     };
     const form = document.createElement("div");
+    form.className = "mtprev-triage-action-form";
     form.style.cssText = "display:grid;grid-template-columns:1fr;gap:7px;";
 
     function inputField(labelText, placeholder, optional) {
       const label = document.createElement("label");
+      label.className = "mtprev-triage-action-label";
       label.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;color:#b8c6d1;font-size:10px;font-weight:800;";
       const title = document.createElement("span");
       title.textContent = labelText + (optional ? " (opcional)" : "");
@@ -15312,10 +15373,12 @@
       const wrapper = document.createElement("div");
       wrapper.style.cssText = "display:grid;grid-template-columns:1fr;gap:4px;position:relative;";
       const title = document.createElement("div");
+      title.className = "mtprev-triage-action-label";
       title.textContent = labelText;
       title.style.cssText = "color:#b8c6d1;font-size:10px;font-weight:800;";
       const input = document.createElement("input");
       const menu = document.createElement("div");
+      menu.className = "mtprev-triage-action-menu";
       input.type = "text";
       input.autocomplete = "off";
       input.placeholder = "Pesquisar...";
@@ -15377,6 +15440,7 @@
     }
 
     const additional = inputField("Informações adicionais", "", true);
+    additional.input.value = flowState.additionalInfo;
     additional.input.addEventListener("input", () => { flowState.additionalInfo = additional.input.value; });
     form.appendChild(additional.label);
 
@@ -15384,6 +15448,7 @@
     const manifestation = searchableChoice("Manifestação Sugerida", manifestationChoices, (choice) => {
       flowState.manifestation = choice ? choice.value : "";
     });
+    manifestation.input.value = flowState.manifestation;
     form.appendChild(manifestation.wrapper);
 
     const activeAssessorChoices = [];
@@ -15393,11 +15458,13 @@
     });
     assessor.input.placeholder = "Selecione assessor ou digite nome habilitado no SPA";
     assessor.input.disabled = false;
+    assessor.input.value = flowState.assessor;
     form.appendChild(assessor.wrapper);
 
     const officeBox = document.createElement("div");
     officeBox.style.cssText = "display:grid;grid-template-columns:1fr;gap:5px;";
     const officeTitle = document.createElement("div");
+    officeTitle.className = "mtprev-triage-action-label";
     officeTitle.textContent = "Terá Ofício";
     officeTitle.style.cssText = "color:#b8c6d1;font-size:10px;font-weight:800;";
     const officeChoices = document.createElement("div");
@@ -15407,6 +15474,7 @@
       { value: "no", label: "Não" }
     ].forEach((choice) => {
       const label = document.createElement("label");
+      label.className = "mtprev-triage-office-choice";
       const input = document.createElement("input");
       const text = document.createElement("span");
       input.type = "radio";
@@ -15456,6 +15524,8 @@
       }
     }, "primary");
     classifyButton.style.width = "100%";
+    classifyButton.classList.add("mtprev-triage-confirm");
+    if (draft) classifyButton.textContent = "Confirmar triagem no SPA";
     form.appendChild(classifyButton);
 
     function canClassify() {
@@ -15533,7 +15603,7 @@
     closureForm.appendChild(closureObservationLabel);
     closureForm.appendChild(closureButton);
     closureSection.body.appendChild(closureForm);
-    section.body.appendChild(closureSection.section);
+    if (!draft) section.body.appendChild(closureSection.section);
     refresh();
     window.setTimeout(() => {
       const database = window.SPA_CDSP_TEAM_DATABASE;
@@ -15558,7 +15628,7 @@
           log(message, "error");
         });
     }, 0);
-    return section.section;
+    return draft ? form : section.section;
   }
 
   function createDeadlineControls() {

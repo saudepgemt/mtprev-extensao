@@ -4,6 +4,8 @@
 if (typeof importScripts === "function") {
   importScripts("shared/mtprev_triage_rules.js");
   importScripts("shared/mtprev_pje_individual_oauth.js");
+  importScripts("shared/audit_core.js");
+  importScripts("audit_sheets_background.js");
 }
 
 // Imported after initialization below so the watcher can reuse the PJe query.
@@ -1818,6 +1820,15 @@ async function waitForProtocolSignatureAndSubmit(tabId, initialResult, protocolP
 async function runMassiveWorkflow(tabId, config, kind) {
   const inboxUrl = normalizeRoutineUrl(config && config.targetUrl);
   const isProtocol = isProtocolScheduleStep(kind);
+  const auditBatchId=isProtocol?'rotina_'+crypto.randomUUID():'';
+  const auditStarted=new Date().toISOString();let auditResult={};
+  async function auditProtocol(phase,details={}){
+    if(!isProtocol||!globalThis.MTPrevAuditService)return;
+    try{await globalThis.MTPrevAuditService.capture('Protocolos',[{event_id:auditBatchId+'_'+phase,lote_id:auditBatchId,etapa:kind,iniciado_em:auditStarted,atualizado_em:new Date().toISOString(),origem_spa:inboxUrl,...details}]);}
+    catch(_){await logScheduled(tabId,'Não foi possível salvar o log local deste protocolo. Confira a integração com a planilha.','error').catch(()=>{});}
+  }
+  await auditProtocol('inicio',{resultado:'iniciado',evidencia:'Rotina de protocolo iniciada.'});
+  try {
   const protocolGroup = protocolScheduleGroup(kind);
   const groupedProtocolSteps =
     isProtocol && Array.isArray(config && config.steps)
@@ -1861,7 +1872,10 @@ async function runMassiveWorkflow(tabId, config, kind) {
   }
 
   await logScheduled(tabId, "Selecionando fase(s): " + stageNames.join(" + ") + ".");
+  if(isProtocol)await executeMainWorld(tabId,()=>{document.documentElement.dataset.mtprevAuditScheduled='1';}).catch(()=>{});
   let result = await selectMassivePageAndFinish(tabId, stageNames, kind, protocolPassword);
+  auditResult={...result};
+  await auditProtocol('selecao',{resultado:'iniciado',selecionados:result.selectedCount,documentos:result.totalDocuments,evidencia:'Seleção do lote e início da assinatura observados.'});
   if (isProtocol && result.signingStarted) {
     await logScheduled(
       tabId,
@@ -1871,11 +1885,23 @@ async function runMassiveWorkflow(tabId, config, kind) {
   }
   if (result.warning) await logScheduled(tabId, result.warning, "error");
   if (result.submitted) await waitForScheduledTabComplete(tabId, 90000).catch(() => null);
+  auditResult={...auditResult,...result};
+  if(isProtocol){
+    const receipt=await executeMainWorld(tabId,()=>Array.from(document.querySelectorAll('.alert-success,.alert-danger,#flash_notice,#flash_alert')).map(node=>node.textContent.trim()).join(' ').slice(0,300)).catch(()=>'');
+    await auditProtocol('resultado',globalThis.MTPrevAuditCore.protocolOutcome(auditResult,receipt));
+    void globalThis.MTPrevAuditService?.sync().catch(()=>{});
+  }
   await logScheduled(
     tabId,
     workflowLabel + " concluido para " + (result.selectedCount || 0) + " processo(s).",
     "ok"
   );
+  }catch(error){
+    await auditProtocol('erro',{...globalThis.MTPrevAuditCore?.protocolOutcome(auditResult),resultado:'falha',evidencia:'Rotina interrompida por erro; confirme os itens no SPA.'});
+    throw error;
+  }finally{
+    if(isProtocol)await executeMainWorld(tabId,()=>{delete document.documentElement.dataset.mtprevAuditScheduled;}).catch(()=>{});
+  }
 }
 
 async function runScheduledRoutine(trigger, overrideConfig) {

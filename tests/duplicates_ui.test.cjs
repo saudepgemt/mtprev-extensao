@@ -12,7 +12,7 @@ test('duplicate loading ends after failures and the report preserves an actionab
     const context=vm.createContext({
       window:{location:{pathname:'/procedures'}},
       document:{querySelectorAll:selector=>selector.includes('button')?[]:nodes,querySelector:()=>page},
-      state:{running:false},guardStart(){context.state.running=true},setStatus(){},log(){},
+      state:{running:false},duplicateMenuOpening:false,guardStart(){context.state.running=true},setStatus(){},log(){},
       normalizeLimit:x=>x,logActionLimit(){},logCustomFilters(){},workspaceDuplicateCacheScope:()=>'',duplicatePreload:null,
       CONFIG:{groupLoadTimeoutMs:100},waitProcessingDone:async()=>{},
       async setPageLength(){during=nodes.every(n=>!n.hidden)&&page['aria-busy']==='true';throw Error('fixture failure')}
